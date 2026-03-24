@@ -1,5 +1,20 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1774371772386,
+      "tag": "0000_foamy_forge",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1774371921841,
+      "tag": "0001_damp_jetstream",
+      "breakpoints": true
+    }
+  ]
 }

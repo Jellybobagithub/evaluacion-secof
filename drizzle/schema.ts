@@ -1,17 +1,17 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  float,
+  boolean,
+  json,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +25,79 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// Sucursales / Franquicias
+export const sucursales = mysqlTable("sucursales", {
+  id: int("id").autoincrement().primaryKey(),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  ciudad: varchar("ciudad", { length: 255 }),
+  estado: varchar("estado", { length: 255 }),
+  direccion: text("direccion"),
+  franquiciado: varchar("franquiciado", { length: 255 }),
+  activa: boolean("activa").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Sucursal = typeof sucursales.$inferSelect;
+export type InsertSucursal = typeof sucursales.$inferInsert;
+
+// Evaluaciones
+export const evaluaciones = mysqlTable("evaluaciones", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  evaluadorId: int("evaluadorId"),
+  evaluadorNombre: varchar("evaluadorNombre", { length: 255 }),
+  fecha: timestamp("fecha").defaultNow().notNull(),
+  estado: mysqlEnum("estado", ["borrador", "completada"]).default("borrador").notNull(),
+  // Puntuación general
+  puntosObtenidos: float("puntosObtenidos").default(0),
+  puntosMaximos: float("puntosMaximos").default(0),
+  porcentajeGeneral: float("porcentajeGeneral").default(0),
+  calificacion: varchar("calificacion", { length: 64 }),
+  // Puntuación por categoría (JSON)
+  puntuacionPorCategoria: json("puntuacionPorCategoria"),
+  // Puntuación por sección (JSON)
+  puntuacionPorSeccion: json("puntuacionPorSeccion"),
+  observacionesGenerales: text("observacionesGenerales"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Evaluacion = typeof evaluaciones.$inferSelect;
+export type InsertEvaluacion = typeof evaluaciones.$inferInsert;
+
+// Respuestas individuales de evaluación
+export const respuestas = mysqlTable("respuestas", {
+  id: int("id").autoincrement().primaryKey(),
+  evaluacionId: int("evaluacionId").notNull(),
+  puntoId: varchar("puntoId", { length: 20 }).notNull(), // e.g. "PG1", "EL3"
+  respuesta: mysqlEnum("respuesta", ["si", "no", "na"]).notNull(),
+  puntosObtenidos: float("puntosObtenidos").default(0),
+  observacion: text("observacion"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Respuesta = typeof respuestas.$inferSelect;
+export type InsertRespuesta = typeof respuestas.$inferInsert;
+
+// Plan de Acción
+export const planAccion = mysqlTable("plan_accion", {
+  id: int("id").autoincrement().primaryKey(),
+  evaluacionId: int("evaluacionId").notNull(),
+  sucursalId: int("sucursalId").notNull(),
+  area: varchar("area", { length: 255 }).notNull(),
+  queMalEsta: text("queMalEsta"),
+  objetivo: text("objetivo"),
+  causaRaiz: text("causaRaiz"),
+  comoResolver: text("comoResolver"),
+  fechaCompromiso: timestamp("fechaCompromiso"),
+  costo: float("costo").default(0),
+  responsable: varchar("responsable", { length: 255 }),
+  revisor: varchar("revisor", { length: 255 }),
+  estado: mysqlEnum("estado", ["pendiente", "en_proceso", "completado"]).default("pendiente").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PlanAccion = typeof planAccion.$inferSelect;
+export type InsertPlanAccion = typeof planAccion.$inferInsert;

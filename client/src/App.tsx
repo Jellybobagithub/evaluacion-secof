@@ -5,31 +5,36 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import Sucursales from "./pages/Sucursales";
+import SucursalDetalle from "./pages/SucursalDetalle";
+import NuevaEvaluacion from "./pages/NuevaEvaluacion";
+import EvaluacionDetalle from "./pages/EvaluacionDetalle";
+import Historial from "./pages/Historial";
+import PlanAccion from "./pages/PlanAccion";
+import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <DashboardLayout>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/sucursales" component={Sucursales} />
+        <Route path="/sucursales/:id" component={SucursalDetalle} />
+        <Route path="/evaluacion/nueva" component={NuevaEvaluacion} />
+        <Route path="/evaluacion/:id" component={EvaluacionDetalle} />
+        <Route path="/historial" component={Historial} />
+        <Route path="/plan-accion" component={PlanAccion} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </DashboardLayout>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
           <Router />
