@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Save, CheckCircle2, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, CheckCircle2, ChevronRight, Camera, X, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { SECCIONES, calcularPuntuacion, getCalificacion } from "../../../shared/evaluacionData";
 
 type RespuestaVal = "si" | "no" | "na";
-type RespuestasMap = Record<string, { respuesta: RespuestaVal; observacion: string }>;
+type RespuestasMap = Record<string, { respuesta: RespuestaVal; observacion: string; fotoUrl?: string; fotoDataUrl?: string }>;
 
 const CATEGORY_COLORS: Record<string, string> = {
   Control: "bg-blue-100 text-blue-700",
@@ -42,6 +42,8 @@ export default function NuevaEvaluacion() {
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [observacionesGenerales, setObservacionesGenerales] = useState("");
   const [respuestas, setRespuestas] = useState<RespuestasMap>({});
+  const [uploadingFoto, setUploadingFoto] = useState<string | null>(null); // puntoId being uploaded
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const createMutation = trpc.evaluaciones.create.useMutation();
@@ -66,6 +68,7 @@ export default function NuevaEvaluacion() {
       respMap[r.puntoId] = {
         respuesta: r.respuesta as RespuestaVal,
         observacion: r.observacion ?? "",
+        fotoUrl: (r as any).fotoUrl ?? undefined,
       };
     }
     setRespuestas(respMap);
@@ -97,6 +100,50 @@ export default function NuevaEvaluacion() {
 
   function setObservacion(puntoId: string, observacion: string) {
     setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], observacion, respuesta: prev[puntoId]?.respuesta ?? "no" } }));
+  }
+
+  const uploadFotoMutation = trpc.evidencia.upload.useMutation();
+  const deleteFotoMutation = trpc.evidencia.delete.useMutation();
+
+  async function handleFotoChange(puntoId: string, file: File) {
+    if (!evaluacionId) { toast.error("Guarda la evaluación primero"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("La foto no debe superar 5 MB"); return; }
+    setUploadingFoto(puntoId);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        // Preview immediately
+        setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoDataUrl: dataUrl, respuesta: prev[puntoId]?.respuesta ?? "no" } }));
+        try {
+          const { url } = await uploadFotoMutation.mutateAsync({
+            evaluacionId,
+            puntoId,
+            dataUrl,
+            mimeType: file.type || "image/jpeg",
+          });
+          setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoUrl: url, fotoDataUrl: undefined } }));
+          toast.success("Foto guardada");
+        } catch {
+          setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoDataUrl: undefined } }));
+          toast.error("Error al subir la foto");
+        } finally {
+          setUploadingFoto(null);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setUploadingFoto(null);
+      toast.error("Error al leer la foto");
+    }
+  }
+
+  async function handleRemoveFoto(puntoId: string) {
+    if (!evaluacionId) return;
+    setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoUrl: undefined, fotoDataUrl: undefined } }));
+    try {
+      await deleteFotoMutation.mutateAsync({ evaluacionId, puntoId });
+    } catch { /* silent */ }
   }
 
   async function handleStart() {
@@ -291,7 +338,7 @@ export default function NuevaEvaluacion() {
                           {punto.criterio}
                         </p>
                       )}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {(["si", "no", "na"] as RespuestaVal[]).map(r => (
                           <button
                             key={r}
@@ -316,6 +363,55 @@ export default function NuevaEvaluacion() {
                             onChange={e => setObservacion(punto.id, e.target.value)}
                             className="flex-1 h-8 text-xs"
                           />
+                        )}
+                        {/* Botón de foto opcional */}
+                        {resp && resp.respuesta !== "na" && (
+                          <div className="flex items-center gap-1.5">
+                            {resp.fotoUrl || resp.fotoDataUrl ? (
+                              <div className="flex items-center gap-1.5">
+                                <a
+                                  href={resp.fotoUrl || resp.fotoDataUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                                >
+                                  <ImageIcon className="h-3.5 w-3.5" />
+                                  Ver foto
+                                </a>
+                                <button
+                                  onClick={() => handleRemoveFoto(punto.id)}
+                                  className="text-muted-foreground hover:text-red-500 transition-colors"
+                                  title="Eliminar foto"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <input
+                                  ref={el => { fileInputRefs.current[punto.id] = el; }}
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  className="hidden"
+                                  onChange={e => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleFotoChange(punto.id, file);
+                                    e.target.value = "";
+                                  }}
+                                />
+                                <button
+                                  onClick={() => fileInputRefs.current[punto.id]?.click()}
+                                  disabled={uploadingFoto === punto.id}
+                                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded border border-dashed border-muted-foreground/30 hover:border-primary/50"
+                                  title="Agregar foto de evidencia (opcional)"
+                                >
+                                  <Camera className="h-3.5 w-3.5" />
+                                  {uploadingFoto === punto.id ? "Subiendo..." : "Foto"}
+                                </button>
+                              </>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

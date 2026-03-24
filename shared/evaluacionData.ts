@@ -21,11 +21,14 @@ export const SECCIONES: SeccionEvaluacion[] = [
     nombre: "Puntos Generales",
     puntos: [
       { id: "PG1", categoria: "Higiene", descripcion: "El establecimiento está limpio y sin evidencia visual de plaga o insectos", criterio: "No cumple si existe alguna evidencia de plaga, tales como cucarachas o ratones, así como sus desechos.", valor: 5, seccion: 1 },
-      { id: "PG2", categoria: "Imagen", descripcion: "La primera impresión en el establecimiento es de orden y una atmósfera agradable", criterio: "El personal porta el uniforme completo y limpio. Los equipos, accesorios y sabores están ordenados. El área de auto servicio bien rellenada y limpia. La música es agradable en género y volumen.", valor: 5, seccion: 1 },
-      { id: "PG3", categoria: "Control", descripcion: "En todas las ventas se entrega el ticket de venta al cliente", criterio: "Sin excepción, se registra en el sistema todas las ventas y se entrega el ticket al cliente que ordena.", valor: 5, seccion: 1 },
+      { id: "PG2", categoria: "Imagen", descripcion: "La primera impresión en el establecimiento es de orden y una atmósfera agradable", criterio: "Los equipos, accesorios y sabores están ordenados. El área de auto servicio bien rellenada y limpia. La música es agradable en género y volumen.", valor: 5, seccion: 1 },
+      // PG3 + ON1 fusionados: registro de ventas y entrega de ticket
+      { id: "PG3", categoria: "Control", descripcion: "En todas las ventas se registra en el sistema POS y se entrega el ticket al cliente", criterio: "Sin excepción, se registra en el sistema todas las ventas y se entrega el ticket al cliente que ordena. El sistema debe estar activo en todo momento.", valor: 5, seccion: 1 },
       { id: "PG4", categoria: "Hospitalidad", descripcion: "El personal fue amable, sonriente y sugiere algún sabor en especial", criterio: "Siempre, los M.E. están sonrientes, con actitud de servicio, promoviendo una venta sugestiva y ofreciendo degustación al inicio o en la entrega del Snowtea.", valor: 5, seccion: 1 },
-      { id: "PG5", categoria: "Mantenimiento", descripcion: "Todos los focos y equipos están funcionando correctamente", criterio: "A simple vista, no debe haber focos fundidos, cajas de luz en mal funcionamiento y todos los equipos operando (Droper, selladora, licuadoras, redwash y computadora).", valor: 5, seccion: 1 },
+      { id: "PG5", categoria: "Mantenimiento", descripcion: "Todos los equipos operativos están funcionando correctamente", criterio: "A simple vista, todos los equipos operando: Droper, selladora, licuadoras, Redwash y computadora. Los focos y luminarias se evalúan en la sección de Instalaciones.", valor: 5, seccion: 1 },
       { id: "PG6", categoria: "Operación", descripcion: "Se encuentran correctamente surtidas todas las materias primas", criterio: "Cuentan con el 100% de las materias primas que son necesarias para la preparación de las bebidas, que están ofertadas en el menú.", valor: 5, seccion: 1 },
+      { id: "PG7", categoria: "Control", descripcion: "Se tiene el número de teléfono de emergencia del franquiciante visible en el local", criterio: "Número de contacto de soporte Snowtea visible para el personal en caso de emergencia operativa. Puede estar en la BUOS o en un lugar visible del área de trabajo.", valor: 3, seccion: 1 },
+      { id: "PG8", categoria: "Hospitalidad", descripcion: "El tiempo de espera del cliente desde el pedido hasta la entrega es menor a 3 minutos", criterio: "Medido durante la visita de evaluación. Aplica para pedidos estándar sin personalización excesiva. Si hay fila, se mide desde que el cliente es atendido.", valor: 5, seccion: 1 },
     ],
   },
   {
@@ -40,7 +43,8 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "EL6", categoria: "Higiene", descripcion: "La terraza se encuentra limpia", criterio: "Barrida al menos 2 veces al día, libre de chicles en el piso. En el caso de tener sombrillas, estas deben ser lavadas con profundidad, al menos 1 vez a la semana.", valor: 5, seccion: 2 },
       { id: "EL7", categoria: "Higiene", descripcion: "Las mesas de la terraza se encuentran limpias", criterio: "Sin polvo y que no estén percudidas.", valor: 5, seccion: 2 },
       { id: "EL8", categoria: "Higiene", descripcion: "Los sillones o sillas de la terraza están limpias y en buenas condiciones", criterio: "Sin polvo y que no estén percudidas. Al menos se tienen que lavar profundo una vez a la semana.", valor: 5, seccion: 2 },
-      { id: "EL9", categoria: "Higiene", descripcion: "El piso de la entrada se encuentra limpio y sin manchas", criterio: "Diariamente se tiene que empezar el turno con el piso limpio y trapeado. Sin chicles pegados en el piso.", valor: 5, seccion: 2 },
+      // EL9 actualizado: se quitó referencia a chicles (ya en HO5 de higiene operativa)
+      { id: "EL9", categoria: "Higiene", descripcion: "El piso de la entrada se encuentra limpio y sin manchas", criterio: "Diariamente se tiene que empezar el turno con el piso limpio y trapeado. Sin manchas visibles ni residuos.", valor: 5, seccion: 2 },
       { id: "EL10", categoria: "Higiene", descripcion: "Los cristales y acrílicos se encuentran sin manchas y limpios", criterio: "Se encuentran sin dedos o manchas marcadas y al momento de ser limpiados, se utiliza un trapo específico para no mezclar olores ni sabores.", valor: 5, seccion: 2 },
       { id: "EL11", categoria: "Higiene", descripcion: "Los botes de basura están limpios y sin excedente de basura", criterio: "El bote debe estar limpio en todas sus partes, con bolsa de basura y sin exceso.", valor: 3, seccion: 2 },
       { id: "EL12", categoria: "Higiene", descripcion: "Se percibe un olor agradable al llegar al establecimiento", criterio: "Se debe percibir un aroma agradable. El aromatizante que se debe utilizar es Manzana-Canela.", valor: 5, seccion: 2 },
@@ -50,6 +54,8 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "EL16", categoria: "Imagen", descripcion: "Los viniles de puertas y paredes están completos y en buenas condiciones", criterio: "No existen rasgaduras o viniles descolorados.", valor: 1, seccion: 2 },
       { id: "EL17", categoria: "Imagen", descripcion: "El anuncio luminoso está prendido", criterio: "Se encuentra a todas horas prendido.", valor: 3, seccion: 2 },
       { id: "EL18", categoria: "Imagen", descripcion: "Los horarios de apertura y cierre están visibles al cliente", criterio: "Los horarios deben encontrarse cerca de la caja o en la entrada y ser respetado.", valor: 1, seccion: 2 },
+      { id: "EL19", categoria: "Imagen", descripcion: "Se cuenta con material de temporada o promocional autorizado por Snowtea", criterio: "Material vigente, en buen estado y colocado según las indicaciones del corporativo. Si no hay campaña activa, se marca N/A.", valor: 3, seccion: 2 },
+      { id: "EL20", categoria: "Higiene", descripcion: "El área de espera del cliente está libre de obstáculos y señalizada", criterio: "No hay cajas, costales ni objetos que dificulten el tránsito del cliente. El área de espera es clara y accesible.", valor: 3, seccion: 2 },
     ],
   },
   {
@@ -68,6 +74,9 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "P10", categoria: "Higiene", descripcion: "El área de producción se encuentra limpia y ordenada", criterio: "Sin residuos de alimentos, utensilios limpios y en su lugar.", valor: 5, seccion: 3 },
       { id: "P11", categoria: "Higiene", descripcion: "Los utensilios de producción están limpios y desinfectados", criterio: "Ollas, palas, coladores y demás utensilios limpios y desinfectados.", valor: 5, seccion: 3 },
       { id: "P12", categoria: "Operación", descripcion: "Se tiene el inventario de materias primas actualizado", criterio: "El inventario debe estar al día y ser congruente con lo que hay físicamente.", valor: 3, seccion: 3 },
+      { id: "P13", categoria: "Control", descripcion: "Se verifica la fecha de caducidad de las materias primas antes de usarlas", criterio: "No se utilizan materias primas vencidas. Se retiran del inventario y se reportan al franquiciante de inmediato.", valor: 5, seccion: 3 },
+      { id: "P14", categoria: "Higiene", descripcion: "Las materias primas se almacenan siguiendo el principio PEPS (Primero en Entrar, Primero en Salir)", criterio: "Los productos más antiguos están al frente y los nuevos al fondo. Aplica para refrigerador y almacén seco.", valor: 5, seccion: 3 },
+      { id: "P15", categoria: "Operación", descripcion: "Se cuenta con termómetro para verificar la temperatura del té base", criterio: "Termómetro disponible y calibrado. El té base debe enfriarse a menos de 10°C antes de refrigerar.", valor: 3, seccion: 3 },
     ],
   },
   {
@@ -91,7 +100,8 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "EQ3", categoria: "Operación", descripcion: "El Droper está limpio y funcionando correctamente", criterio: "Limpio, desinfectado y dosificando correctamente.", valor: 5, seccion: 5 },
       { id: "EQ4", categoria: "Operación", descripcion: "El sistema de cómputo (POS) está funcionando correctamente", criterio: "El sistema registra ventas, imprime tickets y funciona sin errores.", valor: 5, seccion: 5 },
       { id: "EQ5", categoria: "Mantenimiento", descripcion: "Todos los equipos tienen mantenimiento preventivo al corriente", criterio: "Registro de mantenimiento preventivo de todos los equipos.", valor: 5, seccion: 5 },
-      { id: "EQ6", categoria: "Higiene", descripcion: "Los vasos de las licuadoras se lavan correctamente después de cada uso", criterio: "Con jabón, esponja y agua caliente. Sin residuos de bebidas anteriores.", valor: 5, seccion: 5 },
+      // EQ6 mantiene (HO7 eliminado por ser duplicado)
+      { id: "EQ6", categoria: "Higiene", descripcion: "Los vasos de las licuadoras se lavan correctamente después de cada uso", criterio: "Con jabón, esponja y agua caliente. Sin residuos de bebidas anteriores. Nunca se enjuagan solo con agua.", valor: 5, seccion: 5 },
       { id: "EQ7", categoria: "Operación", descripcion: "La impresora de tickets tiene papel y funciona correctamente", criterio: "Siempre debe tener papel y estar lista para imprimir.", valor: 3, seccion: 5 },
       { id: "EQ8", categoria: "Mantenimiento", descripcion: "El refrigerador está limpio y a la temperatura correcta", criterio: "Temperatura entre 2°C y 4°C. Limpio por dentro y por fuera.", valor: 5, seccion: 5 },
       { id: "EQ9", categoria: "Operación", descripcion: "El refrigerador está organizado y con los productos bien identificados", criterio: "Productos etiquetados con nombre y fecha. Organizados por tipo.", valor: 3, seccion: 5 },
@@ -100,30 +110,37 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "EQ12", categoria: "Higiene", descripcion: "El área de equipos está limpia y ordenada", criterio: "Sin residuos, equipos en su lugar y superficies limpias.", valor: 5, seccion: 5 },
       { id: "EQ13", categoria: "Mantenimiento", descripcion: "Los cables y conexiones eléctricas están en buen estado", criterio: "Sin cables pelados, bien organizados y sin riesgo eléctrico.", valor: 3, seccion: 5 },
       { id: "EQ14", categoria: "Operación", descripcion: "Se cuenta con los accesorios necesarios para la operación (popotes, servilletas, vasos)", criterio: "Siempre debe haber suficiente inventario de accesorios para la operación del día.", valor: 5, seccion: 5 },
-      { id: "EQ15", categoria: "Operación", descripcion: "Los accesorios están organizados y en su lugar", criterio: "Popotes, servilletas, vasos y tapas organizados y accesibles.", valor: 3, seccion: 5 },
+      // EQ15 ELIMINADO (subconjunto de ON11 - organización del área de trabajo)
+      { id: "EQ16", categoria: "Mantenimiento", descripcion: "La selladora tiene el tiempo y temperatura de sellado calibrados correctamente", criterio: "Configuración según especificaciones del M.O. Se verifica con prueba de sello al inicio del turno. Un sello deficiente puede causar derrames y mala presentación.", valor: 5, seccion: 5 },
+      { id: "EQ17", categoria: "Higiene", descripcion: "El Droper se limpia y desinfecta al inicio y al final de cada turno", criterio: "Registro de limpieza del Droper en la BUOS. Sin residuos de bebidas anteriores en la boquilla ni en el cuerpo del equipo.", valor: 5, seccion: 5 },
     ],
   },
   {
     numero: 6,
     nombre: "Operación del Negocio",
     puntos: [
-      { id: "ON1", categoria: "Control", descripcion: "Se registran todas las ventas en el sistema POS", criterio: "Sin excepción, todas las ventas se registran en el sistema.", valor: 5, seccion: 6 },
+      // ON1 ELIMINADO (fusionado con PG3)
       { id: "ON2", categoria: "Control", descripcion: "El corte de caja se realiza correctamente al final del turno", criterio: "El corte de caja coincide con el sistema POS.", valor: 5, seccion: 6 },
       { id: "ON3", categoria: "Operación", descripcion: "El personal conoce el menú completo y los ingredientes de cada bebida", criterio: "Puede describir cualquier bebida del menú sin dudar.", valor: 5, seccion: 6 },
       { id: "ON4", categoria: "Operación", descripcion: "Las bebidas se elaboran siguiendo las recetas del M.O.", criterio: "Cantidades exactas de ingredientes según el M.O.", valor: 5, seccion: 6 },
       { id: "ON5", categoria: "Operación", descripcion: "Los precios del menú están actualizados y son correctos", criterio: "Los precios en el menú coinciden con los del sistema POS.", valor: 3, seccion: 6 },
       { id: "ON6", categoria: "Control", descripcion: "Se lleva el control de inventario diariamente", criterio: "Registro diario de entradas y salidas de inventario.", valor: 5, seccion: 6 },
-      { id: "ON7", categoria: "Operación", descripcion: "El personal porta el uniforme completo y limpio", criterio: "Uniforme completo según estándar Snowtea: playera, delantal, gorra.", valor: 5, seccion: 6 },
+      { id: "ON7", categoria: "Operación", descripcion: "El personal porta el uniforme completo y limpio", criterio: "Uniforme completo según estándar Snowtea: playera, delantal, gorra. Sin prendas adicionales no autorizadas.", valor: 5, seccion: 6 },
       { id: "ON8", categoria: "Higiene", descripcion: "El personal mantiene higiene personal adecuada", criterio: "Manos limpias, uñas cortas y sin esmalte, cabello recogido.", valor: 5, seccion: 6 },
-      { id: "ON9", categoria: "Operación", descripcion: "Se respetan los tiempos de elaboración de bebidas", criterio: "Las bebidas se elaboran en el tiempo indicado en el M.O.", valor: 5, seccion: 6 },
+      // ON9 mantiene (SC7 eliminado por ser duplicado)
+      { id: "ON9", categoria: "Operación", descripcion: "Se respetan los tiempos de elaboración de bebidas", criterio: "Las bebidas se elaboran en el tiempo indicado en el M.O. El cliente no debe esperar más de 3 minutos para un pedido estándar.", valor: 5, seccion: 6 },
       { id: "ON10", categoria: "Control", descripcion: "Se lleva el registro de temperaturas del refrigerador", criterio: "Registro diario de temperatura del refrigerador.", valor: 3, seccion: 6 },
-      { id: "ON11", categoria: "Operación", descripcion: "El área de trabajo está organizada para una operación eficiente", criterio: "Todo en su lugar y accesible para una operación rápida.", valor: 5, seccion: 6 },
+      // ON11 mantiene (EQ15 eliminado por ser subconjunto)
+      { id: "ON11", categoria: "Operación", descripcion: "El área de trabajo está organizada para una operación eficiente", criterio: "Todo en su lugar y accesible para una operación rápida. Incluye accesorios (popotes, servilletas, vasos), utensilios y materias primas.", valor: 5, seccion: 6 },
       { id: "ON12", categoria: "Higiene", descripcion: "Se utilizan guantes para el manejo de alimentos cuando es necesario", criterio: "Guantes limpios para manejo de tapioca y otros ingredientes.", valor: 3, seccion: 6 },
       { id: "ON13", categoria: "Operación", descripcion: "Las bebidas se presentan correctamente (vaso, tapa, popote)", criterio: "Presentación correcta según estándar Snowtea.", valor: 3, seccion: 6 },
       { id: "ON14", categoria: "Control", descripcion: "Se cuenta con el manual de operaciones actualizado y accesible", criterio: "El M.O. debe estar en el local y accesible para el personal.", valor: 5, seccion: 6 },
       { id: "ON15", categoria: "Operación", descripcion: "El personal conoce los procedimientos de emergencia", criterio: "Sabe qué hacer en caso de emergencia (incendio, accidente, etc.).", valor: 3, seccion: 6 },
       { id: "ON16", categoria: "Operación", descripcion: "Se realizan pedidos de materias primas con anticipación suficiente", criterio: "Nunca se queda sin materias primas por falta de planeación.", valor: 5, seccion: 6 },
       { id: "ON17", categoria: "Control", descripcion: "Se reportan incidencias y problemas al franquiciante", criterio: "Comunicación oportuna de cualquier problema o incidencia.", valor: 3, seccion: 6 },
+      { id: "ON18", categoria: "Control", descripcion: "Se realiza conteo físico de inventario al inicio y al cierre del turno", criterio: "Conteo registrado en la BUOS con firma del responsable. El conteo debe coincidir con el sistema POS.", valor: 5, seccion: 6 },
+      { id: "ON19", categoria: "Hospitalidad", descripcion: "El personal ofrece activamente el programa de lealtad o promociones vigentes", criterio: "Menciona el programa de lealtad o la promoción del mes a cada cliente. Si no hay programa activo, se marca N/A.", valor: 3, seccion: 6 },
+      { id: "ON20", categoria: "Operación", descripcion: "El personal conoce y puede explicar los alérgenos de las bebidas del menú", criterio: "Puede indicar qué bebidas contienen lácteos, gluten o frutos secos. Información disponible para el cliente que lo solicite.", valor: 3, seccion: 6 },
     ],
   },
   {
@@ -131,16 +148,18 @@ export const SECCIONES: SeccionEvaluacion[] = [
     nombre: "Instalaciones y Mobiliario",
     puntos: [
       { id: "IM1", categoria: "Mantenimiento", descripcion: "Las paredes y techo están en buen estado (sin grietas, manchas o humedad)", criterio: "Visualmente en buen estado, pintura en buen estado y sin humedad.", valor: 3, seccion: 7 },
-      { id: "IM2", categoria: "Mantenimiento", descripcion: "El piso está en buen estado y limpio", criterio: "Sin grietas, manchas o baldosas rotas. Limpio y sin chicles.", valor: 3, seccion: 7 },
+      // IM2 actualizado: fusionado concepto de piso interior (ya no se duplica con EL9 de entrada)
+      { id: "IM2", categoria: "Mantenimiento", descripcion: "El piso interior está en buen estado, limpio y sin chicles pegados", criterio: "Sin grietas, manchas o baldosas rotas. Limpio, trapeado y sin chicles pegados en toda el área interior del local.", valor: 3, seccion: 7 },
       { id: "IM3", categoria: "Higiene", descripcion: "El baño (si aplica) está limpio y bien equipado", criterio: "Limpio, con jabón, papel higiénico y toallas o secador.", valor: 5, seccion: 7 },
       { id: "IM4", categoria: "Mantenimiento", descripcion: "El mobiliario (mesas, sillas, barra) está en buen estado", criterio: "Sin roturas, manchas permanentes o deterioro visible.", valor: 3, seccion: 7 },
       { id: "IM5", categoria: "Imagen", descripcion: "La decoración y señalización interior está completa y en buen estado", criterio: "Todos los elementos decorativos y señalización según estándar Snowtea.", valor: 3, seccion: 7 },
-      { id: "IM6", categoria: "Mantenimiento", descripcion: "La iluminación interior es adecuada y todos los focos funcionan", criterio: "Iluminación suficiente y todos los focos en funcionamiento.", valor: 5, seccion: 7 },
+      // IM6 mantiene como único punto de iluminación (IM11 eliminado)
+      { id: "IM6", categoria: "Mantenimiento", descripcion: "La iluminación interior y exterior es adecuada y todos los focos funcionan", criterio: "Iluminación suficiente en interior y exterior. Todos los focos en funcionamiento, sin focos fundidos en techo, barra ni exteriores.", valor: 5, seccion: 7 },
       { id: "IM7", categoria: "Higiene", descripcion: "Las superficies de trabajo están limpias y desinfectadas", criterio: "Barra de atención, área de producción y todas las superficies de trabajo.", valor: 5, seccion: 7 },
       { id: "IM8", categoria: "Mantenimiento", descripcion: "No existen viniles sobrepuestos o en mal estado en el interior", criterio: "Todos los viniles en buen estado y sin superposiciones.", valor: 2, seccion: 7 },
       { id: "IM9", categoria: "Mantenimiento", descripcion: "Las salidas de agua cuentan con filtro de purificación y funciona correctamente", criterio: "Filtro instalado y en funcionamiento.", valor: 3, seccion: 7 },
       { id: "IM10", categoria: "Operación", descripcion: "Se cuenta con un 'no break' para el equipo de cómputo", criterio: "No break instalado y funcionando.", valor: 3, seccion: 7 },
-      { id: "IM11", categoria: "Mantenimiento", descripcion: "Todos los focos del techo y exteriores se encuentran funcionando debidamente", criterio: "Sin focos fundidos en interior ni exterior.", valor: 5, seccion: 7 },
+      // IM11 ELIMINADO (duplicado de IM6 - ahora fusionado en IM6)
       { id: "IM12", categoria: "Imagen", descripcion: "Se encuentran los posters de la medida y los autorizados por Snowtea", criterio: "Solo posters autorizados por Snowtea en las medidas correctas.", valor: 3, seccion: 7 },
     ],
   },
@@ -152,9 +171,12 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "HO2", categoria: "Higiene", descripcion: "Se cuenta con los productos de limpieza necesarios", criterio: "Jabón, cloro, desinfectante, trapos por área, escoba, trapeador.", valor: 3, seccion: 8 },
       { id: "HO3", categoria: "Higiene", descripcion: "Los trapos están identificados por área y se usan correctamente", criterio: "Trapos de diferentes colores por área (producción, barra, pisos).", valor: 3, seccion: 8 },
       { id: "HO4", categoria: "Higiene", descripcion: "La boquilla de la mamila del chamoy está limpia", criterio: "Limpia y sin residuos de chamoy.", valor: 5, seccion: 8 },
-      { id: "HO5", categoria: "Higiene", descripcion: "No existen residuos de chicles pegados en el suelo y barras de servicio", criterio: "Piso y barras sin chicles pegados.", valor: 5, seccion: 8 },
+      { id: "HO5", categoria: "Higiene", descripcion: "No existen residuos de chicles pegados en el suelo y barras de servicio", criterio: "Piso y barras sin chicles pegados. Se revisa tanto el área interior como la barra de atención al cliente.", valor: 5, seccion: 8 },
       { id: "HO6", categoria: "Higiene", descripcion: "Existe solución de alcohol en gel para desinfección de manos en producción", criterio: "Alcohol en gel disponible y accesible en el área de producción.", valor: 5, seccion: 8 },
-      { id: "HO7", categoria: "Operación", descripcion: "Los vasos de la licuadora son lavados con jabón y esponja según el M.O.", criterio: "Lavado correcto después de cada uso.", valor: 5, seccion: 8 },
+      // HO7 ELIMINADO (duplicado de EQ6)
+      { id: "HO8", categoria: "Higiene", descripcion: "Se realiza limpieza profunda del área de producción al menos una vez por semana", criterio: "Registro en la BUOS con fecha y responsable. Incluye limpieza de paredes, equipos, pisos y techos del área de producción.", valor: 5, seccion: 8 },
+      { id: "HO9", categoria: "Higiene", descripcion: "Los productos de limpieza están almacenados separados de los alimentos", criterio: "Nunca en el mismo espacio físico que materias primas o bebidas. Deben estar en un área designada y etiquetada.", valor: 5, seccion: 8 },
+      { id: "HO10", categoria: "Control", descripcion: "Se cuenta con un programa de limpieza semanal visible y firmado", criterio: "Programa impreso, firmado por el encargado y actualizado con las actividades de la semana en curso.", valor: 3, seccion: 8 },
     ],
   },
   {
@@ -166,10 +188,12 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "SC3", categoria: "Hospitalidad", descripcion: "Hace recomendaciones de algún sabor", criterio: "Siempre ofrece una recomendación de sabor al cliente.", valor: 5, seccion: 9 },
       { id: "SC4", categoria: "Operación", descripcion: "Informa al cliente el tipo de bebida que desea (base yogurt, chamoy, original)", criterio: "Confirma el tipo de base con el cliente.", valor: 5, seccion: 9 },
       { id: "SC5", categoria: "Hospitalidad", descripcion: "Los M.E. explican qué es la tapioca a los invitados de manera entusiasta y amable", criterio: "Explicación clara y entusiasta de la tapioca.", valor: 5, seccion: 9 },
-      { id: "SC6", categoria: "Hospitalidad", descripcion: "Ofrece constantemente degustación y las maneja de manera correcta", criterio: "Ofrece degustación al inicio y en la entrega.", valor: 5, seccion: 9 },
-      { id: "SC7", categoria: "Operación", descripcion: "Las bebidas se elaboran en el tiempo indicado según el M.O.", criterio: "Tiempo de elaboración dentro del estándar.", valor: 5, seccion: 9 },
-      { id: "SC8", categoria: "Hospitalidad", descripcion: "Al entregar la bebida, si tiene degustación de otro sabor, ¿la ofrece?", criterio: "Siempre ofrece degustación de otro sabor al entregar.", valor: 5, seccion: 9 },
+      // SC6 + SC8 fusionados en un solo punto
+      { id: "SC6", categoria: "Hospitalidad", descripcion: "Ofrece degustación al inicio de la atención y al momento de entregar la bebida", criterio: "Al inicio, ofrece degustación del sabor recomendado. Al entregar la bebida, ofrece degustación de un sabor diferente al pedido. Maneja la degustación con palito limpio y porción correcta.", valor: 5, seccion: 9 },
+      // SC7 ELIMINADO (duplicado de ON9)
       { id: "SC9", categoria: "Hospitalidad", descripcion: "Invita al cliente a regresar pronto al Snowtea", criterio: "Despedida cálida invitando al cliente a regresar.", valor: 5, seccion: 9 },
+      { id: "SC10", categoria: "Hospitalidad", descripcion: "El personal pregunta si es la primera visita del cliente y personaliza la experiencia", criterio: "Si es primera visita, explica el concepto completo (qué es Snowtea, qué es la tapioca, cómo funciona el proceso). Si es cliente frecuente, lo reconoce y lo llama por su nombre si es posible.", valor: 5, seccion: 9 },
+      { id: "SC11", categoria: "Hospitalidad", descripcion: "Ante una queja o error en el pedido, el personal actúa con el protocolo correcto", criterio: "Pide disculpas de inmediato, corrige el pedido sin costo adicional y reporta el incidente al encargado. No discute con el cliente.", valor: 5, seccion: 9 },
     ],
   },
   {
@@ -185,6 +209,7 @@ export const SECCIONES: SeccionEvaluacion[] = [
       { id: "D7", categoria: "Control", descripcion: "Se tiene al corriente la 'BUOS' Bitácora Única de Operaciones Snowtea", criterio: "BUOS al día con todas las operaciones registradas.", valor: 5, seccion: 10 },
       { id: "D8", categoria: "Control", descripcion: "La 'BUOS' se encuentra almacenada por lo menos con 6 meses de antigüedad", criterio: "Historial de al menos 6 meses en la BUOS.", valor: 3, seccion: 10 },
       { id: "D9", categoria: "Control", descripcion: "Se tiene al corriente los formatos de limpieza", criterio: "Formatos de limpieza al día y firmados.", valor: 5, seccion: 10 },
+      { id: "D10", categoria: "Control", descripcion: "Se cuenta con el contrato de franquicia vigente y accesible en el local", criterio: "Copia del contrato vigente en el local, no necesariamente a la vista del cliente pero disponible para revisión.", valor: 3, seccion: 10 },
     ],
   },
 ];
@@ -214,37 +239,28 @@ export function calcularPuntuacion(respuestasMap: Record<string, "si" | "no" | "
   let puntosObtenidos = 0;
   let puntosMaximos = 0;
   const porCategoria: Record<string, { obtenidos: number; maximos: number }> = {};
-  const porSeccion: Record<number, { obtenidos: number; maximos: number; nombre: string }> = {};
+  const porSeccion: Record<number, { obtenidos: number; maximos: number }> = {};
 
   for (const seccion of SECCIONES) {
-    porSeccion[seccion.numero] = { obtenidos: 0, maximos: 0, nombre: seccion.nombre };
+    porSeccion[seccion.numero] = { obtenidos: 0, maximos: 0 };
     for (const punto of seccion.puntos) {
-      const resp = respuestasMap[punto.id];
-      const cat = punto.categoria;
-      if (!porCategoria[cat]) porCategoria[cat] = { obtenidos: 0, maximos: 0 };
-
-      if (resp === "na") continue; // N/A no cuenta
-
+      const respuesta = respuestasMap[punto.id];
+      if (!porCategoria[punto.categoria]) {
+        porCategoria[punto.categoria] = { obtenidos: 0, maximos: 0 };
+      }
+      if (respuesta === "na") continue; // N/A excluye el punto del cálculo
       puntosMaximos += punto.valor;
-      porCategoria[cat].maximos += punto.valor;
+      porCategoria[punto.categoria].maximos += punto.valor;
       porSeccion[seccion.numero].maximos += punto.valor;
-
-      if (resp === "si") {
+      if (respuesta === "si") {
         puntosObtenidos += punto.valor;
-        porCategoria[cat].obtenidos += punto.valor;
+        porCategoria[punto.categoria].obtenidos += punto.valor;
         porSeccion[seccion.numero].obtenidos += punto.valor;
       }
     }
   }
 
   const porcentajeGeneral = puntosMaximos > 0 ? (puntosObtenidos / puntosMaximos) * 100 : 0;
-
-  return {
-    puntosObtenidos,
-    puntosMaximos,
-    porcentajeGeneral,
-    porCategoria,
-    porSeccion,
-    calificacion: getCalificacion(porcentajeGeneral),
-  };
+  const calificacion = getCalificacion(porcentajeGeneral);
+  return { puntosObtenidos, puntosMaximos, porcentajeGeneral, porCategoria, porSeccion, calificacion };
 }

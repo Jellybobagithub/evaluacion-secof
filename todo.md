@@ -92,3 +92,19 @@
 - [x] Mostrar criterio debajo de la descripción en formulario de evaluación (sin icono I)
 - [x] Arreglar continuación de evaluaciones en borrador desde historial (botón PlayCircle + carga automática)
 - [x] Agregar puntos fallidos a la exportación PDF (con observaciones, áreas de mejora y resumen visual)
+
+## Limpieza de Preguntas + Nuevas + Foto Evidencia (Mar 24 - v5)
+- [x] Eliminar IM11 (duplicado de IM6)
+- [x] Eliminar SC7 (duplicado de ON9)
+- [x] Eliminar HO7 (duplicado de EQ6)
+- [x] Eliminar EQ15 (subconjunto de ON11)
+- [x] Fusionar PG3+ON1 en un solo punto (PG3 unificado)
+- [x] Fusionar SC6+SC8 en un solo punto (SC6 unificado)
+- [x] Actualizar criterio de PG4 (quitar referencia a uniforme)
+- [x] Actualizar criterio de PG5 (delimitar a equipos, no luminarias)
+- [x] Actualizar criterio de EL9 (quitar referencia a chicles)
+- [x] Agregar 18 nuevas preguntas sugeridas (123 puntos activos totales)
+- [x] Agregar columna foto_url en tabla respuestas_evaluacion
+- [x] Backend: endpoint para subir foto a S3 y guardar URL en respuesta
+- [x] Frontend: botón de cámara opcional en cada punto del formulario (máx 5MB)
+- [x] Actualizar seed de puntos_evaluacion con los cambios (123 activos, 6 desactivados)

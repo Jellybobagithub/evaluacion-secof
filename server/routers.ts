@@ -12,6 +12,7 @@ import {
   getPuntosEvaluacion, getPuntoById, createPunto, updatePunto, togglePuntoActivo, deletePunto,
 } from "./db";
 import { calcularPuntuacion } from "../shared/evaluacionData";
+import { storagePut } from "./storage";
 
 export const appRouter = router({
   system: systemRouter,
@@ -278,6 +279,56 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
-});
 
+  // ─── Upload foto evidencia ─────────────────────────────────────────────────
+  evidencia: router({
+    upload: protectedProcedure
+      .input(z.object({
+        evaluacionId: z.number(),
+        puntoId: z.string(),
+        // Base64 data URL: "data:image/jpeg;base64,..."
+        dataUrl: z.string().min(10),
+        mimeType: z.string().default("image/jpeg"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Decode base64
+        const base64 = input.dataUrl.replace(/^data:[^;]+;base64,/, "");
+        const buffer = Buffer.from(base64, "base64");
+        const ext = input.mimeType === "image/png" ? "png" : "jpg";
+        const key = `evidencias/${input.evaluacionId}/${input.puntoId}-${Date.now()}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        // Update the respuesta row with the foto URL
+        const { getDb } = await import("./db");
+        const { respuestas } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          await db.update(respuestas)
+            .set({ fotoUrl: url })
+            .where(and(
+              eq(respuestas.evaluacionId, input.evaluacionId),
+              eq(respuestas.puntoId, input.puntoId)
+            ));
+        }
+        return { url };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ evaluacionId: z.number(), puntoId: z.string() }))
+      .mutation(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const { respuestas } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          await db.update(respuestas)
+            .set({ fotoUrl: null })
+            .where(and(
+              eq(respuestas.evaluacionId, input.evaluacionId),
+              eq(respuestas.puntoId, input.puntoId)
+            ));
+        }
+        return { success: true };
+      }),
+  }),
+});
 export type AppRouter = typeof appRouter;

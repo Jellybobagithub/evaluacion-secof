@@ -74,6 +74,7 @@ export const respuestas = mysqlTable("respuestas", {
   respuesta: mysqlEnum("respuesta", ["si", "no", "na"]).notNull(),
   puntosObtenidos: float("puntosObtenidos").default(0),
   observacion: text("observacion"),
+  fotoUrl: text("fotoUrl"),  // URL de S3 de la foto de evidencia (opcional)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
