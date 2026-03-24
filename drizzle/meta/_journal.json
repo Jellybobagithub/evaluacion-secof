@@ -15,6 +15,13 @@
       "when": 1774371921841,
       "tag": "0001_damp_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1774377489085,
+      "tag": "0002_mature_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { eq, desc, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, InsertSucursal, InsertEvaluacion, InsertRespuesta, InsertPlanAccion } from "../drizzle/schema";
+import { InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, puntosEvaluacion, InsertSucursal, InsertEvaluacion, InsertRespuesta, InsertPlanAccion, InsertPuntoEvaluacion } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -174,6 +174,53 @@ export async function deletePlanAccion(id: number) {
 }
 
 // ─── Historial Comparativo ────────────────────────────────────────────────────
+
+// ─── Puntos de Evaluación (Admin) ──────────────────────────────────────────────────
+
+export async function getPuntosEvaluacion(soloActivos = false) {
+  const db = await getDb();
+  if (!db) return [];
+  if (soloActivos) {
+    return db.select().from(puntosEvaluacion)
+      .where(eq(puntosEvaluacion.activo, true))
+      .orderBy(puntosEvaluacion.seccionNumero, puntosEvaluacion.orden);
+  }
+  return db.select().from(puntosEvaluacion)
+    .orderBy(puntosEvaluacion.seccionNumero, puntosEvaluacion.orden);
+}
+
+export async function getPuntoById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(puntosEvaluacion).where(eq(puntosEvaluacion.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createPunto(data: InsertPuntoEvaluacion) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.insert(puntosEvaluacion).values(data);
+}
+
+export async function updatePunto(id: number, data: Partial<InsertPuntoEvaluacion>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.update(puntosEvaluacion).set(data).where(eq(puntosEvaluacion.id, id));
+}
+
+export async function togglePuntoActivo(id: number, activo: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.update(puntosEvaluacion).set({ activo }).where(eq(puntosEvaluacion.id, id));
+}
+
+export async function deletePunto(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.delete(puntosEvaluacion).where(eq(puntosEvaluacion.id, id));
+}
+
+// ─── Historial Comparativo ──────────────────────────────────────────────────
 
 export async function getHistorialComparativo(sucursalId?: number, limit = 20) {
   const db = await getDb();

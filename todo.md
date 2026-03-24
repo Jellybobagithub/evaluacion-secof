@@ -74,3 +74,16 @@
 - [x] Página Comparativa: tabla resumen de todas las evaluaciones con delta vs anterior
 - [x] Página Comparativa: tarjetas de mejor y peor categoría histórica
 - [x] Integrar nueva página en sidebar de navegación
+
+## Administración de Preguntas (Mar 24 - v3)
+- [x] Agregar tabla `puntos_evaluacion` al schema de Drizzle
+- [x] Migrar los 111 puntos a la base de datos (seed)
+- [x] Helpers DB: listar, crear, actualizar, eliminar/desactivar preguntas
+- [x] Procedimientos tRPC: CRUD completo de preguntas
+- [x] Página Admin Preguntas: listado por sección con búsqueda y filtros
+- [x] Página Admin Preguntas: modal para editar pregunta (descripción, categoría, valor, sección)
+- [x] Página Admin Preguntas: agregar nueva pregunta
+- [x] Página Admin Preguntas: activar/desactivar preguntas
+- [x] Página Admin Preguntas: reordenar preguntas dentro de una sección
+- [x] Formulario de evaluación usa preguntas desde evaluacionData.ts (compatible con DB)
+- [x] Integrar en sidebar de navegación

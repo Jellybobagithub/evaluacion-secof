@@ -9,6 +9,7 @@ import {
   getRespuestasByEvaluacion, upsertRespuestas,
   getPlanAccion, createPlanAccion, updatePlanAccion, deletePlanAccion,
   getHistorialComparativo,
+  getPuntosEvaluacion, getPuntoById, createPunto, updatePunto, togglePuntoActivo, deletePunto,
 } from "./db";
 import { calcularPuntuacion } from "../shared/evaluacionData";
 
@@ -212,6 +213,70 @@ export const appRouter = router({
       await deletePlanAccion(input.id);
       return { success: true };
     }),
+  }),
+
+  // ─── Admin: Preguntas de Evaluación ──────────────────────────────────────────────────
+  adminPreguntas: router({
+    list: publicProcedure
+      .input(z.object({ soloActivos: z.boolean().optional() }))
+      .query(async ({ input }) => {
+        return getPuntosEvaluacion(input.soloActivos ?? false);
+      }),
+
+    getById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getPuntoById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        codigo: z.string().min(1).max(20),
+        seccionNumero: z.number().int().min(1).max(20),
+        seccionNombre: z.string().min(1),
+        categoria: z.enum(["Control", "Higiene", "Hospitalidad", "Imagen", "Mantenimiento", "Operación"]),
+        descripcion: z.string().min(1),
+        criterio: z.string().optional(),
+        valor: z.number().min(0).max(100),
+        orden: z.number().int().min(0).optional(),
+        activo: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await createPunto({ ...input, orden: input.orden ?? 0, activo: input.activo ?? true });
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        codigo: z.string().min(1).max(20).optional(),
+        seccionNumero: z.number().int().min(1).max(20).optional(),
+        seccionNombre: z.string().min(1).optional(),
+        categoria: z.enum(["Control", "Higiene", "Hospitalidad", "Imagen", "Mantenimiento", "Operación"]).optional(),
+        descripcion: z.string().min(1).optional(),
+        criterio: z.string().optional(),
+        valor: z.number().min(0).max(100).optional(),
+        orden: z.number().int().min(0).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updatePunto(id, data);
+        return { success: true };
+      }),
+
+    toggleActivo: protectedProcedure
+      .input(z.object({ id: z.number(), activo: z.boolean() }))
+      .mutation(async ({ input }) => {
+        await togglePuntoActivo(input.id, input.activo);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deletePunto(input.id);
+        return { success: true };
+      }),
   }),
 });
 

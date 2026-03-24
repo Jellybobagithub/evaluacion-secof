@@ -12,6 +12,7 @@ import EvaluacionDetalle from "./pages/EvaluacionDetalle";
 import Historial from "./pages/Historial";
 import PlanAccion from "./pages/PlanAccion";
 import Comparativa from "./pages/Comparativa";
+import AdminPreguntas from "./pages/AdminPreguntas";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/historial" component={Historial} />
         <Route path="/plan-accion" component={PlanAccion} />
         <Route path="/comparativa" component={Comparativa} />
+        <Route path="/admin/preguntas" component={AdminPreguntas} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

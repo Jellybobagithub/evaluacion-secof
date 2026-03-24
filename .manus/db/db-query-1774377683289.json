@@ -1,0 +1,60 @@
+{
+  "query": "SELECT seccionNumero, seccionNombre, COUNT(*) as total FROM puntos_evaluacion GROUP BY seccionNumero, seccionNombre ORDER BY seccionNumero;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute SELECT seccionNumero, seccionNombre, COUNT(*) as total FROM puntos_evaluacion GROUP BY seccionNumero, seccionNombre ORDER BY seccionNumero;",
+  "rows": [
+    {
+      "seccionNumero": "1",
+      "seccionNombre": "Puntos Generales",
+      "total": "6"
+    },
+    {
+      "seccionNumero": "2",
+      "seccionNombre": "Entrada al Local o Llegada a la Isla",
+      "total": "18"
+    },
+    {
+      "seccionNumero": "3",
+      "seccionNombre": "Producción",
+      "total": "12"
+    },
+    {
+      "seccionNumero": "4",
+      "seccionNombre": "Máquina de Hielo / Hielera",
+      "total": "6"
+    },
+    {
+      "seccionNumero": "5",
+      "seccionNombre": "Equipo",
+      "total": "15"
+    },
+    {
+      "seccionNumero": "6",
+      "seccionNombre": "Operación del Negocio",
+      "total": "17"
+    },
+    {
+      "seccionNumero": "7",
+      "seccionNombre": "Instalaciones y Mobiliario",
+      "total": "12"
+    },
+    {
+      "seccionNumero": "8",
+      "seccionNombre": "Higiene Operativa",
+      "total": "7"
+    },
+    {
+      "seccionNumero": "9",
+      "seccionNombre": "Ciclo de Servicio",
+      "total": "9"
+    },
+    {
+      "seccionNumero": "10",
+      "seccionNombre": "Documentación y Legales",
+      "total": "9"
+    }
+  ],
+  "messages": [],
+  "stdout": "seccionNumero\tseccionNombre\ttotal\n1\tPuntos Generales\t6\n2\tEntrada al Local o Llegada a la Isla\t18\n3\tProducción\t12\n4\tMáquina de Hielo / Hielera\t6\n5\tEquipo\t15\n6\tOperación del Negocio\t17\n7\tInstalaciones y Mobiliario\t12\n8\tHigiene Operativa\t7\n9\tCiclo de Servicio\t9\n10\tDocumentación y Legales\t9\n",
+  "stderr": "",
+  "execution_time_ms": 359
+}

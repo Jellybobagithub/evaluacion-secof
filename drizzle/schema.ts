@@ -101,3 +101,22 @@ export const planAccion = mysqlTable("plan_accion", {
 
 export type PlanAccion = typeof planAccion.$inferSelect;
 export type InsertPlanAccion = typeof planAccion.$inferInsert;
+
+// Puntos de Evaluación (editables por el administrador)
+export const puntosEvaluacion = mysqlTable("puntos_evaluacion", {
+  id: int("id").autoincrement().primaryKey(),
+  codigo: varchar("codigo", { length: 20 }).notNull(),       // e.g. "PG1", "EL3"
+  seccionNumero: int("seccionNumero").notNull(),              // 1-10
+  seccionNombre: varchar("seccionNombre", { length: 255 }).notNull(),
+  categoria: varchar("categoria", { length: 100 }).notNull(), // Control, Higiene, etc.
+  descripcion: text("descripcion").notNull(),
+  criterio: text("criterio"),                                // criterio de evaluación detallado
+  valor: float("valor").notNull().default(5),                // puntos máximos
+  orden: int("orden").notNull().default(0),                  // orden dentro de la sección
+  activo: boolean("activo").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PuntoEvaluacion = typeof puntosEvaluacion.$inferSelect;
+export type InsertPuntoEvaluacion = typeof puntosEvaluacion.$inferInsert;
