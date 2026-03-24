@@ -11,6 +11,7 @@ import NuevaEvaluacion from "./pages/NuevaEvaluacion";
 import EvaluacionDetalle from "./pages/EvaluacionDetalle";
 import Historial from "./pages/Historial";
 import PlanAccion from "./pages/PlanAccion";
+import Comparativa from "./pages/Comparativa";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -24,6 +25,7 @@ function Router() {
         <Route path="/evaluacion/:id" component={EvaluacionDetalle} />
         <Route path="/historial" component={Historial} />
         <Route path="/plan-accion" component={PlanAccion} />
+        <Route path="/comparativa" component={Comparativa} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

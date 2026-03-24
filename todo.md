@@ -56,3 +56,21 @@
 - [ ] Exportación a Excel con detalle completo
 - [ ] Fotos adjuntas en observaciones de puntos
 - [ ] Firma digital del evaluador
+
+## Correcciones Solicitadas (Mar 24)
+- [ ] Revisar Excel original y verificar todos los puntos de evaluación
+- [ ] Completar puntos faltantes en evaluacionData.ts
+- [ ] Mejorar exportación PDF: resumen Por Categoría
+- [ ] Mejorar exportación PDF: resumen Por Sección
+- [ ] Mejorar exportación PDF: lista completa de Puntos Fallidos con criterio
+- [ ] Mejorar exportación PDF: sección de Áreas de Mejora con recomendaciones
+
+## Comparativa y Evolución (Mar 24 - v2)
+- [x] Procedimiento tRPC: obtener historial con puntuación por categoría y sección
+- [x] Página Comparativa: gráfica de línea de tendencia general por sucursal
+- [x] Página Comparativa: gráfica de línea por cada categoría (6 líneas)
+- [x] Página Comparativa: gráfica de barras agrupadas por sección (comparar N evaluaciones)
+- [x] Página Comparativa: selector de sucursal
+- [x] Página Comparativa: tabla resumen de todas las evaluaciones con delta vs anterior
+- [x] Página Comparativa: tarjetas de mejor y peor categoría histórica
+- [x] Integrar nueva página en sidebar de navegación

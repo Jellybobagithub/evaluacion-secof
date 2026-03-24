@@ -172,3 +172,32 @@ export async function deletePlanAccion(id: number) {
   if (!db) throw new Error("DB not available");
   return db.delete(planAccion).where(eq(planAccion.id, id));
 }
+
+// ─── Historial Comparativo ────────────────────────────────────────────────────
+
+export async function getHistorialComparativo(sucursalId?: number, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  let query = db
+    .select({
+      id: evaluaciones.id,
+      sucursalId: evaluaciones.sucursalId,
+      fecha: evaluaciones.fecha,
+      evaluadorNombre: evaluaciones.evaluadorNombre,
+      puntosObtenidos: evaluaciones.puntosObtenidos,
+      puntosMaximos: evaluaciones.puntosMaximos,
+      porcentajeGeneral: evaluaciones.porcentajeGeneral,
+      calificacion: evaluaciones.calificacion,
+      puntuacionPorCategoria: evaluaciones.puntuacionPorCategoria,
+      puntuacionPorSeccion: evaluaciones.puntuacionPorSeccion,
+    })
+    .from(evaluaciones)
+    .where(
+      sucursalId
+        ? and(eq(evaluaciones.estado, "completada"), eq(evaluaciones.sucursalId, sucursalId))
+        : eq(evaluaciones.estado, "completada")
+    )
+    .orderBy(evaluaciones.fecha)
+    .limit(limit);
+  return query;
+}

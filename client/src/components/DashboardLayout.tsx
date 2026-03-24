@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Building2, ClipboardList, History, Target, PlusCircle } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Building2, ClipboardList, History, Target, PlusCircle, TrendingUp } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -32,6 +32,7 @@ const menuItems = [
   { icon: Building2, label: "Sucursales", path: "/sucursales" },
   { icon: PlusCircle, label: "Nueva Evaluación", path: "/evaluacion/nueva" },
   { icon: History, label: "Historial", path: "/historial" },
+  { icon: TrendingUp, label: "Comparativa", path: "/comparativa" },
   { icon: Target, label: "Plan de Acción", path: "/plan-accion" },
 ];
 

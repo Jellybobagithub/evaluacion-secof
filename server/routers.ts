@@ -8,6 +8,7 @@ import {
   getEvaluaciones, getEvaluacionById, createEvaluacion, updateEvaluacion, deleteEvaluacion,
   getRespuestasByEvaluacion, upsertRespuestas,
   getPlanAccion, createPlanAccion, updatePlanAccion, deletePlanAccion,
+  getHistorialComparativo,
 } from "./db";
 import { calcularPuntuacion } from "../shared/evaluacionData";
 
@@ -142,6 +143,18 @@ export const appRouter = router({
       await deleteEvaluacion(input.id);
       return { success: true };
     }),
+  }),
+
+  // ─── Historial Comparativo ─────────────────────────────────────────────────
+  historial: router({
+    comparativo: publicProcedure
+      .input(z.object({
+        sucursalId: z.number().optional(),
+        limit: z.number().min(1).max(50).optional(),
+      }))
+      .query(async ({ input }) => {
+        return getHistorialComparativo(input.sucursalId, input.limit ?? 20);
+      }),
   }),
 
   // ─── Plan de Acción ─────────────────────────────────────────────────────────
