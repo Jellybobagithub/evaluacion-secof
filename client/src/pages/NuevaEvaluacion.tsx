@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +9,27 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Save, CheckCircle2, ChevronRight, Camera, X, ImageIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, CheckCircle2, ChevronRight, Camera, X, ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { SECCIONES, calcularPuntuacion, getCalificacion } from "../../../shared/evaluacionData";
+import { SECCIONES as SECCIONES_STATIC, getCalificacion } from "../../../shared/evaluacionData";
 
 type RespuestaVal = "si" | "no" | "na";
 type RespuestasMap = Record<string, { respuesta: RespuestaVal; observacion: string; fotoUrl?: string; fotoDataUrl?: string }>;
+
+// Tipo que representa un punto de evaluación (desde DB o estático)
+type PuntoEval = {
+  id: string;        // código, ej. "PG1"
+  descripcion: string;
+  criterio?: string;
+  categoria: string;
+  valor: number;
+};
+
+type SeccionEval = {
+  numero: number;
+  nombre: string;
+  puntos: PuntoEval[];
+};
 
 const CATEGORY_COLORS: Record<string, string> = {
   Control: "bg-blue-100 text-blue-700",
@@ -22,15 +37,67 @@ const CATEGORY_COLORS: Record<string, string> = {
   Hospitalidad: "bg-purple-100 text-purple-700",
   Imagen: "bg-amber-100 text-amber-700",
   Mantenimiento: "bg-orange-100 text-orange-700",
-  Operación: "bg-indigo-100 text-indigo-700",
+  "Operación": "bg-indigo-100 text-indigo-700",
 };
+
+/** Construye secciones a partir de los puntos de la DB */
+function buildSecciones(puntos: Array<{
+  id: number; codigo: string; seccionNumero: number; seccionNombre: string;
+  categoria: string; descripcion: string; criterio?: string | null; valor: number; orden: number;
+}>): SeccionEval[] {
+  const map = new Map<number, SeccionEval>();
+  for (const p of puntos) {
+    if (!map.has(p.seccionNumero)) {
+      map.set(p.seccionNumero, { numero: p.seccionNumero, nombre: p.seccionNombre, puntos: [] });
+    }
+    map.get(p.seccionNumero)!.puntos.push({
+      id: p.codigo,
+      descripcion: p.descripcion,
+      criterio: p.criterio ?? undefined,
+      categoria: p.categoria,
+      valor: p.valor,
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => a.numero - b.numero);
+}
+
+/** Calcula puntuación dinámica a partir de las secciones y respuestas */
+function calcularPuntuacionDinamica(
+  secciones: SeccionEval[],
+  respuestasMap: Record<string, RespuestaVal>
+) {
+  let puntosObtenidos = 0;
+  let puntosMaximos = 0;
+  const porSeccion: Record<number, { obtenidos: number; maximos: number }> = {};
+  const porCategoria: Record<string, { obtenidos: number; maximos: number }> = {};
+
+  for (const seccion of secciones) {
+    let secObt = 0, secMax = 0;
+    for (const punto of seccion.puntos) {
+      const resp = respuestasMap[punto.id];
+      if (resp === "na") continue; // excluir del cálculo
+      secMax += punto.valor;
+      puntosMaximos += punto.valor;
+      if (!porCategoria[punto.categoria]) porCategoria[punto.categoria] = { obtenidos: 0, maximos: 0 };
+      porCategoria[punto.categoria].maximos += punto.valor;
+      if (resp === "si") {
+        secObt += punto.valor;
+        puntosObtenidos += punto.valor;
+        porCategoria[punto.categoria].obtenidos += punto.valor;
+      }
+    }
+    porSeccion[seccion.numero] = { obtenidos: secObt, maximos: secMax };
+  }
+
+  const porcentajeGeneral = puntosMaximos > 0 ? (puntosObtenidos / puntosMaximos) * 100 : 0;
+  return { puntosObtenidos, puntosMaximos, porcentajeGeneral, porSeccion, porCategoria };
+}
 
 export default function NuevaEvaluacion() {
   const [, setLocation] = useLocation();
   const search = useSearch();
   const params = new URLSearchParams(search);
   const sucursalIdParam = params.get("sucursalId");
-
   const evaluacionIdParam = params.get("evaluacionId");
   const continuarId = evaluacionIdParam ? parseInt(evaluacionIdParam) : null;
 
@@ -42,8 +109,33 @@ export default function NuevaEvaluacion() {
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [observacionesGenerales, setObservacionesGenerales] = useState("");
   const [respuestas, setRespuestas] = useState<RespuestasMap>({});
-  const [uploadingFoto, setUploadingFoto] = useState<string | null>(null); // puntoId being uploaded
+  const [uploadingFoto, setUploadingFoto] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // ── Cargar puntos desde la DB ─────────────────────────────────────────────
+  const { data: puntosDB, isLoading: loadingPuntos } = trpc.adminPreguntas.list.useQuery(
+    { soloActivos: true },
+    { staleTime: 5 * 60 * 1000 } // cache 5 min
+  );
+
+  // Construir secciones dinámicas; si la DB no responde, usar datos estáticos como fallback
+  const SECCIONES: SeccionEval[] = useMemo(() => {
+    if (puntosDB && puntosDB.length > 0) {
+      return buildSecciones(puntosDB as any[]);
+    }
+    // Fallback a datos estáticos
+    return SECCIONES_STATIC.map(s => ({
+      numero: s.numero,
+      nombre: s.nombre,
+      puntos: s.puntos.map(p => ({
+        id: p.id,
+        descripcion: p.descripcion,
+        criterio: p.criterio,
+        categoria: p.categoria,
+        valor: p.valor,
+      })),
+    }));
+  }, [puntosDB]);
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const createMutation = trpc.evaluaciones.create.useMutation();
@@ -57,12 +149,10 @@ export default function NuevaEvaluacion() {
 
   useEffect(() => {
     if (!borradorData || !continuarId) return;
-    // Restaurar datos del borrador
     setSucursalId(String(borradorData.sucursalId));
     setEvaluadorNombre(borradorData.evaluadorNombre ?? "");
     setFecha(new Date(borradorData.fecha).toISOString().split("T")[0]);
     setObservacionesGenerales(borradorData.observacionesGenerales ?? "");
-    // Restaurar respuestas guardadas
     const respMap: RespuestasMap = {};
     for (const r of borradorData.respuestas ?? []) {
       respMap[r.puntoId] = {
@@ -78,21 +168,20 @@ export default function NuevaEvaluacion() {
   const seccion = SECCIONES[seccionActual];
   const totalSecciones = SECCIONES.length;
 
-  // Calculate progress
-  const totalPuntos = SECCIONES.flatMap(s => s.puntos).length;
+  // Progreso
+  const allPuntos = useMemo(() => SECCIONES.flatMap(s => s.puntos), [SECCIONES]);
+  const totalPuntos = allPuntos.length;
   const respondidos = Object.keys(respuestas).length;
-  const progreso = (respondidos / totalPuntos) * 100;
-
-  // Calculate current section progress
+  const progreso = totalPuntos > 0 ? (respondidos / totalPuntos) * 100 : 0;
   const seccionRespondidos = seccion?.puntos.filter(p => respuestas[p.id]).length ?? 0;
   const seccionTotal = seccion?.puntos.length ?? 0;
 
-  // Real-time scoring
+  // Puntuación en tiempo real
   const respuestasMap: Record<string, RespuestaVal> = {};
   for (const [k, v] of Object.entries(respuestas)) {
     respuestasMap[k] = v.respuesta;
   }
-  const scoring = calcularPuntuacion(respuestasMap);
+  const scoring = calcularPuntuacionDinamica(SECCIONES, respuestasMap);
 
   function setRespuesta(puntoId: string, respuesta: RespuestaVal) {
     setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], respuesta, observacion: prev[puntoId]?.observacion ?? "" } }));
@@ -113,52 +202,33 @@ export default function NuevaEvaluacion() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
-        // Preview immediately
         setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoDataUrl: dataUrl, respuesta: prev[puntoId]?.respuesta ?? "no" } }));
         try {
-          const { url } = await uploadFotoMutation.mutateAsync({
-            evaluacionId,
-            puntoId,
-            dataUrl,
-            mimeType: file.type || "image/jpeg",
-          });
+          const { url } = await uploadFotoMutation.mutateAsync({ evaluacionId, puntoId, dataUrl, mimeType: file.type || "image/jpeg" });
           setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoUrl: url, fotoDataUrl: undefined } }));
           toast.success("Foto guardada");
         } catch {
           setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoDataUrl: undefined } }));
           toast.error("Error al subir la foto");
-        } finally {
-          setUploadingFoto(null);
-        }
+        } finally { setUploadingFoto(null); }
       };
       reader.readAsDataURL(file);
-    } catch {
-      setUploadingFoto(null);
-      toast.error("Error al leer la foto");
-    }
+    } catch { setUploadingFoto(null); toast.error("Error al leer la foto"); }
   }
 
   async function handleRemoveFoto(puntoId: string) {
     if (!evaluacionId) return;
     setRespuestas(prev => ({ ...prev, [puntoId]: { ...prev[puntoId], fotoUrl: undefined, fotoDataUrl: undefined } }));
-    try {
-      await deleteFotoMutation.mutateAsync({ evaluacionId, puntoId });
-    } catch { /* silent */ }
+    try { await deleteFotoMutation.mutateAsync({ evaluacionId, puntoId }); } catch { /* silent */ }
   }
 
   async function handleStart() {
     if (!sucursalId) { toast.error("Selecciona una sucursal"); return; }
     try {
-      const result = await createMutation.mutateAsync({
-        sucursalId: parseInt(sucursalId),
-        evaluadorNombre,
-        fecha,
-      });
+      const result = await createMutation.mutateAsync({ sucursalId: parseInt(sucursalId), evaluadorNombre, fecha });
       setEvaluacionId(result.id);
       setStep("form");
-    } catch {
-      toast.error("Error al crear la evaluación");
-    }
+    } catch { toast.error("Error al crear la evaluación"); }
   }
 
   async function handleSaveDraft() {
@@ -168,13 +238,11 @@ export default function NuevaEvaluacion() {
         puntoId,
         respuesta: v.respuesta,
         observacion: v.observacion,
-        puntosObtenidos: v.respuesta === "si" ? (SECCIONES.flatMap(s => s.puntos).find(p => p.id === puntoId)?.valor ?? 0) : 0,
+        puntosObtenidos: v.respuesta === "si" ? (allPuntos.find(p => p.id === puntoId)?.valor ?? 0) : 0,
       }));
       await saveMutation.mutateAsync({ evaluacionId, respuestas: rows, estado: "borrador", observacionesGenerales });
       toast.success("Borrador guardado");
-    } catch {
-      toast.error("Error al guardar");
-    }
+    } catch { toast.error("Error al guardar"); }
   }
 
   async function handleFinish() {
@@ -184,16 +252,15 @@ export default function NuevaEvaluacion() {
         puntoId,
         respuesta: v.respuesta,
         observacion: v.observacion,
-        puntosObtenidos: v.respuesta === "si" ? (SECCIONES.flatMap(s => s.puntos).find(p => p.id === puntoId)?.valor ?? 0) : 0,
+        puntosObtenidos: v.respuesta === "si" ? (allPuntos.find(p => p.id === puntoId)?.valor ?? 0) : 0,
       }));
       await saveMutation.mutateAsync({ evaluacionId, respuestas: rows, estado: "completada", observacionesGenerales });
       toast.success("Evaluación completada");
       setLocation(`/evaluacion/${evaluacionId}`);
-    } catch {
-      toast.error("Error al completar la evaluación");
-    }
+    } catch { toast.error("Error al completar la evaluación"); }
   }
 
+  // ── Pantalla de configuración ─────────────────────────────────────────────
   if (step === "config") {
     return (
       <div className="max-w-xl mx-auto space-y-6">
@@ -233,10 +300,14 @@ export default function NuevaEvaluacion() {
 
             <div className="bg-blue-50 rounded-lg p-4 text-sm text-blue-800">
               <p className="font-semibold mb-1">Información de la evaluación</p>
-              <p>Se evaluarán <strong>148 puntos</strong> organizados en <strong>10 secciones</strong>. Cada punto puede responderse como <strong>Sí</strong>, <strong>No</strong> o <strong>N/A</strong>.</p>
+              {loadingPuntos ? (
+                <p className="flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando preguntas...</p>
+              ) : (
+                <p>Se evaluarán <strong>{totalPuntos} puntos</strong> organizados en <strong>{totalSecciones} secciones</strong>. Cada punto puede responderse como <strong>Sí</strong>, <strong>No</strong> o <strong>N/A</strong>.</p>
+              )}
             </div>
 
-            <Button className="w-full" onClick={handleStart} disabled={createMutation.isPending}>
+            <Button className="w-full" onClick={handleStart} disabled={createMutation.isPending || loadingPuntos}>
               {createMutation.isPending ? "Creando..." : "Comenzar Evaluación"}
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
@@ -246,6 +317,7 @@ export default function NuevaEvaluacion() {
     );
   }
 
+  // ── Formulario de evaluación ──────────────────────────────────────────────
   if (step === "form") {
     return (
       <div className="space-y-4">
@@ -256,7 +328,7 @@ export default function NuevaEvaluacion() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-lg font-bold">{seccion.numero}. {seccion.nombre}</h1>
+              <h1 className="text-lg font-bold">{seccion?.numero}. {seccion?.nombre}</h1>
               <p className="text-xs text-muted-foreground">{seccionRespondidos}/{seccionTotal} puntos respondidos</p>
             </div>
           </div>
@@ -267,19 +339,17 @@ export default function NuevaEvaluacion() {
             </Button>
             {seccionActual < totalSecciones - 1 ? (
               <Button size="sm" onClick={() => setSeccionActual(s => s + 1)}>
-                Siguiente
-                <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+                Siguiente <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
               </Button>
             ) : (
               <Button size="sm" onClick={() => setStep("review")}>
-                Revisar y finalizar
-                <ChevronRight className="h-3.5 w-3.5 ml-1.5" />
+                Revisar y finalizar <ChevronRight className="h-3.5 w-3.5 ml-1.5" />
               </Button>
             )}
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Barra de progreso */}
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Progreso total: {respondidos}/{totalPuntos} puntos</span>
@@ -290,7 +360,7 @@ export default function NuevaEvaluacion() {
           <Progress value={progreso} className="h-2" />
         </div>
 
-        {/* Section tabs */}
+        {/* Tabs de secciones */}
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {SECCIONES.map((s, i) => {
             const respondidosS = s.puntos.filter(p => respuestas[p.id]).length;
@@ -314,9 +384,9 @@ export default function NuevaEvaluacion() {
           })}
         </div>
 
-        {/* Points */}
+        {/* Puntos de la sección */}
         <div className="space-y-3">
-          {seccion.puntos.map((punto, idx) => {
+          {seccion?.puntos.map((punto) => {
             const resp = respuestas[punto.id];
             return (
               <Card key={punto.id} className={`border shadow-none transition-all ${resp ? "border-border" : "border-amber-200 bg-amber-50/30"}`}>
@@ -364,7 +434,7 @@ export default function NuevaEvaluacion() {
                             className="flex-1 h-8 text-xs"
                           />
                         )}
-                        {/* Botón de foto opcional */}
+                        {/* Foto opcional de evidencia */}
                         {resp && resp.respuesta !== "na" && (
                           <div className="flex items-center gap-1.5">
                             {resp.fotoUrl || resp.fotoDataUrl ? (
@@ -422,7 +492,7 @@ export default function NuevaEvaluacion() {
           })}
         </div>
 
-        {/* Navigation bottom */}
+        {/* Navegación inferior */}
         <div className="flex justify-between pt-2">
           <Button variant="outline" onClick={() => seccionActual > 0 && setSeccionActual(s => s - 1)} disabled={seccionActual === 0}>
             <ArrowLeft className="h-4 w-4 mr-1.5" />
@@ -430,13 +500,11 @@ export default function NuevaEvaluacion() {
           </Button>
           {seccionActual < totalSecciones - 1 ? (
             <Button onClick={() => setSeccionActual(s => s + 1)}>
-              Siguiente
-              <ArrowRight className="h-4 w-4 ml-1.5" />
+              Siguiente <ArrowRight className="h-4 w-4 ml-1.5" />
             </Button>
           ) : (
             <Button onClick={() => setStep("review")}>
-              Revisar y finalizar
-              <ChevronRight className="h-4 w-4 ml-1.5" />
+              Revisar y finalizar <ChevronRight className="h-4 w-4 ml-1.5" />
             </Button>
           )}
         </div>
@@ -444,7 +512,7 @@ export default function NuevaEvaluacion() {
     );
   }
 
-  // Review step
+  // ── Revisión final ────────────────────────────────────────────────────────
   const calif = getCalificacion(scoring.porcentajeGeneral);
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -458,7 +526,7 @@ export default function NuevaEvaluacion() {
         </div>
       </div>
 
-      {/* Score card */}
+      {/* Tarjeta de calificación */}
       <Card className="border-0 shadow-sm" style={{ borderLeft: `4px solid ${calif.color}` }}>
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
@@ -476,7 +544,7 @@ export default function NuevaEvaluacion() {
         </CardContent>
       </Card>
 
-      {/* Sections summary */}
+      {/* Resumen por sección */}
       <Card className="border-0 shadow-sm bg-white">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Resumen por Sección</CardTitle>
@@ -502,7 +570,7 @@ export default function NuevaEvaluacion() {
         </CardContent>
       </Card>
 
-      {/* Observaciones */}
+      {/* Observaciones generales */}
       <Card className="border-0 shadow-sm bg-white">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Observaciones Generales</CardTitle>

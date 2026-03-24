@@ -108,3 +108,9 @@
 - [x] Backend: endpoint para subir foto a S3 y guardar URL en respuesta
 - [x] Frontend: botón de cámara opcional en cada punto del formulario (máx 5MB)
 - [x] Actualizar seed de puntos_evaluacion con los cambios (123 activos, 6 desactivados)
+
+## Formulario Dinámico desde DB (Mar 24 - v6)
+- [x] Endpoint tRPC: obtener puntos activos agrupados por sección desde puntos_evaluacion (reutiliza adminPreguntas.list)
+- [x] Formulario NuevaEvaluacion: cargar secciones y preguntas dinámicas desde DB
+- [x] Mantener compatibilidad: fallback automático a datos estáticos si la DB no responde
+- [x] Cálculo de puntuación dinámico (calcularPuntuacionDinamica) compatible con datos de DB
