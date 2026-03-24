@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation, useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Save, CheckCircle2, ChevronRight, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Save, CheckCircle2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { SECCIONES, calcularPuntuacion, getCalificacion, type PuntoEvaluacion } from "../../../shared/evaluacionData";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { SECCIONES, calcularPuntuacion, getCalificacion } from "../../../shared/evaluacionData";
 
 type RespuestaVal = "si" | "no" | "na";
 type RespuestasMap = Record<string, { respuesta: RespuestaVal; observacion: string }>;
@@ -32,9 +31,12 @@ export default function NuevaEvaluacion() {
   const params = new URLSearchParams(search);
   const sucursalIdParam = params.get("sucursalId");
 
+  const evaluacionIdParam = params.get("evaluacionId");
+  const continuarId = evaluacionIdParam ? parseInt(evaluacionIdParam) : null;
+
   const [step, setStep] = useState<"config" | "form" | "review">("config");
   const [seccionActual, setSeccionActual] = useState(0);
-  const [evaluacionId, setEvaluacionId] = useState<number | null>(null);
+  const [evaluacionId, setEvaluacionId] = useState<number | null>(continuarId);
   const [sucursalId, setSucursalId] = useState(sucursalIdParam ?? "");
   const [evaluadorNombre, setEvaluadorNombre] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
@@ -44,6 +46,31 @@ export default function NuevaEvaluacion() {
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const createMutation = trpc.evaluaciones.create.useMutation();
   const saveMutation = trpc.evaluaciones.saveRespuestas.useMutation();
+
+  // Cargar borrador si viene con evaluacionId en la URL
+  const { data: borradorData } = trpc.evaluaciones.getById.useQuery(
+    { id: continuarId! },
+    { enabled: !!continuarId }
+  );
+
+  useEffect(() => {
+    if (!borradorData || !continuarId) return;
+    // Restaurar datos del borrador
+    setSucursalId(String(borradorData.sucursalId));
+    setEvaluadorNombre(borradorData.evaluadorNombre ?? "");
+    setFecha(new Date(borradorData.fecha).toISOString().split("T")[0]);
+    setObservacionesGenerales(borradorData.observacionesGenerales ?? "");
+    // Restaurar respuestas guardadas
+    const respMap: RespuestasMap = {};
+    for (const r of borradorData.respuestas ?? []) {
+      respMap[r.puntoId] = {
+        respuesta: r.respuesta as RespuestaVal,
+        observacion: r.observacion ?? "",
+      };
+    }
+    setRespuestas(respMap);
+    setStep("form");
+  }, [borradorData, continuarId]);
 
   const seccion = SECCIONES[seccionActual];
   const totalSecciones = SECCIONES.length;
@@ -250,25 +277,20 @@ export default function NuevaEvaluacion() {
                   <div className="flex items-start gap-3">
                     <span className="text-xs font-mono text-muted-foreground mt-0.5 shrink-0 w-8">{punto.id}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-2 mb-2">
+                      <div className="flex items-start gap-2 mb-1.5">
                         <p className="text-sm font-medium flex-1">{punto.descripcion}</p>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button className="text-muted-foreground hover:text-foreground">
-                                <Info className="h-3.5 w-3.5" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-xs text-xs">
-                              {punto.criterio}
-                            </TooltipContent>
-                          </Tooltip>
                           <Badge variant="outline" className={`text-xs ${CATEGORY_COLORS[punto.categoria] ?? ""}`}>
                             {punto.categoria}
                           </Badge>
                           <Badge variant="secondary" className="text-xs">{punto.valor} pts</Badge>
                         </div>
                       </div>
+                      {punto.criterio && (
+                        <p className="text-xs text-muted-foreground mb-2 leading-relaxed border-l-2 border-muted pl-2">
+                          {punto.criterio}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2">
                         {(["si", "no", "na"] as RespuestaVal[]).map(r => (
                           <button

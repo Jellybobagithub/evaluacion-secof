@@ -87,3 +87,8 @@
 - [x] Página Admin Preguntas: reordenar preguntas dentro de una sección
 - [x] Formulario de evaluación usa preguntas desde evaluacionData.ts (compatible con DB)
 - [x] Integrar en sidebar de navegación
+
+## Correcciones UI/UX (Mar 24 - v4)
+- [x] Mostrar criterio debajo de la descripción en formulario de evaluación (sin icono I)
+- [x] Arreglar continuación de evaluaciones en borrador desde historial (botón PlayCircle + carga automática)
+- [x] Agregar puntos fallidos a la exportación PDF (con observaciones, áreas de mejora y resumen visual)

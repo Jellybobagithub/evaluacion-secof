@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, ClipboardList, Calendar, User, Trash2, Eye, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Building2, ClipboardList, Calendar, User, Trash2, Eye, TrendingUp, TrendingDown, Minus, PlayCircle } from "lucide-react";
 import { getCalificacion } from "../../../shared/evaluacionData";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -170,8 +170,19 @@ export default function Historial() {
                       )}
                       <div className="flex gap-1">
                         {ev.estado === "completada" && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setLocation(`/evaluacion/${ev.id}`)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Ver resultado" onClick={() => setLocation(`/evaluacion/${ev.id}`)}>
                             <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {ev.estado === "borrador" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Continuar evaluación"
+                            onClick={() => setLocation(`/evaluacion/nueva?evaluacionId=${ev.id}`)}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" />
                           </Button>
                         )}
                         <Button
