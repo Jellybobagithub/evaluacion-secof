@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snowtea HQ — Prototipo Sistema Integral</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --green: #2d7a4f;
+    --green-light: #3da066;
+    --green-pale: #e8f5ee;
+    --teal: #1a9e8f;
+    --teal-light: #e6f7f5;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --sidebar-w: 240px;
+    --header-h: 60px;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--gray-50); color: var(--gray-900); }
+
+  /* ── LAYOUT ── */
+  .app { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar {
+    width: var(--sidebar-w); background: #fff; border-right: 1px solid var(--gray-200);
+    display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+  }
+  .sidebar-logo {
+    padding: 20px 16px 16px; border-bottom: 1px solid var(--gray-100);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px; background: var(--green); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px;
+  }
+  .logo-text { font-weight: 700; font-size: 15px; color: var(--gray-900); line-height: 1.2; }
+  .logo-sub { font-size: 11px; color: var(--gray-500); }
+  .sidebar-section { padding: 12px 8px 4px; font-size: 10px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .8px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 1px 4px;
+    border-radius: 8px; cursor: pointer; font-size: 13.5px; color: var(--gray-700);
+    transition: background .15s, color .15s; user-select: none;
+  }
+  .nav-item:hover { background: var(--gray-100); }
+  .nav-item.active { background: var(--green-pale); color: var(--green); font-weight: 600; }
+  .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-badge {
+    margin-left: auto; background: var(--red); color: #fff;
+    font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+  }
+  .nav-badge.green { background: var(--green); }
+  .sidebar-footer {
+    margin-top: auto; padding: 12px; border-top: 1px solid var(--gray-100);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .avatar { width: 32px; height: 32px; background: var(--green); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .avatar-info { font-size: 12px; }
+  .avatar-name { font-weight: 600; color: var(--gray-900); }
+  .avatar-role { color: var(--gray-500); font-size: 11px; }
+
+  /* ── MAIN ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .topbar {
+    height: var(--header-h); background: #fff; border-bottom: 1px solid var(--gray-200);
+    display: flex; align-items: center; padding: 0 24px; gap: 12px; flex-shrink: 0;
+  }
+  .topbar-title { font-size: 16px; font-weight: 700; color: var(--gray-900); }
+  .topbar-sub { font-size: 13px; color: var(--gray-500); }
+  .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn {
+    padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: none; transition: opacity .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: var(--green); color: #fff; }
+  .btn-outline { background: #fff; color: var(--gray-700); border: 1px solid var(--gray-300); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+  /* ── SCREENS ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── CARDS ── */
+  .card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
+  .card-title { font-size: 14px; font-weight: 700; color: var(--gray-700); margin-bottom: 4px; }
+  .card-sub { font-size: 12px; color: var(--gray-500); }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
+  .kpi-label { font-size: 12px; color: var(--gray-500); font-weight: 500; margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: 800; color: var(--gray-900); line-height: 1; }
+  .kpi-delta { font-size: 12px; margin-top: 4px; }
+  .kpi-delta.up { color: var(--green); }
+  .kpi-delta.down { color: var(--red); }
+  .kpi-delta.neutral { color: var(--gray-500); }
+  .kpi-icon { float: right; font-size: 28px; margin-top: -4px; }
+
+  /* ── GRID LAYOUTS ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+
+  /* ── SEMÁFORO TABLE ── */
+  .semaforo-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .semaforo-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--gray-200); }
+  .semaforo-table td { padding: 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+  .semaforo-table tr:last-child td { border-bottom: none; }
+  .semaforo-table tr:hover td { background: var(--gray-50); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.green { background: #22c55e; }
+  .dot.yellow { background: var(--orange); }
+  .dot.red { background: var(--red); }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .status-pill.green { background: #dcfce7; color: #166534; }
+  .status-pill.yellow { background: #fef9c3; color: #854d0e; }
+  .status-pill.red { background: #fee2e2; color: #991b1b; }
+  .status-pill.blue { background: #dbeafe; color: #1e40af; }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar { height: 6px; background: var(--gray-200); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+  .progress-fill.green { background: var(--green); }
+  .progress-fill.orange { background: var(--orange); }
+  .progress-fill.red { background: var(--red); }
+  .progress-fill.blue { background: var(--blue); }
+
+  /* ── MOBILE FRAME ── */
+  .mobile-frame-wrapper { display: flex; justify-content: center; }
+  .mobile-frame {
+    width: 375px; background: #fff; border-radius: 40px;
+    box-shadow: 0 0 0 8px #1a1a1a, 0 20px 60px rgba(0,0,0,.3);
+    overflow: hidden; position: relative;
+  }
+  .mobile-status-bar { background: var(--green); color: #fff; padding: 10px 20px 8px; display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; }
+  .mobile-header { background: var(--green); color: #fff; padding: 16px 20px 20px; }
+  .mobile-header-title { font-size: 18px; font-weight: 700; }
+  .mobile-header-sub { font-size: 12px; opacity: .8; margin-top: 2px; }
+  .mobile-content { padding: 16px; background: var(--gray-50); min-height: 500px; }
+  .mobile-card { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .mobile-card-title { font-size: 13px; font-weight: 700; color: var(--gray-700); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .mobile-input { width: 100%; border: 1px solid var(--gray-300); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-bottom: 8px; }
+  .mobile-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .mobile-input-half { flex: 1; border: 1px solid var(--gray-300); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+  .mobile-label { font-size: 11px; color: var(--gray-500); font-weight: 600; margin-bottom: 4px; }
+  .mobile-btn { width: 100%; padding: 14px; background: var(--green); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+  .mobile-total { background: var(--green-pale); border-radius: 10px; padding: 12px; text-align: center; margin-bottom: 12px; }
+  .mobile-total-label { font-size: 11px; color: var(--green); font-weight: 600; }
+  .mobile-total-value { font-size: 28px; font-weight: 800; color: var(--green); }
+  .mobile-checklist-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
+  .mobile-checklist-item:last-child { border-bottom: none; }
+  .mobile-check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--gray-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .mobile-check.done { background: var(--green); border-color: var(--green); color: #fff; }
+  .mobile-check.pending { background: #fff; }
+  .mobile-check-text { font-size: 13px; color: var(--gray-700); }
+  .mobile-check-text.done { text-decoration: line-through; color: var(--gray-400); }
+  .mobile-nav { background: #fff; border-top: 1px solid var(--gray-200); display: flex; padding: 8px 0; }
+  .mobile-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--gray-500); cursor: pointer; padding: 4px 0; }
+  .mobile-nav-item.active { color: var(--green); }
+  .mobile-nav-icon { font-size: 20px; }
+
+  /* ── CHECKLIST SCREEN ── */
+  .checklist-section { margin-bottom: 16px; }
+  .checklist-section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--gray-100); border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 2px; }
+  .checklist-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fff; border-radius: 8px; margin-bottom: 2px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .check-circle { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--gray-300); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; cursor: pointer; }
+  .check-circle.done { background: var(--green); border-color: var(--green); color: #fff; }
+  .check-circle.warn { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .checklist-text { font-size: 13px; color: var(--gray-700); flex: 1; }
+  .checklist-text.done { text-decoration: line-through; color: var(--gray-400); }
+  .checklist-freq { font-size: 10px; color: var(--gray-500); background: var(--gray-100); padding: 2px 7px; border-radius: 10px; flex-shrink: 0; }
+
+  /* ── TIENDA CARD ── */
+  .tienda-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 20px; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; cursor: pointer; transition: box-shadow .15s; }
+  .tienda-card:hover { box-shadow: var(--shadow-md); }
+  .tienda-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .tienda-icon.green { background: var(--green-pale); }
+  .tienda-icon.yellow { background: #fef9c3; }
+  .tienda-icon.red { background: #fee2e2; }
+  .tienda-info { flex: 1; }
+  .tienda-name { font-size: 14px; font-weight: 700; color: var(--gray-900); }
+  .tienda-meta { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+  .tienda-metrics { display: flex; gap: 20px; }
+  .tienda-metric { text-align: right; }
+  .tienda-metric-val { font-size: 16px; font-weight: 700; color: var(--gray-900); }
+  .tienda-metric-label { font-size: 10px; color: var(--gray-500); }
+
+  /* ── PERSONAL SCREEN ── */
+  .horario-grid { display: grid; grid-template-columns: 120px repeat(7, 1fr); gap: 2px; font-size: 12px; }
+  .horario-header { background: var(--gray-100); padding: 8px 6px; text-align: center; font-weight: 600; color: var(--gray-600); border-radius: 6px; font-size: 11px; }
+  .horario-name { padding: 8px 10px; font-weight: 600; color: var(--gray-700); display: flex; align-items: center; gap: 6px; }
+  .horario-cell { padding: 6px 4px; text-align: center; border-radius: 6px; font-size: 11px; font-weight: 500; }
+  .horario-cell.caja { background: #dbeafe; color: #1e40af; }
+  .horario-cell.barra-c { background: #fce7f3; color: #9d174d; }
+  .horario-cell.barra-f { background: #d1fae5; color: #065f46; }
+  .horario-cell.limpieza { background: #fef3c7; color: #92400e; }
+  .horario-cell.libre { background: var(--gray-100); color: var(--gray-400); }
+
+  /* ── COMPARATIVA ── */
+  .ranking-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: #fff; border-radius: 10px; margin-bottom: 8px; box-shadow: var(--shadow); }
+  .ranking-pos { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+  .ranking-pos.gold { background: #fef9c3; color: #854d0e; }
+  .ranking-pos.silver { background: var(--gray-100); color: var(--gray-600); }
+  .ranking-pos.bronze { background: #ffedd5; color: #9a3412; }
+  .ranking-name { flex: 1; font-size: 14px; font-weight: 600; }
+  .ranking-score { font-size: 18px; font-weight: 800; }
+  .ranking-score.green { color: var(--green); }
+  .ranking-score.orange { color: var(--orange); }
+  .ranking-score.red { color: var(--red); }
+
+  /* ── SECOF INTEGRATION ── */
+  .secof-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .secof-badge.excelente { background: #dcfce7; color: #166534; }
+  .secof-badge.bien { background: #dbeafe; color: #1e40af; }
+  .secof-badge.regular { background: #fef9c3; color: #854d0e; }
+  .secof-badge.mal { background: #fee2e2; color: #991b1b; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--gray-100); padding: 4px; border-radius: 10px; }
+  .tab { flex: 1; padding: 8px 12px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; color: var(--gray-500); transition: all .15s; }
+  .tab.active { background: #fff; color: var(--green); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+  /* ── SECTION TITLE ── */
+  .section-title { font-size: 16px; font-weight: 700; color: var(--gray-900); margin-bottom: 4px; }
+  .section-sub { font-size: 13px; color: var(--gray-500); margin-bottom: 20px; }
+
+  /* ── ALERT BANNER ── */
+  .alert-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+  .alert-banner.red { background: #fee2e2; color: #991b1b; border-left: 3px solid var(--red); }
+  .alert-banner.yellow { background: #fef9c3; color: #854d0e; border-left: 3px solid var(--orange); }
+  .alert-banner.green { background: #dcfce7; color: #166534; border-left: 3px solid var(--green); }
+
+  /* ── CHART CONTAINER ── */
+  .chart-container { position: relative; height: 220px; }
+
+  /* ── SCREEN SWITCHER PILLS ── */
+  .view-switcher { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .view-pill { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--gray-300); color: var(--gray-600); background: #fff; transition: all .15s; }
+  .view-pill:hover { border-color: var(--green); color: var(--green); }
+  .view-pill.active { background: var(--green); color: #fff; border-color: var(--green); }
+
+  /* ── PROTOTYPE LABEL ── */
+  .proto-label { position: fixed; bottom: 16px; right: 16px; background: rgba(0,0,0,.7); color: #fff; font-size: 11px; padding: 6px 12px; border-radius: 20px; z-index: 100; pointer-events: none; }
+
+  @media (max-width: 900px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-2, .grid-2-1 { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══════════════════════════════════════════════════════ SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">ST</div>
+    <div>
+      <div class="logo-text">Snowtea HQ</div>
+      <div class="logo-sub">Sistema Integral</div>
+    </div>
+  </div>
+
+  <div class="sidebar-section">Principal</div>
+  <div class="nav-item active" onclick="showScreen('dashboard')">
+    <span class="icon">📊</span> Dashboard Admin
+  </div>
+  <div class="nav-item" onclick="showScreen('tiendas')">
+    <span class="icon">🏪</span> Tiendas
+    <span class="nav-badge green">3</span>
+  </div>
+  <div class="nav-item" onclick="showScreen('kpis')">
+    <span class="icon">📈</span> KPIs en Tiempo Real
+  </div>
+  <div class="nav-item" onclick="showScreen('comparativa')">
+    <span class="icon">⚖️</span> Comparativa
+  </div>
+
+  <div class="sidebar-section">Operación</div>
+  <div class="nav-item" onclick="showScreen('reportes')">
+    <span class="icon">📋</span> Reportes Diarios
+    <span class="nav-badge">1</span>
+  </div>
+  <div class="nav-item" onclick="showScreen('checklist')">
+    <span class="icon">✅</span> Checklist Operativo
+  </div>
+  <div class="nav-item" onclick="showScreen('inventario')">
+    <span class="icon">📦</span> Inventario
+  </div>
+
+  <div class="sidebar-section">Equipo</div>
+  <div class="nav-item" onclick="showScreen('personal')">
+    <span class="icon">👥</span> Personal y Horarios
+  </div>
+  <div class="nav-item" onclick="showScreen('asistencia')">
+    <span class="icon">🕐</span> Asistencia
+  </div>
+
+  <div class="sidebar-section">Evaluación</div>
+  <div class="nav-item" onclick="showScreen('secof')">
+    <span class="icon">⭐</span> SECOF Integrado
+  </div>
+
+  <div class="sidebar-section">Líder de Tienda</div>
+  <div class="nav-item" onclick="showScreen('movil')">
+    <span class="icon">📱</span> Vista Móvil Líder
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="avatar">JM</div>
+    <div class="avatar-info">
+      <div class="avatar-name">Jorge Moreno</div>
+      <div class="avatar-role">Administrador</div>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════ MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-title">Dashboard Administrativo</div>
+      <div class="topbar-sub" id="topbar-sub">Miércoles 25 de Marzo, 2026 — 3 tiendas activas</div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-outline btn-sm">🔔 Alertas (2)</button>
+      <button class="btn btn-primary btn-sm">+ Nueva Evaluación</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ════════════════════════════════════ SCREEN: DASHBOARD -->
+    <div class="screen active" id="screen-dashboard">
+      <div class="alert-banner red">
+        ⚠️ <strong>Tienda Carmen</strong> no ha enviado su reporte diario. Último reporte: ayer 20:45.
+        <button class="btn btn-outline btn-sm" style="margin-left:auto">Enviar recordatorio WA</button>
+      </div>
+      <div class="alert-banner yellow">
+        📦 <strong>Tienda Patio</strong> — Merma esta semana: 4.2% (límite: 3%). Requiere revisión.
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon">💰</div>
+          <div class="kpi-label">Ventas Totales Hoy</div>
+          <div class="kpi-value">$18,420</div>
+          <div class="kpi-delta up">▲ +8.3% vs ayer</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">📊</div>
+          <div class="kpi-label">Cumplimiento SECOF Prom.</div>
+          <div class="kpi-value">91.4%</div>
+          <div class="kpi-delta up">▲ +2.1% vs mes anterior</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">✅</div>
+          <div class="kpi-label">Reportes Enviados Hoy</div>
+          <div class="kpi-value">2/3</div>
+          <div class="kpi-delta down">⚠ Carmen pendiente</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon">📉</div>
+          <div class="kpi-label">Merma Promedio</div>
+          <div class="kpi-value">3.1%</div>
+          <div class="kpi-delta down">▲ +0.4% vs semana pasada</div>
+        </div>
+      </div>
+
+      <div class="grid-2-1" style="margin-bottom:20px">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Semáforo de Tiendas — Hoy</div>
+          <table class="semaforo-table">
+            <thead>
+              <tr>
+                <th>Tienda</th>
+                <th>Reporte</th>
+                <th>Ventas</th>
+                <th>SECOF</th>
+                <th>Merma</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>🏪 Patio</strong></td>
+                <td><span class="status-pill green">✓ 20:12</span></td>
+                <td><strong>$8,240</strong><br><span style="font-size:11px;color:var(--green)">▲ 105%</span></td>
+                <td><span class="secof-badge excelente">95.2%</span></td>
+                <td><span style="color:var(--red);font-weight:700">4.2% ⚠</span></td>
+                <td><span class="status-pill yellow">Atención</span></td>
+              </tr>
+              <tr>
+                <td><strong>🏪 Paseo</strong></td>
+                <td><span class="status-pill green">✓ 19:58</span></td>
+                <td><strong>$7,180</strong><br><span style="font-size:11px;color:var(--green)">▲ 102%</span></td>
+                <td><span class="secof-badge bien">91.8%</span></td>
+                <td><span style="color:var(--green);font-weight:700">2.1% ✓</span></td>
+                <td><span class="status-pill green">Bien</span></td>
+              </tr>
+              <tr>
+                <td><strong>🏪 Carmen</strong></td>
+                <td><span class="status-pill red">✗ Sin reporte</span></td>
+                <td><span style="color:var(--gray-400)">—</span></td>
+                <td><span class="secof-badge regular">87.3%</span></td>
+                <td><span style="color:var(--gray-400)">—</span></td>
+                <td><span class="status-pill red">Alerta</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Ventas Semana Actual</div>
+          <div class="chart-container">
+            <canvas id="chartVentas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">Cumplimiento SECOF</div>
+          <div class="card-sub" style="margin-bottom:12px">Última evaluación por tienda</div>
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>🏪 Patio</span><strong style="color:var(--green)">95.2%</strong></div>
+            <div class="progress-bar"><div class="progress-fill green" style="width:95.2%"></div></div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>🏪 Paseo</span><strong style="color:var(--blue)">91.8%</strong></div>
+            <div class="progress-bar"><div class="progress-fill blue" style="width:91.8%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>🏪 Carmen</span><strong style="color:var(--orange)">87.3%</strong></div>
+            <div class="progress-bar"><div class="progress-fill orange" style="width:87.3%"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Merma Semanal</div>
+          <div class="card-sub" style="margin-bottom:12px">Límite: 3% sobre ventas</div>
+          <div class="chart-container" style="height:160px">
+            <canvas id="chartMerma"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Actividad Reciente</div>
+          <div class="card-sub" style="margin-bottom:12px">Últimas acciones del sistema</div>
+          <div style="font-size:12px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <span style="color:var(--green);font-size:16px">✅</span>
+              <div><strong>Patio</strong> envió reporte diario<br><span style="color:var(--gray-500)">Hace 43 min — $8,240</span></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <span style="color:var(--blue);font-size:16px">⭐</span>
+              <div><strong>Paseo</strong> completó evaluación SECOF<br><span style="color:var(--gray-500)">Hace 2h — 91.8%</span></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <span style="color:var(--orange);font-size:16px">⚠️</span>
+              <div><strong>Patio</strong> merma supera límite<br><span style="color:var(--gray-500)">Hace 3h — 4.2%</span></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <span style="color:var(--green);font-size:16px">👤</span>
+              <div><strong>Carmen</strong> nuevo empleado registrado<br><span style="color:var(--gray-500)">Ayer — Ana García</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: TIENDAS -->
+    <div class="screen" id="screen-tiendas">
+      <div class="section-title">Gestión de Tiendas</div>
+      <div class="section-sub">3 tiendas activas — Vista general de desempeño</div>
+      <div class="tienda-card" style="border-left:4px solid var(--green)">
+        <div class="tienda-icon green">🏪</div>
+        <div class="tienda-info">
+          <div class="tienda-name">Tienda Patio</div>
+          <div class="tienda-meta">Líder: Miguel Sánchez · 4 anfitriones · Abierta desde 9:00</div>
+          <div style="margin-top:6px;display:flex;gap:8px">
+            <span class="status-pill green">Reporte enviado</span>
+            <span class="secof-badge excelente">SECOF 95.2%</span>
+          </div>
+        </div>
+        <div class="tienda-metrics">
+          <div class="tienda-metric">
+            <div class="tienda-metric-val" style="color:var(--green)">$8,240</div>
+            <div class="tienda-metric-label">Ventas hoy</div>
+          </div>
+          <div class="tienda-metric">
+            <div class="tienda-metric-val" style="color:var(--red)">4.2%</div>
+            <div class="tienda-metric-label">Merma</div>
+          </div>
+        </div>
+      </div>
+      <div class="tienda-card" style="border-left:4px solid var(--blue)">
+        <div class="tienda-icon green">🏪</div>
+        <div class="tienda-info">
+          <div class="tienda-name">Tienda Paseo</div>
+          <div class="tienda-meta">Líder: Laura Martínez · 3 anfitriones · Abierta desde 10:00</div>
+          <div style="margin-top:6px;display:flex;gap:8px">
+            <span class="status-pill green">Reporte enviado</span>
+            <span class="secof-badge bien">SECOF 91.8%</span>
+          </div>
+        </div>
+        <div class="tienda-metrics">
+          <div class="tienda-metric">
+            <div class="tienda-metric-val" style="color:var(--green)">$7,180</div>
+            <div class="tienda-metric-label">Ventas hoy</div>
+          </div>
+          <div class="tienda-metric">
+            <div class="tienda-metric-val" style="color:var(--green)">2.1%</div>
+            <div class="tienda-metric-label">Merma</div>
+          </div>
+        </div>
+      </div>
+      <div class="tienda-card" style="border-left:4px solid var(--red)">
+        <div class="tienda-icon red">🏪</div>
+        <div class="tienda-info">
+          <div class="tienda-name">Tienda Carmen</div>
+          <div class="tienda-meta">Líder: Roberto Cruz · 3 anfitriones · Estado desconocido</div>
+          <div style="margin-top:6px;display:flex;gap:8px">
+            <span class="status-pill red">Sin reporte</span>
+            <span class="secof-badge regular">SECOF 87.3%</span>
+          </div>
+        </div>
+        <div class="tienda-metrics">
+          <div class="tienda-metric">
+            <div class="tienda-metric-val" style="color:var(--gray-400)">—</div>
+            <div class="tienda-metric-label">Ventas hoy</div>
+          </div>
+          <div class="tienda-metric">
+            <div class="tienda-metric-val" style="color:var(--gray-400)">—</div>
+            <div class="tienda-metric-label">Merma</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: KPIs -->
+    <div class="screen" id="screen-kpis">
+      <div class="section-title">KPIs en Tiempo Real</div>
+      <div class="section-sub">Métricas calculadas automáticamente por tienda y nivel jerárquico</div>
+
+      <div class="tabs">
+        <div class="tab active">Administrador</div>
+        <div class="tab">Líderes de Tienda</div>
+        <div class="tab">Anfitriones</div>
+      </div>
+
+      <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+        <div class="kpi-card">
+          <div class="kpi-label">📈 Crecimiento Ventas</div>
+          <div class="kpi-value" style="color:var(--green)">+8.3%</div>
+          <div class="kpi-delta neutral">Meta: >10%</div>
+          <div style="margin-top:8px"><div class="progress-bar"><div class="progress-fill orange" style="width:83%"></div></div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">💰 Margen Neto</div>
+          <div class="kpi-value" style="color:var(--green)">24.5%</div>
+          <div class="kpi-delta up">▲ Meta: >20% ✓</div>
+          <div style="margin-top:8px"><div class="progress-bar"><div class="progress-fill green" style="width:100%"></div></div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">👷 Costo Laboral</div>
+          <div class="kpi-value" style="color:var(--orange)">21.3%</div>
+          <div class="kpi-delta down">▲ Meta: <20% ⚠</div>
+          <div style="margin-top:8px"><div class="progress-bar"><div class="progress-fill orange" style="width:106%"></div></div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">🎯 Hitos Estratégicos</div>
+          <div class="kpi-value" style="color:var(--blue)">66%</div>
+          <div class="kpi-delta neutral">2/3 completados</div>
+          <div style="margin-top:8px"><div class="progress-bar"><div class="progress-fill blue" style="width:66%"></div></div></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">👥 Retención Líderes</div>
+          <div class="kpi-value" style="color:var(--green)">100%</div>
+          <div class="kpi-delta up">▲ Meta: >90% ✓</div>
+          <div style="margin-top:8px"><div class="progress-bar"><div class="progress-fill green" style="width:100%"></div></div></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">KPIs Líderes de Tienda</div>
+          <table class="semaforo-table">
+            <thead>
+              <tr><th>Tienda</th><th>Ventas vs Meta</th><th>Merma</th><th>SECOF</th><th>Reportes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Patio</strong></td>
+                <td><span style="color:var(--green);font-weight:700">105% ✓</span></td>
+                <td><span style="color:var(--red);font-weight:700">4.2% ✗</span></td>
+                <td><span style="color:var(--green);font-weight:700">95.2% ✓</span></td>
+                <td><span style="color:var(--green);font-weight:700">100% ✓</span></td>
+              </tr>
+              <tr>
+                <td><strong>Paseo</strong></td>
+                <td><span style="color:var(--green);font-weight:700">102% ✓</span></td>
+                <td><span style="color:var(--green);font-weight:700">2.1% ✓</span></td>
+                <td><span style="color:var(--blue);font-weight:700">91.8% ✓</span></td>
+                <td><span style="color:var(--green);font-weight:700">100% ✓</span></td>
+              </tr>
+              <tr>
+                <td><strong>Carmen</strong></td>
+                <td><span style="color:var(--gray-400)">— N/D</span></td>
+                <td><span style="color:var(--gray-400)">— N/D</span></td>
+                <td><span style="color:var(--orange);font-weight:700">87.3% ⚠</span></td>
+                <td><span style="color:var(--red);font-weight:700">0% ✗</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Tendencia Ventas Mensual</div>
+          <div class="chart-container">
+            <canvas id="chartKPITendencia"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: REPORTES -->
+    <div class="screen" id="screen-reportes">
+      <div class="section-title">Reportes Diarios</div>
+      <div class="section-sub">Historial de reportes de ventas por tienda</div>
+      <div class="grid-2-1">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Reporte del Día — Tienda Patio</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+            <div style="background:var(--green-pale);border-radius:10px;padding:14px;text-align:center">
+              <div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:4px">EFECTIVO</div>
+              <div style="font-size:22px;font-weight:800;color:var(--green)">$4,820</div>
+            </div>
+            <div style="background:#dbeafe;border-radius:10px;padding:14px;text-align:center">
+              <div style="font-size:11px;color:var(--blue);font-weight:600;margin-bottom:4px">TARJETA</div>
+              <div style="font-size:22px;font-weight:800;color:var(--blue)">$3,420</div>
+            </div>
+            <div style="background:#f3f4f6;border-radius:10px;padding:14px;text-align:center">
+              <div style="font-size:11px;color:var(--gray-600);font-weight:600;margin-bottom:4px">TOTAL</div>
+              <div style="font-size:22px;font-weight:800;color:var(--gray-900)">$8,240</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div>
+              <div style="font-size:11px;color:var(--gray-500);font-weight:600;margin-bottom:4px">CORTE DE CAJA</div>
+              <div style="font-size:14px;font-weight:600;color:var(--green)">✓ Cuadre perfecto ($0.00)</div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--gray-500);font-weight:600;margin-bottom:4px">ENVIADO A LAS</div>
+              <div style="font-size:14px;font-weight:600">20:12 hrs</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--gray-500);font-weight:600;margin-bottom:6px">INCIDENCIAS DEL DÍA</div>
+            <div style="background:var(--gray-50);border-radius:8px;padding:10px;font-size:13px;color:var(--gray-700)">
+              Máquina de hielo con falla menor en la tarde, se reportó a mantenimiento. Operación normal al cierre.
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:12px">Estado de Reportes Hoy</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--green-pale);border-radius:8px">
+              <span style="font-size:18px">✅</span>
+              <div><div style="font-size:13px;font-weight:700">Patio</div><div style="font-size:11px;color:var(--gray-500)">Enviado 20:12</div></div>
+              <span class="status-pill green" style="margin-left:auto">A tiempo</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--green-pale);border-radius:8px">
+              <span style="font-size:18px">✅</span>
+              <div><div style="font-size:13px;font-weight:700">Paseo</div><div style="font-size:11px;color:var(--gray-500)">Enviado 19:58</div></div>
+              <span class="status-pill green" style="margin-left:auto">A tiempo</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#fee2e2;border-radius:8px">
+              <span style="font-size:18px">❌</span>
+              <div><div style="font-size:13px;font-weight:700">Carmen</div><div style="font-size:11px;color:var(--gray-500)">Sin reporte</div></div>
+              <span class="status-pill red" style="margin-left:auto">Pendiente</span>
+            </div>
+            <button class="btn btn-primary" style="margin-top:8px;width:100%">📲 Recordatorio WA a Carmen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: CHECKLIST -->
+    <div class="screen" id="screen-checklist">
+      <div class="section-title">Checklist Operativo</div>
+      <div class="section-sub">21 flujos del Manual AD-MA-001-0 — Hoy: Miércoles 25 Mar</div>
+      <div class="grid-2">
+        <div>
+          <div class="checklist-section">
+            <div class="checklist-section-header">
+              🌅 Apertura de Tienda <span style="color:var(--green)">4/4 ✓</span>
+            </div>
+            <div class="checklist-item"><div class="check-circle done">✓</div><div class="checklist-text done">Verificar limpieza general del local</div><span class="checklist-freq">Diario</span></div>
+            <div class="checklist-item"><div class="check-circle done">✓</div><div class="checklist-text done">Encender equipos y verificar temperatura</div><span class="checklist-freq">Diario</span></div>
+            <div class="checklist-item"><div class="check-circle done">✓</div><div class="checklist-text done">Confirmar inventario crítico disponible</div><span class="checklist-freq">Diario</span></div>
+            <div class="checklist-item"><div class="check-circle done">✓</div><div class="checklist-text done">Briefing de equipo y asignación de roles</div><span class="checklist-freq">Diario</span></div>
+          </div>
+          <div class="checklist-section">
+            <div class="checklist-section-header">
+              🧹 Limpieza y Operación <span style="color:var(--orange)">2/4 ⚠</span>
+            </div>
+            <div class="checklist-item"><div class="check-circle done">✓</div><div class="checklist-text done">Limpieza de barra fría y caliente</div><span class="checklist-freq">Diario</span></div>
+            <div class="checklist-item"><div class="check-circle done">✓</div><div class="checklist-text done">Reabastecimiento de insumos en barra</div><span class="checklist-freq">Diario</span></div>
+            <div class="checklist-item"><div class="check-circle pending"></div><div class="checklist-text">Limpieza profunda de licuadoras</div><span class="checklist-freq">Diario</span></div>
+            <div class="checklist-item"><div class="check-circle pending"></div><div class="checklist-text">Revisar y limpiar área de autoservicio</div><span class="checklist-freq">Diario</span></div>
+          </div>
+          <div class="checklist-section">
+            <div class="checklist-section-header">
+              📊 Inventario Semanal <span style="color:var(--blue)">Hoy aplica</span>
+            </div>
+            <div class="checklist-item"><div class="check-circle pending"></div><div class="checklist-text">Conteo físico: Bebidas base</div><span class="checklist-freq">Semanal</span></div>
+            <div class="checklist-item"><div class="check-circle pending"></div><div class="checklist-text">Conteo físico: Insumos y toppings</div><span class="checklist-freq">Semanal</span></div>
+            <div class="checklist-item"><div class="check-circle pending"></div><div class="checklist-text">Conteo físico: Materiales desechables</div><span class="checklist-freq">Semanal</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-title">Progreso del Día</div>
+            <div style="margin:16px 0;text-align:center">
+              <div style="font-size:42px;font-weight:800;color:var(--green)">55%</div>
+              <div style="font-size:13px;color:var(--gray-500)">6 de 11 tareas completadas</div>
+            </div>
+            <div class="progress-bar" style="height:10px"><div class="progress-fill orange" style="width:55%"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:12px">Cumplimiento por Tienda</div>
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+              <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Patio</span><strong style="color:var(--orange)">55%</strong></div>
+                <div class="progress-bar"><div class="progress-fill orange" style="width:55%"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Paseo</span><strong style="color:var(--green)">82%</strong></div>
+                <div class="progress-bar"><div class="progress-fill green" style="width:82%"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Carmen</span><strong style="color:var(--gray-400)">—</strong></div>
+                <div class="progress-bar"><div class="progress-fill" style="width:0%;background:var(--gray-300)"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: PERSONAL -->
+    <div class="screen" id="screen-personal">
+      <div class="section-title">Personal y Horarios</div>
+      <div class="section-sub">Semana del 23 al 29 de Marzo 2026 — Tienda Patio</div>
+      <div class="card" style="margin-bottom:20px;overflow-x:auto">
+        <div class="card-title" style="margin-bottom:16px">Plan de Rotación Semanal</div>
+        <div class="horario-grid">
+          <div class="horario-header">Empleado</div>
+          <div class="horario-header">Lun</div>
+          <div class="horario-header">Mar</div>
+          <div class="horario-header">Mié</div>
+          <div class="horario-header">Jue</div>
+          <div class="horario-header">Vie</div>
+          <div class="horario-header">Sáb</div>
+          <div class="horario-header">Dom</div>
+          <div class="horario-name">👤 Ana G.</div>
+          <div class="horario-cell caja">Caja</div>
+          <div class="horario-cell barra-f">Barra F</div>
+          <div class="horario-cell limpieza">Runner</div>
+          <div class="horario-cell caja">Caja</div>
+          <div class="horario-cell barra-c">Barra C</div>
+          <div class="horario-cell libre">Libre</div>
+          <div class="horario-cell barra-f">Barra F</div>
+          <div class="horario-name">👤 Luis M.</div>
+          <div class="horario-cell barra-c">Barra C</div>
+          <div class="horario-cell caja">Caja</div>
+          <div class="horario-cell barra-f">Barra F</div>
+          <div class="horario-cell libre">Libre</div>
+          <div class="horario-cell caja">Caja</div>
+          <div class="horario-cell barra-c">Barra C</div>
+          <div class="horario-cell limpieza">Runner</div>
+          <div class="horario-name">👤 Pedro R.</div>
+          <div class="horario-cell limpieza">Runner</div>
+          <div class="horario-cell barra-c">Barra C</div>
+          <div class="horario-cell caja">Caja</div>
+          <div class="horario-cell barra-f">Barra F</div>
+          <div class="horario-cell libre">Libre</div>
+          <div class="horario-cell caja">Caja</div>
+          <div class="horario-cell barra-c">Barra C</div>
+          <div class="horario-name">👤 Sara L.</div>
+          <div class="horario-cell libre">Libre</div>
+          <div class="horario-cell limpieza">Runner</div>
+          <div class="horario-cell barra-c">Barra C</div>
+          <div class="horario-cell caja">Caja</div>
+          <div class="horario-cell barra-f">Barra F</div>
+          <div class="horario-cell limpieza">Runner</div>
+          <div class="horario-cell libre">Libre</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px"><span style="width:12px;height:12px;background:#dbeafe;border-radius:3px;display:inline-block"></span>Caja</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px"><span style="width:12px;height:12px;background:#fce7f3;border-radius:3px;display:inline-block"></span>Barra Caliente</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px"><span style="width:12px;height:12px;background:#d1fae5;border-radius:3px;display:inline-block"></span>Barra Fría</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px"><span style="width:12px;height:12px;background:#fef3c7;border-radius:3px;display:inline-block"></span>Runner/Limpieza</span>
+          <span style="display:flex;align-items:center;gap:4px;font-size:11px"><span style="width:12px;height:12px;background:var(--gray-100);border-radius:3px;display:inline-block"></span>Libre</span>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:12px">Solicitudes Pendientes</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--gray-50);border-radius:8px">
+              <span>👤</span>
+              <div><strong>Ana García</strong> — Permiso Viernes 27<br><span style="color:var(--gray-500);font-size:11px">Solicitud médica — enviada hace 2h</span></div>
+              <div style="margin-left:auto;display:flex;gap:6px">
+                <button class="btn btn-outline btn-sm">✗</button>
+                <button class="btn btn-primary btn-sm">✓</button>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--gray-50);border-radius:8px">
+              <span>👤</span>
+              <div><strong>Luis Mora</strong> — Cambio turno Sábado<br><span style="color:var(--gray-500);font-size:11px">Cambio con Pedro — enviada ayer</span></div>
+              <div style="margin-left:auto;display:flex;gap:6px">
+                <button class="btn btn-outline btn-sm">✗</button>
+                <button class="btn btn-primary btn-sm">✓</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:12px">KPIs de Equipo — Marzo</div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span>Rotación de personal</span>
+              <strong style="color:var(--green)">0% ✓</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span>Horas extra usadas</span>
+              <strong style="color:var(--orange)">7/10 hrs</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span>Faltas injustificadas</span>
+              <strong style="color:var(--green)">0 ✓</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span>Puntualidad promedio</span>
+              <strong style="color:var(--green)">98% ✓</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: COMPARATIVA -->
+    <div class="screen" id="screen-comparativa">
+      <div class="section-title">Comparativa entre Tiendas</div>
+      <div class="section-sub">Ranking y análisis de desempeño — Marzo 2026</div>
+      <div class="grid-2">
+        <div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-title" style="margin-bottom:16px">🏆 Ranking General</div>
+            <div class="ranking-item">
+              <div class="ranking-pos gold">1</div>
+              <div class="ranking-name">🏪 Patio</div>
+              <div style="flex:1"><div class="progress-bar"><div class="progress-fill green" style="width:95%"></div></div></div>
+              <div class="ranking-score green">95.2%</div>
+            </div>
+            <div class="ranking-item">
+              <div class="ranking-pos silver">2</div>
+              <div class="ranking-name">🏪 Paseo</div>
+              <div style="flex:1"><div class="progress-bar"><div class="progress-fill blue" style="width:91.8%"></div></div></div>
+              <div class="ranking-score" style="color:var(--blue)">91.8%</div>
+            </div>
+            <div class="ranking-item">
+              <div class="ranking-pos bronze">3</div>
+              <div class="ranking-name">🏪 Carmen</div>
+              <div style="flex:1"><div class="progress-bar"><div class="progress-fill orange" style="width:87.3%"></div></div></div>
+              <div class="ranking-score orange">87.3%</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:16px">Ventas vs Meta — Semana Actual</div>
+            <div class="chart-container">
+              <canvas id="chartComparativa"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Radar de Desempeño por Categoría</div>
+          <div class="chart-container" style="height:300px">
+            <canvas id="chartRadarComp"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: SECOF -->
+    <div class="screen" id="screen-secof">
+      <div class="section-title">SECOF — Integrado en HQ</div>
+      <div class="section-sub">Evaluaciones operativas vinculadas al dashboard central</div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Promedio SECOF</div>
+          <div class="kpi-value" style="color:var(--green)">91.4%</div>
+          <div class="kpi-delta up">▲ +2.1% vs mes anterior</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Última Evaluación</div>
+          <div class="kpi-value" style="font-size:18px">Paseo</div>
+          <div class="kpi-delta neutral">Hace 2 días — 91.8%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Evaluaciones este mes</div>
+          <div class="kpi-value">5</div>
+          <div class="kpi-delta neutral">3 tiendas evaluadas</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Planes de Acción</div>
+          <div class="kpi-value" style="color:var(--orange)">3</div>
+          <div class="kpi-delta down">Pendientes de cierre</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Historial de Evaluaciones</div>
+          <table class="semaforo-table">
+            <thead>
+              <tr><th>Tienda</th><th>Fecha</th><th>Calificación</th><th>Nivel</th><th>Evaluador</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Paseo</strong></td>
+                <td>23 Mar</td>
+                <td><strong style="color:var(--blue)">91.8%</strong></td>
+                <td><span class="secof-badge bien">Bien</span></td>
+                <td>Jorge M.</td>
+              </tr>
+              <tr>
+                <td><strong>Patio</strong></td>
+                <td>20 Mar</td>
+                <td><strong style="color:var(--green)">95.2%</strong></td>
+                <td><span class="secof-badge excelente">Muy Bien</span></td>
+                <td>Jorge M.</td>
+              </tr>
+              <tr>
+                <td><strong>Carmen</strong></td>
+                <td>18 Mar</td>
+                <td><strong style="color:var(--orange)">87.3%</strong></td>
+                <td><span class="secof-badge regular">Regular</span></td>
+                <td>Sandra L.</td>
+              </tr>
+              <tr>
+                <td><strong>Patio</strong></td>
+                <td>6 Mar</td>
+                <td><strong style="color:var(--blue)">92.1%</strong></td>
+                <td><span class="secof-badge bien">Bien</span></td>
+                <td>Jorge M.</td>
+              </tr>
+              <tr>
+                <td><strong>Carmen</strong></td>
+                <td>4 Mar</td>
+                <td><strong style="color:var(--orange)">84.5%</strong></td>
+                <td><span class="secof-badge mal">Mal</span></td>
+                <td>Sandra L.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Áreas Críticas — Carmen (87.3%)</div>
+          <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#fee2e2;border-radius:8px">
+              <span>⚠️</span>
+              <div><strong>Higiene Operativa</strong> — 72%<br><span style="color:var(--gray-500);font-size:11px">Limpieza de equipos y área de producción</span></div>
+              <span class="status-pill red" style="margin-left:auto">Crítico</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#fef9c3;border-radius:8px">
+              <span>⚠️</span>
+              <div><strong>Ciclo de Servicio</strong> — 81%<br><span style="color:var(--gray-500);font-size:11px">Protocolo de atención al cliente</span></div>
+              <span class="status-pill yellow" style="margin-left:auto">Atención</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:#fef9c3;border-radius:8px">
+              <span>⚠️</span>
+              <div><strong>Imagen</strong> — 83%<br><span style="color:var(--gray-500);font-size:11px">Uniformes y presentación del local</span></div>
+              <span class="status-pill yellow" style="margin-left:auto">Atención</span>
+            </div>
+            <button class="btn btn-primary" style="margin-top:4px">Ver Plan de Acción →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: INVENTARIO -->
+    <div class="screen" id="screen-inventario">
+      <div class="section-title">Inventario Semanal</div>
+      <div class="section-sub">Conteo físico vs stock teórico — Semana 12, 2026</div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Resumen de Merma por Tienda</div>
+          <table class="semaforo-table">
+            <thead><tr><th>Tienda</th><th>Stock Teórico</th><th>Stock Físico</th><th>Merma</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><strong>Patio</strong></td>
+                <td>$30,500</td>
+                <td>$29,218</td>
+                <td><strong style="color:var(--red)">$1,282 (4.2%)</strong></td>
+                <td><span class="status-pill red">Alerta</span></td>
+              </tr>
+              <tr>
+                <td><strong>Paseo</strong></td>
+                <td>$24,800</td>
+                <td>$24,279</td>
+                <td><strong style="color:var(--green)">$521 (2.1%)</strong></td>
+                <td><span class="status-pill green">OK</span></td>
+              </tr>
+              <tr>
+                <td><strong>Carmen</strong></td>
+                <td>—</td>
+                <td>—</td>
+                <td>—</td>
+                <td><span class="status-pill yellow">Pendiente</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Tendencia de Merma — Patio</div>
+          <div class="chart-container">
+            <canvas id="chartInventario"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: ASISTENCIA -->
+    <div class="screen" id="screen-asistencia">
+      <div class="section-title">Control de Asistencia</div>
+      <div class="section-sub">Registros de entrada y salida — Hoy, 25 Mar 2026</div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px">Asistencia Hoy — Tienda Patio</div>
+          <table class="semaforo-table">
+            <thead><tr><th>Empleado</th><th>Entrada</th><th>Salida</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Ana García</strong></td><td>09:02</td><td>—</td><td><span class="status-pill green">A tiempo</span></td></tr>
+              <tr><td><strong>Luis Mora</strong></td><td>09:18</td><td>—</td><td><span class="status-pill yellow">Retardo</span></td></tr>
+              <tr><td><strong>Pedro Ruiz</strong></td><td>13:00</td><td>—</td><td><span class="status-pill green">A tiempo</span></td></tr>
+              <tr><td><strong>Sara López</strong></td><td>—</td><td>—</td><td><span class="status-pill blue">Libre</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:12px">KPI Puntualidad — Marzo</div>
+          <div style="text-align:center;padding:20px 0">
+            <div style="font-size:52px;font-weight:800;color:var(--green)">98%</div>
+            <div style="font-size:13px;color:var(--gray-500)">Puntualidad promedio del equipo</div>
+            <div style="margin-top:16px;display:flex;justify-content:center;gap:24px;font-size:13px">
+              <div><div style="font-weight:700;color:var(--green)">0</div><div style="color:var(--gray-500)">Faltas injust.</div></div>
+              <div><div style="font-weight:700;color:var(--orange)">2</div><div style="color:var(--gray-500)">Retardos</div></div>
+              <div><div style="font-weight:700;color:var(--green)">3</div><div style="color:var(--gray-500)">Faltas just.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════ SCREEN: MÓVIL -->
+    <div class="screen" id="screen-movil">
+      <div class="section-title">Vista Móvil — Portal Líder de Tienda</div>
+      <div class="section-sub">Así se ve la app en el celular del Líder</div>
+      <div class="view-switcher">
+        <div class="view-pill active" onclick="switchMobileView('reporte', this)">📋 Reporte Diario</div>
+        <div class="view-pill" onclick="switchMobileView('checklist', this)">✅ Checklist</div>
+        <div class="view-pill" onclick="switchMobileView('equipo', this)">👥 Mi Equipo</div>
+        <div class="view-pill" onclick="switchMobileView('kpis', this)">📊 Mis KPIs</div>
+      </div>
+      <div class="mobile-frame-wrapper">
+        <div class="mobile-frame">
+          <div class="mobile-status-bar">
+            <span>9:41</span><span>📶 🔋</span>
+          </div>
+
+          <!-- REPORTE VIEW -->
+          <div id="mobile-reporte">
+            <div class="mobile-header">
+              <div class="mobile-header-title">📋 Reporte Diario</div>
+              <div class="mobile-header-sub">Tienda Patio — Miércoles 25 Mar</div>
+            </div>
+            <div class="mobile-content">
+              <div class="mobile-card">
+                <div class="mobile-card-title">💰 Ventas del Día</div>
+                <div class="mobile-label">EFECTIVO</div>
+                <input class="mobile-input" type="number" placeholder="$0.00" value="4820">
+                <div class="mobile-label">TARJETA / TRANSFERENCIA</div>
+                <input class="mobile-input" type="number" placeholder="$0.00" value="3420">
+                <div class="mobile-total">
+                  <div class="mobile-total-label">TOTAL DEL DÍA</div>
+                  <div class="mobile-total-value">$8,240</div>
+                </div>
+              </div>
+              <div class="mobile-card">
+                <div class="mobile-card-title">🗃️ Corte de Caja</div>
+                <div class="mobile-row">
+                  <div style="flex:1">
+                    <div class="mobile-label">FONDO INICIAL</div>
+                    <input class="mobile-input-half" type="number" value="500">
+                  </div>
+                  <div style="flex:1">
+                    <div class="mobile-label">FONDO FINAL</div>
+                    <input class="mobile-input-half" type="number" value="500">
+                  </div>
+                </div>
+                <div style="background:var(--green-pale);border-radius:8px;padding:10px;text-align:center;font-size:13px;font-weight:700;color:var(--green)">
+                  ✓ Cuadre perfecto — $0.00 diferencia
+                </div>
+              </div>
+              <div class="mobile-card">
+                <div class="mobile-card-title">📝 Incidencias</div>
+                <textarea class="mobile-input" rows="3" placeholder="Describe cualquier incidencia del día...">Máquina de hielo con falla menor en la tarde.</textarea>
+              </div>
+              <button class="mobile-btn">📤 Enviar Reporte</button>
+            </div>
+          </div>
+
+          <!-- CHECKLIST VIEW -->
+          <div id="mobile-checklist" style="display:none">
+            <div class="mobile-header">
+              <div class="mobile-header-title">✅ Checklist Hoy</div>
+              <div class="mobile-header-sub">6 de 11 tareas — 55%</div>
+            </div>
+            <div class="mobile-content">
+              <div class="mobile-card">
+                <div class="mobile-card-title">🌅 Apertura</div>
+                <div class="mobile-checklist-item"><div class="mobile-check done">✓</div><div class="mobile-check-text done">Limpieza general del local</div></div>
+                <div class="mobile-checklist-item"><div class="mobile-check done">✓</div><div class="mobile-check-text done">Encender equipos</div></div>
+                <div class="mobile-checklist-item"><div class="mobile-check done">✓</div><div class="mobile-check-text done">Inventario crítico disponible</div></div>
+                <div class="mobile-checklist-item"><div class="mobile-check done">✓</div><div class="mobile-check-text done">Briefing de equipo</div></div>
+              </div>
+              <div class="mobile-card">
+                <div class="mobile-card-title">🧹 Operación</div>
+                <div class="mobile-checklist-item"><div class="mobile-check done">✓</div><div class="mobile-check-text done">Limpieza de barras</div></div>
+                <div class="mobile-checklist-item"><div class="mobile-check done">✓</div><div class="mobile-check-text done">Reabastecimiento insumos</div></div>
+                <div class="mobile-checklist-item"><div class="mobile-check pending"></div><div class="mobile-check-text">Limpieza profunda licuadoras</div></div>
+                <div class="mobile-checklist-item"><div class="mobile-check pending"></div><div class="mobile-check-text">Revisar área autoservicio</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- EQUIPO VIEW -->
+          <div id="mobile-equipo" style="display:none">
+            <div class="mobile-header">
+              <div class="mobile-header-title">👥 Mi Equipo Hoy</div>
+              <div class="mobile-header-sub">Tienda Patio — 3 activos</div>
+            </div>
+            <div class="mobile-content">
+              <div class="mobile-card">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:36px;height:36px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px">AG</div>
+                    <div style="flex:1"><div style="font-size:13px;font-weight:700">Ana García</div><div style="font-size:11px;color:var(--gray-500)">Caja · Entrada 9:02</div></div>
+                    <span class="status-pill green" style="font-size:10px">A tiempo</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:36px;height:36px;background:var(--orange);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px">LM</div>
+                    <div style="flex:1"><div style="font-size:13px;font-weight:700">Luis Mora</div><div style="font-size:11px;color:var(--gray-500)">Barra Fría · Entrada 9:18</div></div>
+                    <span class="status-pill yellow" style="font-size:10px">Retardo</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:36px;height:36px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px">PR</div>
+                    <div style="flex:1"><div style="font-size:13px;font-weight:700">Pedro Ruiz</div><div style="font-size:11px;color:var(--gray-500)">Runner · Turno tarde</div></div>
+                    <span class="status-pill green" style="font-size:10px">A tiempo</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mobile-card">
+                <div class="mobile-card-title">📋 Solicitudes</div>
+                <div style="background:#fef9c3;border-radius:8px;padding:10px;font-size:12px">
+                  <strong>Ana García</strong> solicita permiso el Viernes 27<br>
+                  <span style="color:var(--gray-500)">Motivo médico</span>
+                  <div style="display:flex;gap:8px;margin-top:8px">
+                    <button style="flex:1;padding:8px;background:var(--red);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Rechazar</button>
+                    <button style="flex:1;padding:8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Aprobar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPIs VIEW -->
+          <div id="mobile-kpis" style="display:none">
+            <div class="mobile-header">
+              <div class="mobile-header-title">📊 Mis KPIs</div>
+              <div class="mobile-header-sub">Semana 12 · Tienda Patio</div>
+            </div>
+            <div class="mobile-content">
+              <div class="mobile-card">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div style="background:var(--green-pale);border-radius:10px;padding:12px;text-align:center">
+                    <div style="font-size:10px;color:var(--green);font-weight:600">VENTAS VS META</div>
+                    <div style="font-size:24px;font-weight:800;color:var(--green)">105%</div>
+                    <div style="font-size:10px;color:var(--gray-500)">Meta: 100%</div>
+                  </div>
+                  <div style="background:#fee2e2;border-radius:10px;padding:12px;text-align:center">
+                    <div style="font-size:10px;color:var(--red);font-weight:600">MERMA</div>
+                    <div style="font-size:24px;font-weight:800;color:var(--red)">4.2%</div>
+                    <div style="font-size:10px;color:var(--gray-500)">Límite: 3%</div>
+                  </div>
+                  <div style="background:var(--green-pale);border-radius:10px;padding:12px;text-align:center">
+                    <div style="font-size:10px;color:var(--green);font-weight:600">SECOF</div>
+                    <div style="font-size:24px;font-weight:800;color:var(--green)">95.2%</div>
+                    <div style="font-size:10px;color:var(--gray-500)">Meta: >95%</div>
+                  </div>
+                  <div style="background:var(--green-pale);border-radius:10px;padding:12px;text-align:center">
+                    <div style="font-size:10px;color:var(--green);font-weight:600">REPORTES</div>
+                    <div style="font-size:24px;font-weight:800;color:var(--green)">100%</div>
+                    <div style="font-size:10px;color:var(--gray-500)">7/7 enviados</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mobile-nav">
+            <div class="mobile-nav-item active" onclick="switchMobileView('reporte', null, this)">
+              <div class="mobile-nav-icon">📋</div>Reporte
+            </div>
+            <div class="mobile-nav-item" onclick="switchMobileView('checklist', null, this)">
+              <div class="mobile-nav-icon">✅</div>Checklist
+            </div>
+            <div class="mobile-nav-item" onclick="switchMobileView('equipo', null, this)">
+              <div class="mobile-nav-icon">👥</div>Equipo
+            </div>
+            <div class="mobile-nav-item" onclick="switchMobileView('kpis', null, this)">
+              <div class="mobile-nav-icon">📊</div>KPIs
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<div class="proto-label">🎨 Prototipo Visual — Snowtea HQ</div>
+
+<script>
+// ── NAVIGATION ──────────────────────────────────────────────────────────────
+const titles = {
+  dashboard: ['Dashboard Administrativo', 'Miércoles 25 de Marzo, 2026 — 3 tiendas activas'],
+  tiendas: ['Gestión de Tiendas', '3 tiendas activas'],
+  kpis: ['KPIs en Tiempo Real', 'Calculados automáticamente desde los datos del sistema'],
+  reportes: ['Reportes Diarios', 'Historial y estado de reportes por tienda'],
+  checklist: ['Checklist Operativo', '21 flujos del Manual AD-MA-001-0'],
+  personal: ['Personal y Horarios', 'Gestión de equipo y rotación de tareas'],
+  comparativa: ['Comparativa entre Tiendas', 'Ranking y análisis de desempeño — Marzo 2026'],
+  secof: ['SECOF — Integrado en HQ', 'Evaluaciones operativas vinculadas al dashboard central'],
+  inventario: ['Inventario Semanal', 'Conteo físico vs stock teórico'],
+  asistencia: ['Control de Asistencia', 'Registros de entrada y salida'],
+  movil: ['Vista Móvil — Portal Líder', 'Así se ve la app en el celular del Líder de Tienda'],
+};
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes("'" + id + "'")) {
+      n.classList.add('active');
+    }
+  });
+  const t = titles[id] || ['', ''];
+  document.getElementById('topbar-title').textContent = t[0];
+  document.getElementById('topbar-sub').textContent = t[1];
+  // Init charts when visible
+  setTimeout(() => initCharts(id), 50);
+}
+
+// ── MOBILE VIEW SWITCHER ────────────────────────────────────────────────────
+function switchMobileView(view, pill, navItem) {
+  ['reporte','checklist','equipo','kpis'].forEach(v => {
+    const el = document.getElementById('mobile-' + v);
+    if (el) el.style.display = v === view ? 'block' : 'none';
+  });
+  if (pill) {
+    document.querySelectorAll('.view-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+  }
+  if (navItem) {
+    document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+    navItem.classList.add('active');
+  }
+}
+
+// ── CHARTS ──────────────────────────────────────────────────────────────────
+const chartsInited = {};
+function initCharts(screen) {
+  if (chartsInited[screen]) return;
+  chartsInited[screen] = true;
+
+  const colors = {
+    green: '#2d7a4f', blue: '#3b82f6', orange: '#f59e0b', red: '#ef4444',
+    greenA: 'rgba(45,122,79,.15)', blueA: 'rgba(59,130,246,.15)', orangeA: 'rgba(245,158,11,.15)'
+  };
+  const defaults = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+
+  if (screen === 'dashboard') {
+    new Chart(document.getElementById('chartVentas'), {
+      type: 'bar',
+      data: {
+        labels: ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],
+        datasets: [
+          { label: 'Patio', data: [7200,7800,8240,0,0,0,0], backgroundColor: colors.green, borderRadius: 4 },
+          { label: 'Paseo', data: [6100,6800,7180,0,0,0,0], backgroundColor: colors.blue, borderRadius: 4 },
+          { label: 'Carmen', data: [5400,5900,0,0,0,0,0], backgroundColor: colors.orange, borderRadius: 4 },
+        ]
+      },
+      options: { ...defaults, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } } } }
+    });
+    new Chart(document.getElementById('chartMerma'), {
+      type: 'bar',
+      data: {
+        labels: ['Patio','Paseo','Carmen'],
+        datasets: [{ data: [4.2, 2.1, 0], backgroundColor: [colors.red, colors.green, '#e5e7eb'], borderRadius: 6 }]
+      },
+      options: { ...defaults, scales: { x: { grid: { display: false } }, y: { max: 6, ticks: { callback: v => v + '%' }, grid: { color: '#f3f4f6' } } }, plugins: { legend: { display: false }, annotation: {} } }
+    });
+  }
+
+  if (screen === 'kpis') {
+    new Chart(document.getElementById('chartKPITendencia'), {
+      type: 'line',
+      data: {
+        labels: ['Ene','Feb','Mar'],
+        datasets: [
+          { label: 'Patio', data: [142000, 158000, 168000], borderColor: colors.green, backgroundColor: colors.greenA, tension: .4, fill: true, pointRadius: 4 },
+          { label: 'Paseo', data: [118000, 128000, 139000], borderColor: colors.blue, backgroundColor: colors.blueA, tension: .4, fill: true, pointRadius: 4 },
+          { label: 'Carmen', data: [95000, 102000, 108000], borderColor: colors.orange, backgroundColor: colors.orangeA, tension: .4, fill: true, pointRadius: 4 },
+        ]
+      },
+      options: { ...defaults, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#f3f4f6' } } } }
+    });
+  }
+
+  if (screen === 'comparativa') {
+    new Chart(document.getElementById('chartComparativa'), {
+      type: 'bar',
+      data: {
+        labels: ['Patio','Paseo','Carmen'],
+        datasets: [
+          { label: 'Ventas Reales', data: [56200, 48300, 36800], backgroundColor: [colors.green, colors.blue, colors.orange], borderRadius: 6 },
+          { label: 'Meta', data: [53500, 47300, 40000], backgroundColor: 'transparent', borderColor: '#374151', borderWidth: 2, type: 'line', pointRadius: 0 }
+        ]
+      },
+      options: { ...defaults, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#f3f4f6' } } } }
+    });
+    new Chart(document.getElementById('chartRadarComp'), {
+      type: 'radar',
+      data: {
+        labels: ['Control','Higiene','Hospitalidad','Imagen','Mantenimiento','Operación'],
+        datasets: [
+          { label: 'Patio', data: [96,94,97,95,93,96], borderColor: colors.green, backgroundColor: 'rgba(45,122,79,.15)', pointRadius: 3 },
+          { label: 'Paseo', data: [92,90,93,91,89,94], borderColor: colors.blue, backgroundColor: 'rgba(59,130,246,.12)', pointRadius: 3 },
+          { label: 'Carmen', data: [85,72,88,83,86,90], borderColor: colors.orange, backgroundColor: 'rgba(245,158,11,.12)', pointRadius: 3 },
+        ]
+      },
+      options: { ...defaults, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { r: { min: 60, max: 100, ticks: { stepSize: 10, font: { size: 9 } } } } }
+    });
+  }
+
+  if (screen === 'inventario') {
+    new Chart(document.getElementById('chartInventario'), {
+      type: 'line',
+      data: {
+        labels: ['Sem 8','Sem 9','Sem 10','Sem 11','Sem 12'],
+        datasets: [
+          { label: 'Merma %', data: [2.8, 3.1, 2.9, 3.6, 4.2], borderColor: colors.red, backgroundColor: 'rgba(239,68,68,.1)', tension: .4, fill: true, pointRadius: 4 },
+          { label: 'Límite 3%', data: [3,3,3,3,3], borderColor: '#374151', borderDash: [4,4], pointRadius: 0 }
+        ]
+      },
+      options: { ...defaults, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { x: { grid: { display: false } }, y: { max: 6, ticks: { callback: v => v + '%' }, grid: { color: '#f3f4f6' } } } }
+    });
+  }
+}
+
+// Init dashboard charts on load
+window.addEventListener('load', () => initCharts('dashboard'));
+</script>
+</body>
+</html>

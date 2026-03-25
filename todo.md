@@ -119,3 +119,12 @@
 - [x] Identificar preguntas duplicadas por código en puntos_evaluacion (456 registros, 129 únicos)
 - [x] Eliminar 327 registros duplicados conservando el de menor ID (original)
 - [x] Verificar conteo final: 129 registros, 123 activos, 6 inactivos
+
+## Prototipo Snowtea HQ (Mar 25, 2026)
+- [ ] Pantalla: Dashboard Admin con semáforo de tiendas y KPIs
+- [ ] Pantalla: Portal Líder de Tienda (vista móvil)
+- [ ] Pantalla: Reporte Diario de Ventas
+- [ ] Pantalla: Checklist Operativo (21 flujos)
+- [ ] Pantalla: Comparativa entre tiendas
+- [ ] Pantalla: Control de Personal / Horarios
+- [ ] Pantalla: Integración SECOF en dashboard admin
