@@ -39,13 +39,12 @@ import {
 } from "lucide-react";
 
 const ROLES = [
-  { value: "superadmin", label: "Super Admin", color: "bg-purple-100 text-purple-700 border-purple-200", icon: Crown, desc: "Acceso total al sistema" },
-  { value: "admin", label: "Administrador", color: "bg-blue-100 text-blue-700 border-blue-200", icon: ShieldCheck, desc: "Gestión de usuarios y configuración" },
-  { value: "owner", label: "Dueño", color: "bg-amber-100 text-amber-700 border-amber-200", icon: Crown, desc: "Ve sus franquicias asignadas" },
-  { value: "manager", label: "Gerente de Tienda", color: "bg-green-100 text-green-700 border-green-200", icon: Store, desc: "Administra su tienda asignada" },
-  { value: "leader", label: "Líder de Tienda", color: "bg-teal-100 text-teal-700 border-teal-200", icon: UserCheck, desc: "Operación diaria de la tienda" },
-  { value: "host", label: "Anfitrión", color: "bg-gray-100 text-gray-700 border-gray-200", icon: User, desc: "Ve sus KPIs personales" },
-  { value: "user", label: "Usuario", color: "bg-gray-100 text-gray-500 border-gray-200", icon: User, desc: "Sin permisos especiales" },
+  { value: "superadmin", label: "Super Admin", color: "bg-purple-100 text-purple-700 border-purple-200", icon: Crown, desc: "Acceso total: configuración, usuarios, SECOF, sucursales" },
+  { value: "owner", label: "Dueño", color: "bg-amber-100 text-amber-700 border-amber-200", icon: Crown, desc: "SECOF, sucursales y dar de alta colaboradores" },
+  { value: "manager", label: "Administrador de Tienda", color: "bg-green-100 text-green-700 border-green-200", icon: Store, desc: "SECOF, sucursales y dar de alta colaboradores" },
+  { value: "leader", label: "Líder de Tienda", color: "bg-teal-100 text-teal-700 border-teal-200", icon: UserCheck, desc: "Nueva evaluación, historial y plan de acción" },
+  { value: "host", label: "Anfitrión", color: "bg-gray-100 text-gray-700 border-gray-200", icon: User, desc: "Solo acceso al dashboard" },
+  { value: "user", label: "Usuario", color: "bg-gray-100 text-gray-500 border-gray-200", icon: User, desc: "Solo acceso al dashboard" },
 ];
 
 const getRoleInfo = (role: string) =>

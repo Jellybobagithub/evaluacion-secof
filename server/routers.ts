@@ -334,7 +334,7 @@ export const appRouter = router({
   adminUsuarios: router({
     // Listar todos los usuarios
     list: protectedProcedure.query(async ({ ctx }) => {
-      if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+      if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Solo administradores pueden gestionar usuarios' });
       }
       const { getAllUsers, getSucursales } = await import('./db');
@@ -346,11 +346,11 @@ export const appRouter = router({
     updateRole: protectedProcedure
       .input(z.object({
         userId: z.number(),
-        role: z.enum(['user', 'admin', 'superadmin', 'owner', 'manager', 'leader', 'host']),
+        role: z.enum(['user', 'superadmin', 'owner', 'manager', 'leader', 'host']),
         notas: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { updateUserRole } = await import('./db');
@@ -362,7 +362,7 @@ export const appRouter = router({
     toggleActivo: protectedProcedure
       .input(z.object({ userId: z.number(), activo: z.boolean() }))
       .mutation(async ({ ctx, input }) => {
-        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { toggleUserActivo } = await import('./db');
@@ -374,7 +374,7 @@ export const appRouter = router({
     getSucursales: protectedProcedure
       .input(z.object({ userId: z.number() }))
       .query(async ({ ctx, input }) => {
-        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { getUserSucursales } = await import('./db');
@@ -385,7 +385,7 @@ export const appRouter = router({
     assignSucursal: protectedProcedure
       .input(z.object({ userId: z.number(), sucursalId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { assignUserSucursal } = await import('./db');
@@ -397,7 +397,7 @@ export const appRouter = router({
     removeSucursal: protectedProcedure
       .input(z.object({ userId: z.number(), sucursalId: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { removeUserSucursal } = await import('./db');

@@ -1,20 +1,21 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
 import { ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 /**
  * Jerarquía de roles:
- * superadmin > admin > owner > manager > leader > host > user
+ * superadmin > owner = manager > leader > host > user
  *
- * Cada nivel tiene acceso a todo lo que tiene el nivel inferior.
+ * - superadmin: acceso total (Usuarios, Preguntas, SECOF, Sucursales)
+ * - owner / manager: SECOF + Sucursales + dar de alta colaboradores
+ * - leader: Nueva Evaluación, Historial, Plan de Acción
+ * - host / user: solo Dashboard
  */
 export const ROLE_HIERARCHY: Record<string, number> = {
-  superadmin: 7,
-  admin: 6,
+  superadmin: 6,
   owner: 5,
-  manager: 4,
+  manager: 5,   // owner y manager tienen el mismo nivel
   leader: 3,
   host: 2,
   user: 1,
@@ -34,9 +35,8 @@ export function hasRoleAccess(userRole: string, minRole: string): boolean {
  * Cada ruta tiene un rol mínimo requerido.
  */
 export const ROUTE_PERMISSIONS: Record<string, string> = {
-  "/admin/usuarios": "admin",
-  "/admin/preguntas": "admin",
-  "/prototipo-hq": "admin",
+  "/admin/usuarios": "owner",       // owner y manager pueden dar de alta colaboradores
+  "/admin/preguntas": "superadmin", // solo superadmin configura preguntas
   "/sucursales": "manager",
   "/comparativa": "manager",
   "/plan-accion": "leader",
@@ -46,16 +46,13 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
 
 /**
  * Retorna el rol mínimo requerido para una ruta.
- * Verifica prefijos también (ej. /evaluacion/:id → /evaluacion/nueva).
  */
 export function getRequiredRole(path: string): string | null {
-  // Exact match first
   if (ROUTE_PERMISSIONS[path]) return ROUTE_PERMISSIONS[path];
-  // Prefix match
   for (const [route, role] of Object.entries(ROUTE_PERMISSIONS)) {
     if (path.startsWith(route)) return role;
   }
-  return null; // No restriction
+  return null;
 }
 
 interface RoleGuardProps {
@@ -66,7 +63,6 @@ interface RoleGuardProps {
 
 /**
  * Componente que protege su contenido según el rol del usuario.
- * Si el usuario no tiene el rol mínimo requerido, muestra un mensaje de acceso denegado.
  */
 export function RoleGuard({ children, minRole = "user", fallback }: RoleGuardProps) {
   const { user, loading } = useAuth();
@@ -75,9 +71,7 @@ export function RoleGuard({ children, minRole = "user", fallback }: RoleGuardPro
 
   const userRole = (user as any)?.role ?? "user";
 
-  if (!user) {
-    return null; // DashboardLayout ya maneja el login
-  }
+  if (!user) return null;
 
   if (!hasRoleAccess(userRole, minRole)) {
     if (fallback) return <>{fallback}</>;
@@ -87,9 +81,6 @@ export function RoleGuard({ children, minRole = "user", fallback }: RoleGuardPro
   return <>{children}</>;
 }
 
-/**
- * Componente de ruta protegida que redirige o muestra acceso denegado.
- */
 interface ProtectedRouteProps {
   component: React.ComponentType;
   minRole?: string;
@@ -103,15 +94,11 @@ export function ProtectedRoute({ component: Component, minRole = "user" }: Prote
   );
 }
 
-/**
- * Pantalla de acceso denegado con información del rol requerido.
- */
 function AccessDenied({ userRole, requiredRole }: { userRole: string; requiredRole: string }) {
   const [, setLocation] = useLocation();
 
   const ROLE_LABELS: Record<string, string> = {
     superadmin: "Super Admin",
-    admin: "Administrador",
     owner: "Dueño de Franquicia",
     manager: "Administrador de Tienda",
     leader: "Líder de Tienda",
@@ -137,11 +124,7 @@ function AccessDenied({ userRole, requiredRole }: { userRole: string; requiredRo
           </span>.
         </p>
       </div>
-      <Button
-        variant="outline"
-        onClick={() => setLocation("/")}
-        className="mt-2"
-      >
+      <Button variant="outline" onClick={() => setLocation("/")} className="mt-2">
         Volver al inicio
       </Button>
     </div>

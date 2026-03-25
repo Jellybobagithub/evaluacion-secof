@@ -34,12 +34,10 @@ import {
   Target,
   PlusCircle,
   TrendingUp,
-  Settings2,
   ClipboardCheck,
   Users,
   ShieldCheck,
   ChevronRight,
-  Layers,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -47,7 +45,17 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import { hasRoleAccess } from "./RoleGuard";
 
-// Definición de todos los grupos de navegación con su rol mínimo requerido
+/**
+ * Grupos de navegación con rol mínimo requerido por ítem.
+ *
+ * Jerarquía:
+ *   superadmin (6) > owner = manager (5) > leader (3) > host (2) > user (1)
+ *
+ * - superadmin: todo
+ * - owner / manager: Franquicias + SECOF + Colaboradores
+ * - leader: SECOF operativo
+ * - host / user: solo Dashboard
+ */
 const ALL_NAV_GROUPS = [
   {
     label: "Inicio",
@@ -74,27 +82,25 @@ const ALL_NAV_GROUPS = [
     ],
   },
   {
-    label: "Administración",
-    minRole: "admin",
+    label: "Colaboradores",
+    minRole: "owner",
     items: [
-      { icon: Users, label: "Usuarios y Roles", path: "/admin/usuarios", minRole: "admin" },
-      { icon: ClipboardCheck, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "admin" },
+      { icon: Users, label: "Usuarios y Roles", path: "/admin/usuarios", minRole: "owner" },
     ],
   },
   {
-    label: "Sistema",
-    minRole: "admin",
+    label: "Configuración",
+    minRole: "superadmin",
     items: [
-      { icon: Layers, label: "Prototipo HQ", path: "/prototipo-hq", minRole: "admin" },
+      { icon: ClipboardCheck, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
     ],
   },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: "Super Admin",
-  admin: "Administrador",
   owner: "Dueño",
-  manager: "Gerente de Tienda",
+  manager: "Admin Tienda",
   leader: "Líder",
   host: "Anfitrión",
   user: "Usuario",
@@ -102,7 +108,6 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ROLE_COLORS: Record<string, string> = {
   superadmin: "bg-purple-100 text-purple-700",
-  admin: "bg-blue-100 text-blue-700",
   owner: "bg-amber-100 text-amber-700",
   manager: "bg-green-100 text-green-700",
   leader: "bg-teal-100 text-teal-700",
@@ -115,11 +120,7 @@ const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
@@ -130,63 +131,42 @@ export default function DashboardLayout({
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) {
-    return <DashboardLayoutSkeleton />;
-  }
+  if (loading) return <DashboardLayoutSkeleton />;
 
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-950 via-green-900 to-green-800">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          {/* Logo */}
           <div className="flex flex-col items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 shadow-xl">
               <ShieldCheck className="w-8 h-8 text-green-300" />
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-white tracking-tight">
-                Snowtea HQ
-              </h1>
-              <p className="text-green-300 text-sm mt-1">
-                Sistema de Gestión de Franquicia
-              </p>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Snowtea HQ</h1>
+              <p className="text-green-300 text-sm mt-1">Sistema de Gestión de Franquicia</p>
             </div>
           </div>
-
           <div className="w-full bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20 shadow-2xl">
-            <h2 className="text-white font-semibold text-center mb-2">
-              Iniciar sesión
-            </h2>
+            <h2 className="text-white font-semibold text-center mb-2">Iniciar sesión</h2>
             <p className="text-green-200 text-sm text-center mb-6">
               Accede con tu cuenta para continuar al sistema.
             </p>
             <Button
-              onClick={() => {
-                window.location.href = getLoginUrl();
-              }}
+              onClick={() => { window.location.href = getLoginUrl(); }}
               size="lg"
               className="w-full bg-green-400 hover:bg-green-300 text-green-950 font-semibold shadow-lg"
             >
               Ingresar al sistema
             </Button>
           </div>
-
-          <p className="text-green-400 text-xs text-center">
-            Snowtea HQ · Sistema Integral de Administración
-          </p>
+          <p className="text-green-400 text-xs text-center">Snowtea HQ · Sistema Integral de Administración</p>
         </div>
       </div>
     );
   }
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": `${sidebarWidth}px`,
-        } as CSSProperties
-      }
-    >
+    <SidebarProvider style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}>
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
       </DashboardLayoutContent>
@@ -194,15 +174,13 @@ export default function DashboardLayout({
   );
 }
 
-type DashboardLayoutContentProps = {
-  children: React.ReactNode;
-  setSidebarWidth: (width: number) => void;
-};
-
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
-}: DashboardLayoutContentProps) {
+}: {
+  children: React.ReactNode;
+  setSidebarWidth: (w: number) => void;
+}) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
@@ -215,7 +193,7 @@ function DashboardLayoutContent({
   const roleLabel = ROLE_LABELS[role] ?? role;
   const roleColor = ROLE_COLORS[role] ?? ROLE_COLORS.user;
 
-  // Filtrar grupos y elementos de navegación según el rol del usuario
+  // Filtrar grupos e ítems según el rol del usuario
   const navGroups = ALL_NAV_GROUPS
     .filter(group => hasRoleAccess(role, group.minRole))
     .map(group => ({
@@ -237,9 +215,7 @@ function DashboardLayoutContent({
       if (!isResizing) return;
       const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
       const newWidth = e.clientX - sidebarLeft;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth);
-      }
+      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) setSidebarWidth(newWidth);
     };
     const handleMouseUp = () => setIsResizing(false);
     if (isResizing) {
@@ -260,7 +236,7 @@ function DashboardLayoutContent({
     <>
       <div className="relative" ref={sidebarRef}>
         <Sidebar collapsible="icon" className="border-r-0">
-          {/* Header: Logo Snowtea HQ */}
+          {/* Header */}
           <SidebarHeader className="h-16 justify-center border-b border-sidebar-border/50">
             <div className="flex items-center gap-3 px-2 w-full">
               <button
@@ -288,7 +264,7 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
-          {/* Navigation groups - filtrados por rol */}
+          {/* Navigation */}
           <SidebarContent className="gap-0 py-2">
             {navGroups.map(group => (
               <SidebarGroup key={group.label} className="py-0">
@@ -327,7 +303,7 @@ function DashboardLayoutContent({
             ))}
           </SidebarContent>
 
-          {/* Footer: user info */}
+          {/* Footer */}
           <SidebarFooter className="p-3 border-t border-sidebar-border/50">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -379,7 +355,6 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        {/* Mobile top bar */}
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-3">

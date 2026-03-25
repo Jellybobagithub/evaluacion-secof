@@ -14,7 +14,6 @@ import Historial from "./pages/Historial";
 import PlanAccion from "./pages/PlanAccion";
 import Comparativa from "./pages/Comparativa";
 import AdminPreguntas from "./pages/AdminPreguntas";
-import PrototipoHQ from "./pages/PrototipoHQ";
 import AdminUsuarios from "./pages/AdminUsuarios";
 import DashboardLayout from "./components/DashboardLayout";
 
@@ -22,10 +21,10 @@ function Router() {
   return (
     <DashboardLayout>
       <Switch>
-        {/* Inicio: accesible para todos los roles */}
+        {/* Dashboard: todos los roles */}
         <Route path="/" component={Home} />
 
-        {/* Franquicias: requiere manager o superior */}
+        {/* Franquicias: manager, owner, superadmin */}
         <Route path="/sucursales">
           <ProtectedRoute component={Sucursales} minRole="manager" />
         </Route>
@@ -33,7 +32,7 @@ function Router() {
           <ProtectedRoute component={SucursalDetalle} minRole="manager" />
         </Route>
 
-        {/* Módulo SECOF: requiere leader o superior */}
+        {/* SECOF: leader y superior */}
         <Route path="/evaluacion/nueva">
           <ProtectedRoute component={NuevaEvaluacion} minRole="leader" />
         </Route>
@@ -50,17 +49,14 @@ function Router() {
           <ProtectedRoute component={PlanAccion} minRole="leader" />
         </Route>
 
-        {/* Administración: requiere admin o superior */}
-        <Route path="/admin/preguntas">
-          <ProtectedRoute component={AdminPreguntas} minRole="admin" />
-        </Route>
+        {/* Colaboradores: owner, manager, superadmin */}
         <Route path="/admin/usuarios">
-          <ProtectedRoute component={AdminUsuarios} minRole="admin" />
+          <ProtectedRoute component={AdminUsuarios} minRole="owner" />
         </Route>
 
-        {/* Sistema: solo admin/superadmin */}
-        <Route path="/prototipo-hq">
-          <ProtectedRoute component={PrototipoHQ} minRole="admin" />
+        {/* Configuración: solo superadmin */}
+        <Route path="/admin/preguntas">
+          <ProtectedRoute component={AdminPreguntas} minRole="superadmin" />
         </Route>
 
         <Route path="/404" component={NotFound} />

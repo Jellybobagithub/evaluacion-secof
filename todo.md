@@ -152,3 +152,26 @@
 - [x] Actualizar DashboardLayout: menú lateral dinámico según rol del usuario
 - [x] Aplicar guards en App.tsx para rutas de administración
 - [x] Dashboard Ejecutivo HQ: semáforo de tiendas, KPIs globales, alertas
+
+## Corrección Menú Dinámico (Mar 25 - v9 fix)
+- [ ] Diagnosticar por qué el menú muestra SECOF y Prototipo HQ a usuarios sin ese rol
+- [ ] Verificar que el rol del usuario se lee correctamente desde la DB (no solo el campo local)
+- [ ] Corregir el filtrado del menú lateral
+
+## Ajuste de Permisos (Mar 25 - v10)
+- [x] Sección Configuración (Admin Preguntas): solo superadmin
+- [x] Backend: adminPreguntas solo superadmin, adminUsuarios para owner/manager/superadmin
+- [x] Frontend: menú y guards actualizados con nueva jerarquía
+
+## Reestructuración de Roles (Mar 25 - v10)
+- [x] Eliminar rol 'admin' del sistema (migrar a superadmin en DB)
+- [x] superadmin: acceso total (Usuarios, Preguntas, SECOF, Sucursales)
+- [x] owner y manager: mismos permisos (SECOF + Sucursales + dar de alta colaboradores)
+- [x] leader: Nueva Evaluación, Historial, Plan de Acción
+- [x] host / user: solo Dashboard
+- [x] Actualizar RoleGuard.tsx con nueva jerarquía y permisos
+- [x] Actualizar DashboardLayout.tsx con nuevo filtrado de menú
+- [x] Actualizar App.tsx con nuevos guards de ruta
+- [x] Actualizar backend: adminUsuarios accesible para superadmin, owner y manager
+- [x] Actualizar schema Drizzle: remover 'admin' del enum de roles
+- [x] Eliminar Prototipo HQ del menú lateral y de las rutas de la aplicación

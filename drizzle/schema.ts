@@ -16,7 +16,7 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin", "superadmin", "owner", "manager", "leader", "host"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "superadmin", "owner", "manager", "leader", "host"]).default("user").notNull(),
   activo: boolean("activo").default(true).notNull(),
   notas: text("notas"),  // notas internas del admin sobre el usuario
   createdAt: timestamp("createdAt").defaultNow().notNull(),

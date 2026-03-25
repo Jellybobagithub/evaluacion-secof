@@ -1,0 +1,16 @@
+{
+  "query": "UPDATE users SET role = 'superadmin' WHERE role = 'admin';\nSELECT id, name, email, role FROM users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute UPDATE users SET role = 'superadmin' WHERE role = 'admin';\nSELECT id, name, email, role FROM users;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Miguel Moreno",
+      "email": "franquicias@snowtea.com.mx",
+      "role": "superadmin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\n1\tMiguel Moreno\tfranquicias@snowtea.com.mx\tsuperadmin\n",
+  "stderr": "",
+  "execution_time_ms": 1163
+}
