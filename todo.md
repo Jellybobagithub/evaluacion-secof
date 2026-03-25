@@ -137,11 +137,18 @@
 ## Snowtea HQ - Reestructuración (Mar 25)
 - [x] Actualizar branding: nombre "Snowtea HQ", logo, colores
 - [x] Nuevo layout principal con navegación por módulos (grupos: Inicio, Franquicias, SECOF, Administración, Sistema)
-- [ ] Dashboard ejecutivo HQ (landing page del ecosistema)
+- [x] Dashboard ejecutivo HQ (landing page del ecosistema)
 - [x] Ampliar roles en DB: superadmin, owner, manager, leader, host
 - [x] Panel de gestión de usuarios con asignación de roles (AdminUsuarios)
 - [x] Panel de asignación de usuarios a sucursales (modal en AdminUsuarios)
-- [ ] Middleware de autorización por rol en tRPC
-- [ ] Guards de ruta en frontend por rol
+- [x] Middleware de autorización por rol en tRPC
+- [x] Guards de ruta en frontend por rol
 - [x] SECOF integrado como módulo dentro del HQ
-- [ ] Menú lateral dinámico según rol del usuario (pendiente guards de ruta)
+- [x] Menú lateral dinámico según rol del usuario
+
+## Guards de Ruta y Menú Dinámico (Mar 25 - v9)
+- [x] Actualizar adminProcedure para aceptar superadmin y admin
+- [x] Crear componente RoleGuard para proteger rutas por rol
+- [x] Actualizar DashboardLayout: menú lateral dinámico según rol del usuario
+- [x] Aplicar guards en App.tsx para rutas de administración
+- [x] Dashboard Ejecutivo HQ: semáforo de tiendas, KPIs globales, alertas

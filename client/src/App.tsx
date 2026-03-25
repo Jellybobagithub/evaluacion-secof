@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { ProtectedRoute } from "./components/RoleGuard";
 import Home from "./pages/Home";
 import Sucursales from "./pages/Sucursales";
 import SucursalDetalle from "./pages/SucursalDetalle";
@@ -21,17 +22,47 @@ function Router() {
   return (
     <DashboardLayout>
       <Switch>
+        {/* Inicio: accesible para todos los roles */}
         <Route path="/" component={Home} />
-        <Route path="/sucursales" component={Sucursales} />
-        <Route path="/sucursales/:id" component={SucursalDetalle} />
-        <Route path="/evaluacion/nueva" component={NuevaEvaluacion} />
-        <Route path="/evaluacion/:id" component={EvaluacionDetalle} />
-        <Route path="/historial" component={Historial} />
-        <Route path="/plan-accion" component={PlanAccion} />
-        <Route path="/comparativa" component={Comparativa} />
-        <Route path="/admin/preguntas" component={AdminPreguntas} />
-        <Route path="/admin/usuarios" component={AdminUsuarios} />
-        <Route path="/prototipo-hq" component={PrototipoHQ} />
+
+        {/* Franquicias: requiere manager o superior */}
+        <Route path="/sucursales">
+          <ProtectedRoute component={Sucursales} minRole="manager" />
+        </Route>
+        <Route path="/sucursales/:id">
+          <ProtectedRoute component={SucursalDetalle} minRole="manager" />
+        </Route>
+
+        {/* Módulo SECOF: requiere leader o superior */}
+        <Route path="/evaluacion/nueva">
+          <ProtectedRoute component={NuevaEvaluacion} minRole="leader" />
+        </Route>
+        <Route path="/evaluacion/:id">
+          <ProtectedRoute component={EvaluacionDetalle} minRole="leader" />
+        </Route>
+        <Route path="/historial">
+          <ProtectedRoute component={Historial} minRole="leader" />
+        </Route>
+        <Route path="/comparativa">
+          <ProtectedRoute component={Comparativa} minRole="manager" />
+        </Route>
+        <Route path="/plan-accion">
+          <ProtectedRoute component={PlanAccion} minRole="leader" />
+        </Route>
+
+        {/* Administración: requiere admin o superior */}
+        <Route path="/admin/preguntas">
+          <ProtectedRoute component={AdminPreguntas} minRole="admin" />
+        </Route>
+        <Route path="/admin/usuarios">
+          <ProtectedRoute component={AdminUsuarios} minRole="admin" />
+        </Route>
+
+        {/* Sistema: solo admin/superadmin */}
+        <Route path="/prototipo-hq">
+          <ProtectedRoute component={PrototipoHQ} minRole="admin" />
+        </Route>
+
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

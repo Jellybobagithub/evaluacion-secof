@@ -45,41 +45,47 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
+import { hasRoleAccess } from "./RoleGuard";
 
-// Grupos de navegación del ecosistema Snowtea HQ
-const navGroups = [
+// Definición de todos los grupos de navegación con su rol mínimo requerido
+const ALL_NAV_GROUPS = [
   {
     label: "Inicio",
+    minRole: "user",
     items: [
-      { icon: LayoutDashboard, label: "Dashboard HQ", path: "/" },
+      { icon: LayoutDashboard, label: "Dashboard HQ", path: "/", minRole: "user" },
     ],
   },
   {
     label: "Franquicias",
+    minRole: "manager",
     items: [
-      { icon: Building2, label: "Sucursales", path: "/sucursales" },
+      { icon: Building2, label: "Sucursales", path: "/sucursales", minRole: "manager" },
     ],
   },
   {
     label: "Módulo SECOF",
+    minRole: "leader",
     items: [
-      { icon: PlusCircle, label: "Nueva Evaluación", path: "/evaluacion/nueva" },
-      { icon: History, label: "Historial", path: "/historial" },
-      { icon: TrendingUp, label: "Comparativa", path: "/comparativa" },
-      { icon: Target, label: "Plan de Acción", path: "/plan-accion" },
+      { icon: PlusCircle, label: "Nueva Evaluación", path: "/evaluacion/nueva", minRole: "leader" },
+      { icon: History, label: "Historial", path: "/historial", minRole: "leader" },
+      { icon: TrendingUp, label: "Comparativa", path: "/comparativa", minRole: "manager" },
+      { icon: Target, label: "Plan de Acción", path: "/plan-accion", minRole: "leader" },
     ],
   },
   {
     label: "Administración",
+    minRole: "admin",
     items: [
-      { icon: Users, label: "Usuarios y Roles", path: "/admin/usuarios" },
-      { icon: ClipboardCheck, label: "Admin Preguntas", path: "/admin/preguntas" },
+      { icon: Users, label: "Usuarios y Roles", path: "/admin/usuarios", minRole: "admin" },
+      { icon: ClipboardCheck, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "admin" },
     ],
   },
   {
     label: "Sistema",
+    minRole: "admin",
     items: [
-      { icon: Layers, label: "Prototipo HQ", path: "/prototipo-hq" },
+      { icon: Layers, label: "Prototipo HQ", path: "/prototipo-hq", minRole: "admin" },
     ],
   },
 ];
@@ -209,6 +215,15 @@ function DashboardLayoutContent({
   const roleLabel = ROLE_LABELS[role] ?? role;
   const roleColor = ROLE_COLORS[role] ?? ROLE_COLORS.user;
 
+  // Filtrar grupos y elementos de navegación según el rol del usuario
+  const navGroups = ALL_NAV_GROUPS
+    .filter(group => hasRoleAccess(role, group.minRole))
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => hasRoleAccess(role, item.minRole)),
+    }))
+    .filter(group => group.items.length > 0);
+
   const activeLabel = navGroups
     .flatMap(g => g.items)
     .find(i => i.path === location)?.label ?? "Snowtea HQ";
@@ -273,7 +288,7 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
-          {/* Navigation groups */}
+          {/* Navigation groups - filtrados por rol */}
           <SidebarContent className="gap-0 py-2">
             {navGroups.map(group => (
               <SidebarGroup key={group.label} className="py-0">
