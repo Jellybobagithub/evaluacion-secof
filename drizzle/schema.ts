@@ -16,7 +16,9 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "superadmin", "owner", "manager", "leader", "host"]).default("user").notNull(),
+  activo: boolean("activo").default(true).notNull(),
+  notas: text("notas"),  // notas internas del admin sobre el usuario
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -121,3 +123,14 @@ export const puntosEvaluacion = mysqlTable("puntos_evaluacion", {
 
 export type PuntoEvaluacion = typeof puntosEvaluacion.$inferSelect;
 export type InsertPuntoEvaluacion = typeof puntosEvaluacion.$inferInsert;
+
+// Asignacion de usuarios a sucursales
+export const userSucursales = mysqlTable("user_sucursales", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  sucursalId: int("sucursalId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type UserSucursal = typeof userSucursales.$inferSelect;
+export type InsertUserSucursal = typeof userSucursales.$inferInsert;

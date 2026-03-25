@@ -3,6 +3,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   getSucursales, getSucursalById, createSucursal, updateSucursal, deleteSucursal,
   getEvaluaciones, getEvaluacionById, createEvaluacion, updateEvaluacion, deleteEvaluacion,
@@ -26,7 +27,7 @@ export const appRouter = router({
     }),
   }),
 
-  // ─── Sucursales ─────────────────────────────────────────────────────────────
+  // // --- Sucursales ---
   sucursales: router({
     list: publicProcedure.query(async () => {
       return getSucursales();
@@ -67,7 +68,7 @@ export const appRouter = router({
     }),
   }),
 
-  // ─── Evaluaciones ───────────────────────────────────────────────────────────
+  // // --- Evaluaciones ---
   evaluaciones: router({
     list: publicProcedure.input(z.object({ sucursalId: z.number().optional() })).query(async ({ input }) => {
       return getEvaluaciones(input.sucursalId);
@@ -147,7 +148,7 @@ export const appRouter = router({
     }),
   }),
 
-  // ─── Historial Comparativo ─────────────────────────────────────────────────
+  // // --- Historial Comparativo ---
   historial: router({
     comparativo: publicProcedure
       .input(z.object({
@@ -159,7 +160,7 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Plan de Acción ─────────────────────────────────────────────────────────
+  // // --- Plan de Acción ---
   planAccion: router({
     list: publicProcedure.input(z.object({
       sucursalId: z.number().optional(),
@@ -216,7 +217,7 @@ export const appRouter = router({
     }),
   }),
 
-  // ─── Admin: Preguntas de Evaluación ──────────────────────────────────────────────────
+  // // --- Admin: Preguntas de Evaluación ---
   adminPreguntas: router({
     list: publicProcedure
       .input(z.object({ soloActivos: z.boolean().optional() }))
@@ -280,7 +281,7 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Upload foto evidencia ─────────────────────────────────────────────────
+  // // --- Upload foto evidencia ---
   evidencia: router({
     upload: protectedProcedure
       .input(z.object({
@@ -327,6 +328,80 @@ export const appRouter = router({
               eq(respuestas.puntoId, input.puntoId)
             ));
         }
+        return { success: true };
+      }),
+  }),
+  adminUsuarios: router({
+    // Listar todos los usuarios
+    list: protectedProcedure.query(async ({ ctx }) => {
+      if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Solo administradores pueden gestionar usuarios' });
+      }
+      const { getAllUsers, getSucursales } = await import('./db');
+      const [allUsers, allSucursales] = await Promise.all([getAllUsers(), getSucursales()]);
+      return { users: allUsers, sucursales: allSucursales };
+    }),
+
+    // Actualizar rol y notas de un usuario
+    updateRole: protectedProcedure
+      .input(z.object({
+        userId: z.number(),
+        role: z.enum(['user', 'admin', 'superadmin', 'owner', 'manager', 'leader', 'host']),
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { updateUserRole } = await import('./db');
+        await updateUserRole(input.userId, input.role, input.notas);
+        return { success: true };
+      }),
+
+    // Activar / desactivar usuario
+    toggleActivo: protectedProcedure
+      .input(z.object({ userId: z.number(), activo: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { toggleUserActivo } = await import('./db');
+        await toggleUserActivo(input.userId, input.activo);
+        return { success: true };
+      }),
+
+    // Obtener sucursales asignadas a un usuario
+    getSucursales: protectedProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getUserSucursales } = await import('./db');
+        return getUserSucursales(input.userId);
+      }),
+
+    // Asignar sucursal a usuario
+    assignSucursal: protectedProcedure
+      .input(z.object({ userId: z.number(), sucursalId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { assignUserSucursal } = await import('./db');
+        await assignUserSucursal(input.userId, input.sucursalId);
+        return { success: true };
+      }),
+
+    // Quitar sucursal de usuario
+    removeSucursal: protectedProcedure
+      .input(z.object({ userId: z.number(), sucursalId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['admin', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { removeUserSucursal } = await import('./db');
+        await removeUserSucursal(input.userId, input.sucursalId);
         return { success: true };
       }),
   }),

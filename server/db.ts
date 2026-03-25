@@ -1,6 +1,6 @@
 import { eq, desc, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, puntosEvaluacion, InsertSucursal, InsertEvaluacion, InsertRespuesta, InsertPlanAccion, InsertPuntoEvaluacion } from "../drizzle/schema";
+import { InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, puntosEvaluacion, userSucursales, InsertSucursal, InsertEvaluacion, InsertRespuesta, InsertPlanAccion, InsertPuntoEvaluacion } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -247,4 +247,52 @@ export async function getHistorialComparativo(sucursalId?: number, limit = 20) {
     .orderBy(evaluaciones.fecha)
     .limit(limit);
   return query;
+}
+
+// ─── Admin: Gestión de Usuarios ──────────────────────────────────────────────
+
+export async function getAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(users).orderBy(users.createdAt);
+}
+
+export async function updateUserRole(userId: number, role: string, notas?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const updateData: Record<string, unknown> = { role };
+  if (notas !== undefined) updateData.notas = notas;
+  await db.update(users).set(updateData).where(eq(users.id, userId));
+}
+
+export async function toggleUserActivo(userId: number, activo: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(users).set({ activo }).where(eq(users.id, userId));
+}
+
+// ─── Admin: Asignación Usuario-Sucursal ──────────────────────────────────────
+
+export async function getUserSucursales(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(userSucursales).where(eq(userSucursales.userId, userId));
+}
+
+export async function assignUserSucursal(userId: number, sucursalId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  // Evitar duplicados
+  const existing = await db.select().from(userSucursales)
+    .where(and(eq(userSucursales.userId, userId), eq(userSucursales.sucursalId, sucursalId)))
+    .limit(1);
+  if (existing.length > 0) return;
+  await db.insert(userSucursales).values({ userId, sucursalId });
+}
+
+export async function removeUserSucursal(userId: number, sucursalId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(userSucursales)
+    .where(and(eq(userSucursales.userId, userId), eq(userSucursales.sucursalId, sucursalId)));
 }

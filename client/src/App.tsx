@@ -14,6 +14,7 @@ import PlanAccion from "./pages/PlanAccion";
 import Comparativa from "./pages/Comparativa";
 import AdminPreguntas from "./pages/AdminPreguntas";
 import PrototipoHQ from "./pages/PrototipoHQ";
+import AdminUsuarios from "./pages/AdminUsuarios";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -29,6 +30,7 @@ function Router() {
         <Route path="/plan-accion" component={PlanAccion} />
         <Route path="/comparativa" component={Comparativa} />
         <Route path="/admin/preguntas" component={AdminPreguntas} />
+        <Route path="/admin/usuarios" component={AdminUsuarios} />
         <Route path="/prototipo-hq" component={PrototipoHQ} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

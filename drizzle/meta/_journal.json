@@ -29,6 +29,13 @@
       "when": 1774395569223,
       "tag": "0003_wandering_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1774476108238,
+      "tag": "0004_silly_hedge_knight",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `user_sucursales` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `sucursalId` int NOT NULL,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `user_sucursales_id` PRIMARY KEY(`id`)\n);\n\nALTER TABLE `users` MODIFY COLUMN `role` enum('user','admin','superadmin','owner','manager','leader','host') NOT NULL DEFAULT 'user';\n\nALTER TABLE `users` ADD COLUMN `activo` boolean DEFAULT true NOT NULL;\n\nALTER TABLE `users` ADD COLUMN `notas` text;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute CREATE TABLE `user_sucursales` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `sucursalId` int NOT NULL,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `user_sucursales_id` PRIMARY KEY(`id`)\n);\n\nALTER TABLE `users` MODIFY COLUMN `role` enum('user','admin','superadmin','owner','manager','leader','host') NOT NULL DEFAULT 'user';\n\nALTER TABLE `users` ADD COLUMN `activo` boolean DEFAULT true NOT NULL;\n\nALTER TABLE `users` ADD COLUMN `notas` text;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 3385
+}

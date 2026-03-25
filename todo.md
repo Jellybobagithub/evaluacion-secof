@@ -133,3 +133,15 @@
 - [x] Crear página React /prototipo-hq que renderice el prototipo del sistema Snowtea HQ
 - [x] Agregar ruta en App.tsx
 - [x] Agregar enlace en sidebar
+
+## Snowtea HQ - Reestructuración (Mar 25)
+- [x] Actualizar branding: nombre "Snowtea HQ", logo, colores
+- [x] Nuevo layout principal con navegación por módulos (grupos: Inicio, Franquicias, SECOF, Administración, Sistema)
+- [ ] Dashboard ejecutivo HQ (landing page del ecosistema)
+- [x] Ampliar roles en DB: superadmin, owner, manager, leader, host
+- [x] Panel de gestión de usuarios con asignación de roles (AdminUsuarios)
+- [x] Panel de asignación de usuarios a sucursales (modal en AdminUsuarios)
+- [ ] Middleware de autorización por rol en tRPC
+- [ ] Guards de ruta en frontend por rol
+- [x] SECOF integrado como módulo dentro del HQ
+- [ ] Menú lateral dinámico según rol del usuario (pendiente guards de ruta)
