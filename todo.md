@@ -114,3 +114,8 @@
 - [x] Formulario NuevaEvaluacion: cargar secciones y preguntas dinámicas desde DB
 - [x] Mantener compatibilidad: fallback automático a datos estáticos si la DB no responde
 - [x] Cálculo de puntuación dinámico (calcularPuntuacionDinamica) compatible con datos de DB
+
+## Limpieza de Duplicados en DB (Mar 24 - v7)
+- [x] Identificar preguntas duplicadas por código en puntos_evaluacion (456 registros, 129 únicos)
+- [x] Eliminar 327 registros duplicados conservando el de menor ID (original)
+- [x] Verificar conteo final: 129 registros, 123 activos, 6 inactivos
