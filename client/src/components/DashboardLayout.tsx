@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Building2, ClipboardList, History, Target, PlusCircle, TrendingUp, Settings2 } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Building2, ClipboardList, History, Target, PlusCircle, TrendingUp, Settings2, Layers } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -35,6 +35,7 @@ const menuItems = [
   { icon: TrendingUp, label: "Comparativa", path: "/comparativa" },
   { icon: Target, label: "Plan de Acción", path: "/plan-accion" },
   { icon: Settings2, label: "Admin Preguntas", path: "/admin/preguntas" },
+  { icon: Layers, label: "Prototipo HQ", path: "/prototipo-hq" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

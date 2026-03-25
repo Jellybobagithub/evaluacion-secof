@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import fs from "fs";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -43,6 +45,16 @@ async function startServer() {
       createContext,
     })
   );
+  // Serve prototipo HQ HTML directly (before Vite/static middleware)
+  app.get("/prototipo-hq", (_req, res) => {
+    const htmlPath = path.resolve(process.cwd(), "client", "public", "prototipo-hq.html");
+    if (fs.existsSync(htmlPath)) {
+      res.sendFile(htmlPath);
+    } else {
+      res.status(404).send("Prototipo no encontrado");
+    }
+  });
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

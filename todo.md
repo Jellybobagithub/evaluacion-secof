@@ -128,3 +128,8 @@
 - [ ] Pantalla: Comparativa entre tiendas
 - [ ] Pantalla: Control de Personal / Horarios
 - [ ] Pantalla: Integración SECOF en dashboard admin
+
+## Prototipo HQ Accesible (Mar 25)
+- [x] Crear página React /prototipo-hq que renderice el prototipo del sistema Snowtea HQ
+- [x] Agregar ruta en App.tsx
+- [x] Agregar enlace en sidebar
