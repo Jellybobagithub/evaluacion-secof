@@ -507,6 +507,53 @@ export const appRouter = router({
         }
         return { totalVentas, totalTx, avgTicket, reportesEnviados: recientes.length, reportesPorSucursal, dias };
       }),
+
+    // Avance vs meta del mes actual por sucursal
+    avanceMeta: protectedProcedure.query(async () => {
+      const { getReportesDiarios, getSucursales } = await import('./db');
+      const [todos, sucursales] = await Promise.all([
+        getReportesDiarios(undefined, undefined, 1000),
+        getSucursales(),
+      ]);
+      const ahora = new Date();
+      const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+      const enviados = todos.filter(r => new Date(r.fecha) >= inicioMes && r.estado === 'enviado');
+      return sucursales.filter(s => s.activa).map(s => {
+        const ventasMes = enviados
+          .filter(r => r.sucursalId === s.id)
+          .reduce((sum, r) => sum + (r.ventasTotales ?? 0), 0);
+        const meta = s.metaVentasMensual ?? 0;
+        return {
+          sucursalId: s.id,
+          nombre: s.nombre,
+          ventasMes,
+          meta,
+          porcentaje: meta > 0 ? Math.min(100, (ventasMes / meta) * 100) : null,
+        };
+      });
+    }),
+
+    // Sucursales sin reporte en los últimos N días
+    sinReporte: protectedProcedure
+      .input(z.object({ dias: z.number().min(1).max(30).optional() }))
+      .query(async ({ input }) => {
+        const { getReportesDiarios, getSucursales } = await import('./db');
+        const dias = input.dias ?? 2;
+        const [todos, sucursales] = await Promise.all([
+          getReportesDiarios(undefined, undefined, 500),
+          getSucursales(),
+        ]);
+        const corte = new Date();
+        corte.setDate(corte.getDate() - dias);
+        const conReporte = new Set(
+          todos
+            .filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado')
+            .map(r => r.sucursalId)
+        );
+        return sucursales
+          .filter(s => s.activa && !conReporte.has(s.id))
+          .map(s => ({ sucursalId: s.id, nombre: s.nombre }));
+      }),
   }),
 
   adminUsuarios: router({

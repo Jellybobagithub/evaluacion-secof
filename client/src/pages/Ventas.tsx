@@ -8,7 +8,7 @@ import {
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import {
-  DollarSign, TrendingUp, BarChart3, ShoppingCart, Download, FileText,
+  DollarSign, TrendingUp, BarChart3, ShoppingCart, Download, FileText, Building2,
 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 
@@ -61,6 +61,11 @@ export default function Ventas() {
   const { data: historico, isLoading } = trpc.reportesDiarios.historico.useQuery(
     { dias, sucursalId },
     {}
+  );
+  // Comparativa entre sucursales (solo cuando no hay filtro de sucursal)
+  const { data: avanceMeta = [] } = trpc.reportesDiarios.avanceMeta.useQuery(
+    undefined,
+    { enabled: !sucursalId }
   );
 
   const serie = useMemo(() => {
@@ -414,6 +419,64 @@ export default function Ventas() {
                 </tbody>
               </table>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* === COMPARATIVA ENTRE SUCURSALES === */}
+      {!sucursalId && avanceMeta.length > 1 && (
+        <Card className="border-0 shadow-sm bg-white">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Comparativa entre Sucursales — Mes Actual</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[...avanceMeta]
+                .sort((a, b) => b.ventasMes - a.ventasMes)
+                .map((a) => {
+                  const pct = a.meta > 0 ? Math.min(100, (a.ventasMes / a.meta) * 100) : null;
+                  const barColor = pct === null ? "bg-blue-400" : pct >= 90 ? "bg-green-500" : pct >= 60 ? "bg-yellow-500" : "bg-red-500";
+                  const textColor = pct === null ? "text-blue-700" : pct >= 90 ? "text-green-700" : pct >= 60 ? "text-yellow-700" : "text-red-700";
+                  const maxVentas = Math.max(...avanceMeta.map(x => x.ventasMes));
+                  const barWidth = maxVentas > 0 ? (a.ventasMes / maxVentas) * 100 : 0;
+                  return (
+                    <div key={a.sucursalId} className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 w-36 shrink-0">
+                        <div className="h-7 w-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                          <Building2 className="h-3.5 w-3.5 text-blue-600" />
+                        </div>
+                        <span className="text-sm font-medium truncate">{a.nombre}</span>
+                      </div>
+                      <div className="flex-1 flex items-center gap-3">
+                        <div className="flex-1 h-7 bg-muted rounded-lg overflow-hidden relative">
+                          <div
+                            className={`h-full rounded-lg transition-all ${barColor} opacity-80`}
+                            style={{ width: `${barWidth}%` }}
+                          />
+                          <span className="absolute inset-0 flex items-center px-3 text-xs font-semibold text-foreground">
+                            {formatMXN(a.ventasMes)}
+                          </span>
+                        </div>
+                        {pct !== null && (
+                          <span className={`text-xs font-bold w-12 text-right shrink-0 ${textColor}`}>
+                            {pct.toFixed(0)}%
+                          </span>
+                        )}
+                        {a.meta > 0 && (
+                          <span className="text-xs text-muted-foreground w-24 text-right shrink-0">
+                            meta: {formatMXN(a.meta)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            {avanceMeta.every(a => a.meta === 0) && (
+              <p className="text-xs text-muted-foreground text-center mt-3">
+                Configura la meta mensual en cada sucursal para ver el avance porcentual
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

@@ -247,3 +247,18 @@
 - [ ] Dashboard: indicador de avance vs meta en tarjeta de ventas
 - [x] Exportación a CSV del historial de ventas (integrado en página Ventas)
 - [x] Ruta /ventas en App.tsx y menú lateral
+
+## Mejoras v19 (Mar 26)
+- [ ] Dashboard: indicador de avance vs meta mensual de ventas por sucursal
+- [ ] Backend: endpoint para calcular avance vs meta del mes actual
+- [ ] Alertas: notificar al superadmin cuando una sucursal lleva +2 días sin reporte
+- [ ] Alertas: indicador visual en Dashboard de tiendas sin reporte reciente
+- [ ] Página Ventas: gráfica comparativa de ventas entre sucursales (barras agrupadas)
+- [ ] Página Ventas: selector multi-sucursal para comparativa
+
+## Mejoras v19 (Mar 26)
+- [x] Dashboard: alerta de tiendas sin reporte en últimos 2 días
+- [x] Dashboard: sección avance vs meta mensual por sucursal (barra de progreso)
+- [x] Ventas: comparativa entre sucursales con barras horizontales ordenadas por ventas
+- [x] Backend: endpoint sinReporte (tiendas sin reporte en N días)
+- [x] Backend: endpoint avanceMeta (ventas del mes vs meta por sucursal)

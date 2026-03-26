@@ -52,6 +52,14 @@ export default function Home() {
     { dias: 7 },
     { enabled: hasRoleAccess(role, 'manager') }
   );
+  const { data: avanceMeta = [] } = trpc.reportesDiarios.avanceMeta.useQuery(
+    undefined,
+    { enabled: hasRoleAccess(role, 'manager') }
+  );
+  const { data: sinReporte = [] } = trpc.reportesDiarios.sinReporte.useQuery(
+    { dias: 2 },
+    { enabled: hasRoleAccess(role, 'manager') }
+  );
 
   const evaluacionesCompletadas = evaluaciones.filter(e => e.estado === "completada");
   const borradores = evaluaciones.filter(e => e.estado === "borrador");
@@ -296,6 +304,61 @@ export default function Home() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* === ALERTA: Tiendas sin reporte === */}
+      {isManager && sinReporte.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800">Tiendas sin reporte en los últimos 2 días</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              {sinReporte.map(s => s.nombre).join(" · ")}
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" className="text-xs text-amber-700 hover:bg-amber-100 h-7" onClick={() => setLocation("/reporte-diario")}>
+            Ver reportes
+          </Button>
+        </div>
+      )}
+
+      {/* === PILAR META: Avance vs Meta Mensual === */}
+      {isManager && avanceMeta.length > 0 && avanceMeta.some(a => a.meta > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Avance vs Meta Mensual</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Ventas acumuladas del mes actual</p>
+            </div>
+            <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={() => setLocation("/ventas")}>
+              Ver detalle <ChevronRight className="h-3 w-3" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {avanceMeta.filter(a => a.meta > 0).map(a => {
+              const pct = a.porcentaje ?? 0;
+              const color = pct >= 90 ? "bg-green-500" : pct >= 60 ? "bg-yellow-500" : "bg-red-500";
+              const textColor = pct >= 90 ? "text-green-700" : pct >= 60 ? "text-yellow-700" : "text-red-700";
+              return (
+                <Card key={a.sucursalId} className="border-0 shadow-sm bg-white">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold truncate">{a.nombre}</p>
+                      <span className={`text-sm font-bold ${textColor}`}>{pct.toFixed(0)}%</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden mb-2">
+                      <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>${a.ventasMes.toLocaleString('es-MX', { minimumFractionDigits: 0 })} vendido</span>
+                      <span>Meta: ${a.meta.toLocaleString('es-MX', { minimumFractionDigits: 0 })}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}
