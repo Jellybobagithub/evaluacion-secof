@@ -113,6 +113,25 @@ export default function MiTurno() {
     return "Fuera de turno";
   };
 
+  // KPI Nivel 2: cumplimiento de reportes del mes
+  const mes = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const mesInicio = useMemo(() => {
+    const [y, m] = mes.split('-').map(Number);
+    return `${y}-${String(m).padStart(2, '0')}-01`;
+  }, [mes]);
+  const mesFin = useMemo(() => {
+    const [y, m] = mes.split('-').map(Number);
+    return new Date(y, m, 0).toISOString().slice(0, 10);
+  }, [mes]);
+  const { data: cumplimientoMes } = trpc.kpiLider.cumplimientoReportes.useQuery(
+    { sucursalId: sucursalId ?? 0, fechaInicio: mesInicio, fechaFin: mesFin },
+    { enabled: !!sucursalId }
+  );
+  const { data: mermasMes } = trpc.kpiLider.mermas.useQuery(
+    { sucursalId: sucursalId ?? 0, fechaInicio: mesInicio, fechaFin: mesFin },
+    { enabled: !!sucursalId }
+  );
+
   // Acciones rápidas
   const accionesRapidas = [
     {
@@ -273,15 +292,64 @@ export default function MiTurno() {
         </div>
       </div>
 
+      {/* KPIs del mes (Nivel 2) */}
+      <div className="px-4 pb-4">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">KPIs del mes</p>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Cumplimiento de reportes */}
+          <div className={`rounded-2xl p-3 border ${
+            cumplimientoMes?.porcentaje != null
+              ? cumplimientoMes.porcentaje >= 100 ? 'bg-green-500/15 border-green-500/30' :
+                cumplimientoMes.porcentaje >= 70 ? 'bg-amber-500/15 border-amber-500/30' :
+                'bg-red-500/15 border-red-500/30'
+              : 'bg-white/10 border-white/10'
+          }`}>
+            <FileText className={`w-5 h-5 mb-1 ${
+              cumplimientoMes?.porcentaje != null
+                ? cumplimientoMes.porcentaje >= 100 ? 'text-green-400' :
+                  cumplimientoMes.porcentaje >= 70 ? 'text-amber-400' : 'text-red-400'
+                : 'text-slate-400'
+            }`} />
+            <p className="text-xl font-bold">
+              {cumplimientoMes?.porcentaje != null ? `${cumplimientoMes.porcentaje}%` : '—'}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">Reportes</p>
+            {(cumplimientoMes?.diasSinReporte?.length ?? 0) > 0 && (
+              <p className="text-xs text-red-400 mt-1">{cumplimientoMes?.diasSinReporte?.length ?? 0} días pendientes</p>
+            )}
+          </div>
+          {/* Mermas del mes */}
+          <div className={`rounded-2xl p-3 border ${
+            mermasMes?.porcentaje != null
+              ? mermasMes.porcentaje <= 3 ? 'bg-green-500/15 border-green-500/30' :
+                mermasMes.porcentaje <= 5 ? 'bg-amber-500/15 border-amber-500/30' :
+                'bg-red-500/15 border-red-500/30'
+              : 'bg-white/10 border-white/10'
+          }`}>
+            <AlertTriangle className={`w-5 h-5 mb-1 ${
+              mermasMes?.porcentaje != null
+                ? mermasMes.porcentaje <= 3 ? 'text-green-400' :
+                  mermasMes.porcentaje <= 5 ? 'text-amber-400' : 'text-red-400'
+                : 'text-slate-400'
+            }`} />
+            <p className="text-xl font-bold">
+              {mermasMes?.porcentaje != null ? `${mermasMes.porcentaje}%` : '—'}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">Mermas</p>
+            <p className="text-xs text-slate-500 mt-0.5">Meta ≤3%</p>
+          </div>
+        </div>
+      </div>
+
       {/* Acceso a módulos */}
       <div className="px-4 pb-8">
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Módulos</p>
         <div className="grid grid-cols-2 gap-3">
           {[
             { icon: BarChart2, label: "KPIs Anfitriones", path: "/kpi-anfitriones", color: "from-yellow-600/30 to-orange-600/30" },
+            { icon: TrendingUp, label: "KPIs Líder", path: "/kpi-lider", color: "from-teal-600/30 to-cyan-600/30" },
             { icon: Calendar, label: "Horarios", path: "/horarios", color: "from-indigo-600/30 to-blue-600/30" },
             { icon: Users, label: "Empleados", path: "/empleados", color: "from-purple-600/30 to-pink-600/30" },
-            { icon: TrendingUp, label: "Historial SECOF", path: "/historial", color: "from-teal-600/30 to-cyan-600/30" },
           ].map(m => (
             <button
               key={m.path}

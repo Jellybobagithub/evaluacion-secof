@@ -1147,5 +1147,224 @@ export const appRouter = router({
         return { success: true, copiados: prevRows.length };
       }),
   }),
+
+  // ─── KPI Nivel 2 (Líder) ─────────────────────────────────────────────────────
+  kpiLider: router({
+    // Cumplimiento de reportes diarios (% enviados a tiempo)
+    cumplimientoReportes: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(), // YYYY-MM-DD
+        fechaFin: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getCumplimientoReportes } = await import('./db');
+        return getCumplimientoReportes(
+          input.sucursalId,
+          new Date(input.fechaInicio),
+          new Date(input.fechaFin)
+        );
+      }),
+
+    // KPI Mermas (% mermas vs ventas)
+    mermas: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(),
+        fechaFin: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getKpiMermas } = await import('./db');
+        return getKpiMermas(
+          input.sucursalId,
+          new Date(input.fechaInicio),
+          new Date(input.fechaFin)
+        );
+      }),
+
+    // KPI Rotación de Equipo
+    rotacion: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(),
+        fechaFin: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getKpiRotacion } = await import('./db');
+        return getKpiRotacion(
+          input.sucursalId,
+          new Date(input.fechaInicio),
+          new Date(input.fechaFin)
+        );
+      }),
+
+    // KPI Puntualidad de Anfitriones
+    puntualidad: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.number(), // Unix ms
+        fechaFin: z.number(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getKpiPuntualidad } = await import('./db');
+        return getKpiPuntualidad(input.sucursalId, input.fechaInicio, input.fechaFin);
+      }),
+
+    // Descuadres de Caja
+    descuadresCaja: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(),
+        fechaFin: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getDescuadresCaja } = await import('./db');
+        return getDescuadresCaja(
+          input.sucursalId,
+          new Date(input.fechaInicio),
+          new Date(input.fechaFin)
+        );
+      }),
+
+    // Resumen completo Nivel 2 para una sucursal
+    resumenNivel2: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        mes: z.string().optional(), // 'YYYY-MM', default mes actual
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const mesStr = input.mes ?? new Date().toISOString().slice(0, 7);
+        const [year, month] = mesStr.split('-').map(Number);
+        const fechaInicio = new Date(year, month - 1, 1);
+        const fechaFin = new Date(year, month, 0, 23, 59, 59);
+        const trimInicio = new Date(year, Math.floor((month - 1) / 3) * 3, 1);
+        const trimFin = new Date(year, Math.floor((month - 1) / 3) * 3 + 3, 0, 23, 59, 59);
+
+        const { getCumplimientoReportes, getKpiMermas, getKpiRotacion } = await import('./db');
+        const [reportes, mermas, rotacion] = await Promise.all([
+          getCumplimientoReportes(input.sucursalId, fechaInicio, fechaFin),
+          getKpiMermas(input.sucursalId, fechaInicio, fechaFin),
+          getKpiRotacion(input.sucursalId, trimInicio, trimFin),
+        ]);
+
+        // Última evaluación SECOF del mes
+        const { getDb } = await import('./db');
+        const { evaluaciones } = await import('../drizzle/schema');
+        const { eq, and, gte, lte, desc } = await import('drizzle-orm');
+        const db = await getDb();
+        let secof = null;
+        if (db) {
+          const evals = await db.select().from(evaluaciones)
+            .where(and(
+              eq(evaluaciones.sucursalId, input.sucursalId),
+              eq(evaluaciones.estado, 'completada'),
+              gte(evaluaciones.fecha, fechaInicio),
+              lte(evaluaciones.fecha, fechaFin)
+            ))
+            .orderBy(desc(evaluaciones.fecha))
+            .limit(1);
+          secof = evals[0] ?? null;
+        }
+
+        // Ventas del mes
+        const { getDb: _db2 } = await import('./db');
+        const { reportesDiarios } = await import('../drizzle/schema');
+        const db2 = await _db2();
+        let ventas = { total: 0, meta: 0, porcentaje: 0 };
+        if (db2) {
+          const reps = await db2.select().from(reportesDiarios)
+            .where(and(
+              eq(reportesDiarios.sucursalId, input.sucursalId),
+              gte(reportesDiarios.fecha, fechaInicio),
+              lte(reportesDiarios.fecha, fechaFin),
+              eq(reportesDiarios.estado, 'enviado')
+            ));
+          const totalVentas = reps.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+          const { sucursales } = await import('../drizzle/schema');
+          const suc = await db2.select().from(sucursales).where(eq(sucursales.id, input.sucursalId)).limit(1);
+          const meta = suc[0]?.metaVentasMensual ?? 0;
+          ventas = {
+            total: Math.round(totalVentas * 100) / 100,
+            meta,
+            porcentaje: meta > 0 ? Math.round((totalVentas / meta) * 100) : 0
+          };
+        }
+
+        return {
+          mes: mesStr,
+          secof: secof ? { porcentaje: secof.porcentajeGeneral, calificacion: secof.calificacion } : null,
+          ventas,
+          reportes,
+          mermas,
+          rotacion,
+        };
+      }),
+  }),
+
+  // ─── Bajas de Empleados ──────────────────────────────────────────────────────
+  bajas: router({
+    registrar: protectedProcedure
+      .input(z.object({
+        empleadoId: z.number(),
+        sucursalId: z.number(),
+        tipo: z.enum(['renuncia', 'despido', 'termino_contrato', 'otro']),
+        motivo: z.string().optional(),
+        fechaBaja: z.string().optional(), // ISO date
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { createBajaEmpleado } = await import('./db');
+        const { updateEmpleado } = await import('./db');
+        await createBajaEmpleado({
+          empleadoId: input.empleadoId,
+          sucursalId: input.sucursalId,
+          tipo: input.tipo,
+          motivo: input.motivo,
+          fechaBaja: input.fechaBaja ? new Date(input.fechaBaja) : new Date(),
+          registradoPorId: ctx.user.id,
+        });
+        // Marcar empleado como inactivo
+        await updateEmpleado(input.empleadoId, { activo: false, fechaBaja: input.fechaBaja ? new Date(input.fechaBaja) : new Date() });
+        return { success: true };
+      }),
+
+    list: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string().optional(),
+        fechaFin: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getBajasBySucursal } = await import('./db');
+        return getBajasBySucursal(
+          input.sucursalId,
+          input.fechaInicio ? new Date(input.fechaInicio) : undefined,
+          input.fechaFin ? new Date(input.fechaFin) : undefined
+        );
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

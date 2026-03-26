@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { BarChart2, Plus, Star, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChart2, Plus, Star, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Clock, DollarSign, TrendingUp } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Obtener semana ISO (ej: "2026-W13")
 function getSemanaISO(date = new Date()) {
@@ -81,6 +82,8 @@ export default function KpiAnfitriones() {
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [notas, setNotas] = useState("");
 
+  const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
+
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
     { sucursalId: sucursalId ?? 0 },
@@ -91,6 +94,27 @@ export default function KpiAnfitriones() {
     { enabled: !!sucursalId }
   );
   const utils = trpc.useUtils();
+
+  // KPI Puntualidad del mes
+  const mesInicio = useMemo(() => {
+    const [y, m] = mes.split('-').map(Number);
+    return new Date(y, m - 1, 1).getTime();
+  }, [mes]);
+  const mesFin = useMemo(() => {
+    const [y, m] = mes.split('-').map(Number);
+    return new Date(y, m, 0, 23, 59, 59).getTime();
+  }, [mes]);
+  const mesInicioStr = useMemo(() => new Date(mesInicio).toISOString().slice(0, 10), [mesInicio]);
+  const mesFinStr = useMemo(() => new Date(mesFin).toISOString().slice(0, 10), [mesFin]);
+
+  const { data: puntualidad = [] } = trpc.kpiLider.puntualidad.useQuery(
+    { sucursalId: sucursalId ?? 0, fechaInicio: mesInicio, fechaFin: mesFin },
+    { enabled: !!sucursalId }
+  );
+  const { data: descuadres = [] } = trpc.kpiLider.descuadresCaja.useQuery(
+    { sucursalId: sucursalId ?? 0, fechaInicio: mesInicioStr, fechaFin: mesFinStr },
+    { enabled: !!sucursalId }
+  );
 
   const registrarMut = trpc.kpiAnfitriones.registrar.useMutation({
     onSuccess: () => {
@@ -199,6 +223,14 @@ export default function KpiAnfitriones() {
 
       {sucursalId && (
         <>
+          <Tabs defaultValue="servicio">
+            <TabsList className="grid grid-cols-3 w-full max-w-md">
+              <TabsTrigger value="servicio">⭐ Servicio</TabsTrigger>
+              <TabsTrigger value="puntualidad">🕐 Puntualidad</TabsTrigger>
+              <TabsTrigger value="caja">💰 Caja</TabsTrigger>
+            </TabsList>
+
+          <TabsContent value="servicio" className="mt-4 space-y-4">
           {/* Botones de registro por tipo */}
           {canEdit && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -303,6 +335,97 @@ export default function KpiAnfitriones() {
               </CardContent>
             </Card>
           )}
+          </TabsContent>
+
+          {/* Tab Puntualidad */}
+          <TabsContent value="puntualidad" className="mt-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium">Mes:</label>
+              <input type="month" value={mes} onChange={e => setMes(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
+            </div>
+            {puntualidad.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">Sin registros de asistencia este mes</p>
+                <p className="text-sm mt-1">Los registros aparecen cuando los empleados usan el QR de entrada</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(puntualidad as any[]).map(emp => (
+                  <Card key={emp.empleadoId}>
+                    <CardContent className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm shrink-0">
+                          {emp.nombre.charAt(0)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{emp.nombre}</p>
+                          <p className="text-xs text-muted-foreground">{emp.totalEntradas} entradas · {emp.tardias} tardías</p>
+                        </div>
+                        <span className={`text-sm font-bold px-2 py-0.5 rounded border ${
+                          emp.porcentajePuntualidad >= 90 ? 'bg-green-50 text-green-700 border-green-200' :
+                          emp.porcentajePuntualidad >= 70 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-red-50 text-red-700 border-red-200'
+                        }`}>{emp.porcentajePuntualidad}%</span>
+                      </div>
+                      <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${
+                          emp.porcentajePuntualidad >= 90 ? 'bg-green-500' :
+                          emp.porcentajePuntualidad >= 70 ? 'bg-amber-500' : 'bg-red-500'
+                        }`} style={{ width: `${emp.porcentajePuntualidad}%` }} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Tab Descuadres de Caja */}
+          <TabsContent value="caja" className="mt-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium">Mes:</label>
+              <input type="month" value={mes} onChange={e => setMes(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
+            </div>
+            {descuadres.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <DollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">Sin descuadres de caja este mes</p>
+                <p className="text-sm mt-1">Los descuadres aparecen cuando hay diferencia entre efectivo y ventas en el reporte diario</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(descuadres as any[]).map(d => (
+                  <Card key={d.id} className={`border-l-4 ${Math.abs(d.diferenciaCaja) > 200 ? 'border-l-red-500' : 'border-l-amber-500'}`}>
+                    <CardContent className="py-3 px-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">
+                            {new Date(d.fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' })}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Por: {d.usuarioNombre ?? '—'}</p>
+                          {d.notasCaja && <p className="text-xs italic mt-1">"{d.notasCaja}"</p>}
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-base font-bold ${d.diferenciaCaja > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {d.diferenciaCaja > 0 ? '+' : ''}${Math.abs(d.diferenciaCaja).toFixed(2)}
+                          </span>
+                          <p className="text-xs text-muted-foreground mt-0.5">diferencia</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mt-2 text-xs text-muted-foreground">
+                        <span>Inicial: ${(d.efectivoInicial ?? 0).toFixed(2)}</span>
+                        <span>Final: ${(d.efectivoFinal ?? 0).toFixed(2)}</span>
+                        <span>Ventas: ${(d.ventasTotales ?? 0).toFixed(2)}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          </Tabs>
         </>
       )}
 

@@ -110,6 +110,7 @@ const ALL_NAV_GROUPS = [
       { icon: ClipboardList, label: "Checklist Actividades", path: "/checklist", minRole: "leader" },
       { icon: ClipboardCheck, label: "Asistencia", path: "/asistencia", minRole: "leader" },
       { icon: BarChart3, label: "KPIs Anfitriones", path: "/kpi-anfitriones", minRole: "leader" },
+      { icon: TrendingUp, label: "KPIs Líder (Nivel 2)", path: "/kpi-lider", minRole: "leader" },
     ],
   },
   {

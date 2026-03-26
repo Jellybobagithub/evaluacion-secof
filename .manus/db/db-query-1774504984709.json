@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `bajas_empleados` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`empleadoId` int NOT NULL,\n\t`sucursalId` int NOT NULL,\n\t`fechaBaja` timestamp NOT NULL DEFAULT (now()),\n\t`tipo` enum('renuncia','despido','termino_contrato','otro') NOT NULL DEFAULT 'renuncia',\n\t`motivo` text,\n\t`registradoPorId` int,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `bajas_empleados_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `reportes_diarios` ADD `efectivoInicial` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `efectivoFinal` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `diferenciaCaja` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `notasCaja` text;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute CREATE TABLE `bajas_empleados` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`empleadoId` int NOT NULL,\n\t`sucursalId` int NOT NULL,\n\t`fechaBaja` timestamp NOT NULL DEFAULT (now()),\n\t`tipo` enum('renuncia','despido','termino_contrato','otro') NOT NULL DEFAULT 'renuncia',\n\t`motivo` text,\n\t`registradoPorId` int,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `bajas_empleados_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `reportes_diarios` ADD `efectivoInicial` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `efectivoFinal` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `diferenciaCaja` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `notasCaja` text;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2946
+}

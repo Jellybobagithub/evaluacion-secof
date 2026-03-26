@@ -1,6 +1,13 @@
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, puntosEvaluacion, userSucursales, InsertSucursal, InsertEvaluacion, InsertRespuesta, InsertPlanAccion, InsertPuntoEvaluacion } from "../drizzle/schema";
+import {
+  InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, puntosEvaluacion,
+  userSucursales, InsertSucursal, InsertEvaluacion, InsertRespuesta, InsertPlanAccion,
+  InsertPuntoEvaluacion, empleados, InsertEmpleado, checklistPlantillas, InsertChecklistPlantilla,
+  checklistRegistros, InsertChecklistRegistro, asistencia, InsertAsistencia,
+  observacionesKpi, InsertObservacionKpi, reportesDiarios, InsertReporteDiario,
+  horariosSemanales, InsertHorarioSemanal, bajasEmpleados, InsertBajaEmpleado
+} from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -374,16 +381,7 @@ export async function removeUserSucursal(userId: number, sucursalId: number) {
     .where(and(eq(userSucursales.userId, userId), eq(userSucursales.sucursalId, sucursalId)));
 }
 
-// ─── Empleados ───────────────────────────────────────────────────────────────
-
-import {
-  empleados, InsertEmpleado,
-  checklistPlantillas, InsertChecklistPlantilla,
-  checklistRegistros, InsertChecklistRegistro,
-  asistencia, InsertAsistencia,
-  observacionesKpi, InsertObservacionKpi,
-} from "../drizzle/schema";
-import { gte, lte, sql, between } from "drizzle-orm";
+// // ─── Empleados ──────────────────────────────────────────────────────-orm";
 
 export async function getEmpleadosBySucursal(sucursalId: number, soloActivos = true) {
   const db = await getDb();
@@ -555,4 +553,160 @@ export async function setQrToken(sucursalId: number, token: string) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(sucursales).set({ qrToken: token }).where(eq(sucursales.id, sucursalId));
+}
+
+// ─── Bajas de Empleados ──────────────────────────────────────────────────────
+// (bajasEmpleados, reportesDiarios, empleados, asistencia ya importados desde schema)
+
+export async function createBajaEmpleado(data: InsertBajaEmpleado) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(bajasEmpleados).values(data);
+}
+
+export async function getBajasBySucursal(sucursalId: number, fechaInicio?: Date, fechaFin?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds: any[] = [eq(bajasEmpleados.sucursalId, sucursalId)];
+  if (fechaInicio) conds.push(gte(bajasEmpleados.fechaBaja, fechaInicio));
+  if (fechaFin) conds.push(lte(bajasEmpleados.fechaBaja, fechaFin));
+  return db.select().from(bajasEmpleados).where(and(...conds)).orderBy(desc(bajasEmpleados.fechaBaja));
+}
+
+// KPI Rotación de Equipo: (bajas en el trimestre / promedio de plantilla) * 100
+export async function getKpiRotacion(sucursalId: number, fechaInicio: Date, fechaFin: Date) {
+  const db = await getDb();
+  if (!db) return { bajas: 0, plantillaPromedio: 0, porcentaje: 0 };
+  const bajas = await db.select().from(bajasEmpleados)
+    .where(and(
+      eq(bajasEmpleados.sucursalId, sucursalId),
+      gte(bajasEmpleados.fechaBaja, fechaInicio),
+      lte(bajasEmpleados.fechaBaja, fechaFin)
+    ));
+  const totalEmpleados = await db.select().from(empleados)
+    .where(eq(empleados.sucursalId, sucursalId));
+  const activos = totalEmpleados.filter(e => e.activo).length;
+  const plantillaPromedio = activos + Math.floor(bajas.length / 2); // estimado
+  const porcentaje = plantillaPromedio > 0 ? (bajas.length / plantillaPromedio) * 100 : 0;
+  return { bajas: bajas.length, plantillaPromedio, porcentaje: Math.round(porcentaje * 10) / 10 };
+}
+
+// ─── Cumplimiento de Reportes ────────────────────────────────────────────────
+
+export async function getCumplimientoReportes(sucursalId: number, fechaInicio: Date, fechaFin: Date) {
+  const db = await getDb();
+  if (!db) return { enviados: 0, esperados: 0, porcentaje: 0, diasSinReporte: [] as string[] };
+  const reportes = await db.select().from(reportesDiarios)
+    .where(and(
+      eq(reportesDiarios.sucursalId, sucursalId),
+      gte(reportesDiarios.fecha, fechaInicio),
+      lte(reportesDiarios.fecha, fechaFin),
+      eq(reportesDiarios.estado, 'enviado')
+    ));
+  // Calcular días laborables en el rango (lunes a sábado)
+  const diasLaborables: string[] = [];
+  const cursor = new Date(fechaInicio);
+  while (cursor <= fechaFin) {
+    const dow = cursor.getDay(); // 0=dom, 6=sab
+    if (dow !== 0) { // excluir domingos
+      diasLaborables.push(cursor.toISOString().slice(0, 10));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const diasConReporte = new Set(reportes.map(r => new Date(r.fecha).toISOString().slice(0, 10)));
+  const diasSinReporte = diasLaborables.filter(d => !diasConReporte.has(d));
+  const enviados = reportes.length;
+  const esperados = diasLaborables.length;
+  const porcentaje = esperados > 0 ? Math.round((enviados / esperados) * 100) : 100;
+  return { enviados, esperados, porcentaje, diasSinReporte };
+}
+
+// ─── KPI Mermas ──────────────────────────────────────────────────────────────
+
+export async function getKpiMermas(sucursalId: number, fechaInicio: Date, fechaFin: Date) {
+  const db = await getDb();
+  if (!db) return { totalMermas: 0, totalVentas: 0, porcentaje: 0, diasConAlerta: 0 };
+  const reportes = await db.select().from(reportesDiarios)
+    .where(and(
+      eq(reportesDiarios.sucursalId, sucursalId),
+      gte(reportesDiarios.fecha, fechaInicio),
+      lte(reportesDiarios.fecha, fechaFin),
+      eq(reportesDiarios.estado, 'enviado')
+    ));
+  const totalMermas = reportes.reduce((s, r) => s + (r.mermasMonto ?? 0), 0);
+  const totalVentas = reportes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+  const porcentaje = totalVentas > 0 ? (totalMermas / totalVentas) * 100 : 0;
+  const diasConAlerta = reportes.filter(r => r.ventasTotales && r.mermasMonto && (r.mermasMonto / r.ventasTotales) > 0.03).length;
+  return {
+    totalMermas: Math.round(totalMermas * 100) / 100,
+    totalVentas: Math.round(totalVentas * 100) / 100,
+    porcentaje: Math.round(porcentaje * 10) / 10,
+    diasConAlerta
+  };
+}
+
+// ─── KPI Puntualidad ─────────────────────────────────────────────────────────
+
+export async function getKpiPuntualidad(sucursalId: number, fechaInicio: number, fechaFin: number) {
+  const db = await getDb();
+  if (!db) return [];
+  // Obtener empleados de la sucursal
+  const emps = await db.select().from(empleados)
+    .where(and(eq(empleados.sucursalId, sucursalId), eq(empleados.activo, true)));
+  const result = [];
+  for (const emp of emps) {
+    const registros = await db.select().from(asistencia)
+      .where(and(
+        eq(asistencia.empleadoId, emp.id),
+        gte(asistencia.timestamp, fechaInicio),
+        lte(asistencia.timestamp, fechaFin),
+        eq(asistencia.tipo, 'entrada')
+      )).orderBy(asistencia.timestamp);
+    // Contar entradas tardías (después de las 8:00 matutino o 14:00 vespertino)
+    let tardias = 0;
+    for (const reg of registros) {
+      const hora = new Date(reg.timestamp).getHours();
+      const minuto = new Date(reg.timestamp).getMinutes();
+      const minutosDesdeMedianoche = hora * 60 + minuto;
+      // Tardanza: matutino si llega después de 8:10, vespertino si llega después de 14:10
+      if ((minutosDesdeMedianoche > 490 && minutosDesdeMedianoche < 840) ||
+          (minutosDesdeMedianoche > 850)) {
+        tardias++;
+      }
+    }
+    result.push({
+      empleadoId: emp.id,
+      nombre: emp.nombre + (emp.apellido ? ' ' + emp.apellido : ''),
+      rol: emp.rol,
+      totalEntradas: registros.length,
+      tardias,
+      porcentajePuntualidad: registros.length > 0 ? Math.round(((registros.length - tardias) / registros.length) * 100) : 100
+    });
+  }
+  return result;
+}
+
+// ─── Descuadres de Caja ──────────────────────────────────────────────────────
+
+export async function getDescuadresCaja(sucursalId: number, fechaInicio: Date, fechaFin: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const reportes = await db.select().from(reportesDiarios)
+    .where(and(
+      eq(reportesDiarios.sucursalId, sucursalId),
+      gte(reportesDiarios.fecha, fechaInicio),
+      lte(reportesDiarios.fecha, fechaFin)
+    )).orderBy(desc(reportesDiarios.fecha));
+  return reportes
+    .filter(r => r.diferenciaCaja !== null && r.diferenciaCaja !== 0)
+    .map(r => ({
+      id: r.id,
+      fecha: r.fecha,
+      diferenciaCaja: r.diferenciaCaja ?? 0,
+      efectivoInicial: r.efectivoInicial ?? 0,
+      efectivoFinal: r.efectivoFinal ?? 0,
+      ventasTotales: r.ventasTotales ?? 0,
+      notasCaja: r.notasCaja,
+      usuarioNombre: r.usuarioNombre,
+    }));
 }

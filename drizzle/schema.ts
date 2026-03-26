@@ -254,6 +254,11 @@ export const reportesDiarios = mysqlTable("reportes_diarios", {
   // Mermas del día
   mermasMonto: float("mermasMonto").default(0),
   mermasDetalle: text("mermasDetalle"),
+  // Control de caja
+  efectivoInicial: float("efectivoInicial").default(0),
+  efectivoFinal: float("efectivoFinal").default(0),
+  diferenciaCaja: float("diferenciaCaja").default(0), // efectivoFinal - efectivoInicial - ventas esperadas
+  notasCaja: text("notasCaja"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -282,3 +287,18 @@ export const horariosSemanales = mysqlTable("horarios_semanales", {
 
 export type HorarioSemanal = typeof horariosSemanales.$inferSelect;
 export type InsertHorarioSemanal = typeof horariosSemanales.$inferInsert;
+
+// Bajas de Empleados (para KPI de Rotación de Equipo)
+export const bajasEmpleados = mysqlTable("bajas_empleados", {
+  id: int("id").autoincrement().primaryKey(),
+  empleadoId: int("empleadoId").notNull(),
+  sucursalId: int("sucursalId").notNull(),
+  fechaBaja: timestamp("fechaBaja").defaultNow().notNull(),
+  tipo: mysqlEnum("tipo", ["renuncia", "despido", "termino_contrato", "otro"]).default("renuncia").notNull(),
+  motivo: text("motivo"),
+  registradoPorId: int("registradoPorId"), // userId del líder/manager
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BajaEmpleado = typeof bajasEmpleados.$inferSelect;
+export type InsertBajaEmpleado = typeof bajasEmpleados.$inferInsert;

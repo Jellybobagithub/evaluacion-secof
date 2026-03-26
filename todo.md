@@ -319,3 +319,32 @@
 - [x] Dashboard Líder: ventas del día, checklist, asistencia, KPI semana, SECOF en una pantalla
 - [x] Dashboard Líder: acciones rápidas con indicador de completado
 - [x] Navegación: Horarios y Mi Turno en grupo Equipo del menú lateral
+
+## Nivel 1 y 2 Completos - v25 (Mar 26) ✔
+### Nivel 1 - KPIs Anfitriones (completo)
+- [x] Schema: campo efectivo_inicial, efectivo_final, diferencia_caja en reportes_diarios
+- [x] Schema: tabla bajas_empleados (empleadoId, fecha, motivo, tipo: renuncia/despido/otro)
+- [x] Backend: procedimiento descuadresCaja (por sucursal, rango de fechas)
+- [x] Backend: procedimiento kpiPuntualidad (incidencias de asistencia por empleado/mes)
+- [x] Backend: kpiAnfitriones con 3 tipos: servicio, preparacion, caja
+- [x] UI: KpiAnfitriones mejorado con pestañas: Servicio / Preparación / Puntualidad / Caja
+- [x] UI: KpiAnfitriones - tabla de descuadres de caja con semáforo
+- [x] UI: KpiAnfitriones - KPI de puntualidad por empleado
+### Nivel 2 - KPIs Líder (completo)
+- [x] Backend: procedimiento cumplimientoReportes (% reportes enviados a tiempo por mes)
+- [x] Backend: procedimiento mermas (% mermas vs ventas por sucursal/mes)
+- [x] Backend: procedimiento rotacionEquipo (bajas / plantilla promedio * 100, por trimestre)
+- [x] UI: nueva página KpiLider con 5 KPIs: SECOF, Ventas vs Meta, Mermas, Reportes, Rotación
+- [x] UI: KpiLider - semáforo por KPI (verde/amarillo/rojo según meta)
+- [x] UI: KpiLider - tendencia mensual de cada KPI con gráfica de línea
+- [x] UI: KpiLider - exportar resumen a PDF
+- [x] Navegación: KPIs Líder (Nivel 2) en grupo Equipo del menú lateral
+### Notificaciones automáticas
+- [x] Scheduler: alerta al owner si no hay reporte diario a las 22:00
+- [x] Scheduler: alerta al owner si mermas >3% en el reporte del día
+- [x] Scheduler: alerta al owner si descuadre de caja >$50
+- [x] Resumen semanal mejorado: incluye mermas, descuadres, avance vs meta
+### Mi Turno mejorado
+- [x] MiTurno: sección KPIs del mes (cumplimiento reportes + mermas con semáforo)
+- [x] MiTurno: acceso rápido a KPIs Líder y KPIs Anfitriones
+- [x] MiTurno: indicador de días pendientes de reporte en el mes
