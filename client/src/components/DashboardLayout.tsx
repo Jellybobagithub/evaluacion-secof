@@ -125,16 +125,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
+  const { loading, user, logout } = useAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
   if (loading) return <DashboardLayoutSkeleton />;
-
-  // Pantalla de cuenta pendiente para usuarios sin rol asignado
-  const { logout } = useAuth();
   if (user && (user as any).role === 'user') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-950 via-green-900 to-green-800">

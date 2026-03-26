@@ -193,3 +193,6 @@
 - [x] Gestión de Sucursales: registro con nombre, ciudad, franquiciado (ya implementado)
 - [x] Gestión de Sucursales: listado con estado y última evaluación (ya implementado)
 - [x] Gestión de Sucursales: asignación de usuarios a sucursal (SucursalDetalle)
+
+## Bug Fix - Hooks (Mar 25)
+- [x] Corregir error "Rendered more hooks than during previous render" en DashboardLayout.tsx
