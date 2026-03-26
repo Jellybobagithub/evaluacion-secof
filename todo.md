@@ -175,3 +175,11 @@
 - [x] Actualizar backend: adminUsuarios accesible para superadmin, owner y manager
 - [x] Actualizar schema Drizzle: remover 'admin' del enum de roles
 - [x] Eliminar Prototipo HQ del menú lateral y de las rutas de la aplicación
+
+## Autenticación con Google OAuth (Mar 25 - v11)
+- [x] Configurar credenciales GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET
+- [x] Backend: endpoint /api/auth/google y /api/auth/google/callback
+- [x] Backend: sesión JWT propia (independiente de Manus)
+- [x] Frontend: botón "Continuar con Google", eliminar Manus OAuth
+- [x] Configurar Authorized Redirect URI en Google Cloud Console
+- [x] Migrar useAuth: compatible con sesión JWT propia (sin cambios necesarios)
