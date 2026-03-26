@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `horarios_semanales` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sucursalId` int NOT NULL,\n\t`empleadoId` int NOT NULL,\n\t`semana` varchar(10) NOT NULL,\n\t`lunes` varchar(4),\n\t`martes` varchar(4),\n\t`miercoles` varchar(4),\n\t`jueves` varchar(4),\n\t`viernes` varchar(4),\n\t`sabado` varchar(4),\n\t`domingo` varchar(4),\n\t`notas` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `horarios_semanales_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `reportes_diarios` ADD `mermasMonto` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `mermasDetalle` text;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute CREATE TABLE `horarios_semanales` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sucursalId` int NOT NULL,\n\t`empleadoId` int NOT NULL,\n\t`semana` varchar(10) NOT NULL,\n\t`lunes` varchar(4),\n\t`martes` varchar(4),\n\t`miercoles` varchar(4),\n\t`jueves` varchar(4),\n\t`viernes` varchar(4),\n\t`sabado` varchar(4),\n\t`domingo` varchar(4),\n\t`notas` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `horarios_semanales_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `reportes_diarios` ADD `mermasMonto` float DEFAULT 0;\nALTER TABLE `reportes_diarios` ADD `mermasDetalle` text;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2011
+}

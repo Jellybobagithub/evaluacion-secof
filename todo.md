@@ -305,3 +305,17 @@
 - [x] Página Asistencia Admin: historial del día y registro manual (Líder)
 - [x] Página KPIs Anfitriones: dashboard de KPIs Nivel 1 por empleado (servicio, preparación, caja)
 - [x] Navegación: grupo "Equipo" en menú lateral con 4 sub-ítems
+
+## Módulos v24 (Mar 26) ✔
+- [x] Mermas: campo mermas_monto y mermas_detalle en tabla reportes_diarios
+- [x] Mermas: UI en Reporte Diario (campo de monto y descripción de mermas, con % vs ventas)
+- [x] Mermas: indicador en detalle del reporte (semáforo verde <3%, rojo >3%)
+- [x] Horarios: tabla horarios_semanales (empleado, sucursal, semana, turno por día)
+- [x] Horarios: página Horarios con vista de calendario semanal (7 columnas, empleados en filas)
+- [x] Horarios: asignación de turno por clic cíclico (M/V/MV/D/sin asignar)
+- [x] Horarios: copiar semana anterior con un clic
+- [x] Horarios: exportación a PDF para imprimir en tienda (ventana de impresión del navegador)
+- [x] Dashboard Líder: vista /mi-turno optimizada para móvil (fondo oscuro, tarjetas grandes)
+- [x] Dashboard Líder: ventas del día, checklist, asistencia, KPI semana, SECOF en una pantalla
+- [x] Dashboard Líder: acciones rápidas con indicador de completado
+- [x] Navegación: Horarios y Mi Turno en grupo Equipo del menú lateral

@@ -251,9 +251,34 @@ export const reportesDiarios = mysqlTable("reportes_diarios", {
   novedades: text("novedades"),
   observaciones: text("observaciones"),
   estado: mysqlEnum("estado", ["borrador", "enviado"]).default("borrador").notNull(),
+  // Mermas del día
+  mermasMonto: float("mermasMonto").default(0),
+  mermasDetalle: text("mermasDetalle"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type ReporteDiario = typeof reportesDiarios.$inferSelect;
 export type InsertReporteDiario = typeof reportesDiarios.$inferInsert;
+
+// Horarios Semanales
+export const horariosSemanales = mysqlTable("horarios_semanales", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  empleadoId: int("empleadoId").notNull(),
+  semana: varchar("semana", { length: 10 }).notNull(), // "2026-W13"
+  // Turno por día: null = sin asignar, 'M' = matutino, 'V' = vespertino, 'D' = descanso, 'MV' = doble turno
+  lunes: varchar("lunes", { length: 4 }),
+  martes: varchar("martes", { length: 4 }),
+  miercoles: varchar("miercoles", { length: 4 }),
+  jueves: varchar("jueves", { length: 4 }),
+  viernes: varchar("viernes", { length: 4 }),
+  sabado: varchar("sabado", { length: 4 }),
+  domingo: varchar("domingo", { length: 4 }),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type HorarioSemanal = typeof horariosSemanales.$inferSelect;
+export type InsertHorarioSemanal = typeof horariosSemanales.$inferInsert;

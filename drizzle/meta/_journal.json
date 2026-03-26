@@ -64,6 +64,13 @@
       "when": 1774502071619,
       "tag": "0008_acoustic_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1774503100414,
+      "tag": "0009_simple_katie_power",
+      "breakpoints": true
     }
   ]
 }

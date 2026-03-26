@@ -23,6 +23,8 @@ import Checklist from "./pages/Checklist";
 import Asistencia from "./pages/Asistencia";
 import AsistenciaQR from "./pages/AsistenciaQR";
 import KpiAnfitriones from "./pages/KpiAnfitriones";
+import Horarios from "./pages/Horarios";
+import MiTurno from "./pages/MiTurno";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -93,6 +95,16 @@ function Router() {
         {/* KPIs Anfitriones: leader y superior */}
         <Route path="/kpi-anfitriones">
           <ProtectedRoute component={KpiAnfitriones} minRole="leader" />
+        </Route>
+
+        {/* Horarios Semanales: leader y superior */}
+        <Route path="/horarios">
+          <ProtectedRoute component={Horarios} minRole="leader" />
+        </Route>
+
+        {/* Mi Turno: dashboard móvil del líder */}
+        <Route path="/mi-turno">
+          <ProtectedRoute component={MiTurno} minRole="leader" />
         </Route>
 
         {/* Colaboradores: owner, manager, superadmin */}

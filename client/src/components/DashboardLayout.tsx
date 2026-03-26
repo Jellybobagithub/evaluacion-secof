@@ -40,6 +40,8 @@ import {
   Store,
   Settings,
   DollarSign,
+  Calendar,
+  Smartphone,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -102,7 +104,9 @@ const ALL_NAV_GROUPS = [
     minRole: "leader",
     path: null,
     items: [
+      { icon: Smartphone, label: "Mi Turno", path: "/mi-turno", minRole: "leader" },
       { icon: Users, label: "Empleados", path: "/empleados", minRole: "leader" },
+      { icon: Calendar, label: "Horarios", path: "/horarios", minRole: "leader" },
       { icon: ClipboardList, label: "Checklist Actividades", path: "/checklist", minRole: "leader" },
       { icon: ClipboardCheck, label: "Asistencia", path: "/asistencia", minRole: "leader" },
       { icon: BarChart3, label: "KPIs Anfitriones", path: "/kpi-anfitriones", minRole: "leader" },

@@ -47,6 +47,8 @@ const EMPTY_FORM = {
   incidentes: "",
   novedades: "",
   observaciones: "",
+  mermasMonto: "",
+  mermasDetalle: "",
 };
 
 export default function ReporteDiario() {
@@ -117,6 +119,8 @@ export default function ReporteDiario() {
       incidentes: r.incidentes ?? "",
       novedades: r.novedades ?? "",
       observaciones: r.observaciones ?? "",
+      mermasMonto: (r as any).mermasMonto != null ? String((r as any).mermasMonto) : "",
+      mermasDetalle: (r as any).mermasDetalle ?? "",
     });
     setShowForm(true);
   }
@@ -135,6 +139,8 @@ export default function ReporteDiario() {
       incidentes: form.incidentes || undefined,
       novedades: form.novedades || undefined,
       observaciones: form.observaciones || undefined,
+      mermasMonto: form.mermasMonto ? parseFloat(form.mermasMonto) : undefined,
+      mermasDetalle: form.mermasDetalle || undefined,
       estado,
     };
     if (editingId) {
@@ -461,6 +467,33 @@ export default function ReporteDiario() {
                   className="resize-none"
                 />
               </div>
+              {/* Mermas */}
+              <div className="pt-2 border-t">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Control de Mermas</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Monto de mermas ($)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={form.mermasMonto}
+                      onChange={e => setForm(f => ({ ...f, mermasMonto: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Detalle de mermas</Label>
+                    <Textarea
+                      placeholder="Describe qué productos y por qué razón..."
+                      value={form.mermasDetalle}
+                      onChange={e => setForm(f => ({ ...f, mermasDetalle: e.target.value }))}
+                      rows={2}
+                      className="resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -560,6 +593,33 @@ export default function ReporteDiario() {
                 <div className="space-y-1">
                   <p className="text-xs font-semibold text-muted-foreground">Observaciones</p>
                   <p className="text-sm text-foreground bg-muted/40 p-3 rounded-lg">{viewingReporte.observaciones}</p>
+                </div>
+              )}
+
+              {/* Mermas */}
+              {((viewingReporte as any).mermasMonto != null && (viewingReporte as any).mermasMonto > 0) && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-red-600 flex items-center gap-1">
+                    📉 Control de Mermas
+                  </p>
+                  <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">Monto registrado</span>
+                      <span className="font-bold text-red-700">${Number((viewingReporte as any).mermasMonto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    {viewingReporte.ventasTotales && (viewingReporte as any).mermasMonto > 0 && (
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-muted-foreground">% vs ventas del día</span>
+                        <span className={`font-semibold text-xs ${ ((viewingReporte as any).mermasMonto / viewingReporte.ventasTotales * 100) > 3 ? 'text-red-600' : 'text-green-600' }`}>
+                          {((viewingReporte as any).mermasMonto / viewingReporte.ventasTotales * 100).toFixed(1)}%
+                          {((viewingReporte as any).mermasMonto / viewingReporte.ventasTotales * 100) > 3 ? ' ⚠️ Sobre meta' : ' ✅ Dentro de meta'}
+                        </span>
+                      </div>
+                    )}
+                    {(viewingReporte as any).mermasDetalle && (
+                      <p className="text-sm text-foreground">{(viewingReporte as any).mermasDetalle}</p>
+                    )}
+                  </div>
                 </div>
               )}
 
