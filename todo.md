@@ -271,3 +271,9 @@
 - [ ] Reporte semanal automático: notificación al superadmin con estado de todas las tiendas
 - [ ] UX: indicador de carga mejorado en formulario de evaluación
 - [ ] UX: mensaje de bienvenida personalizado en Dashboard según rol
+
+## Mejoras v21 (Mar 26)
+- [x] Eliminar foto de sucursal del formulario y del schema
+- [x] Meta de ventas: mover a sección separada "Metas de Ventas" accesible solo para owner/superadmin
+- [x] Gráfica de tendencia SECOF en detalle de sucursal (línea histórica de puntajes)
+- [x] Exportar PDF directamente desde el listado de historial (sin entrar al detalle)

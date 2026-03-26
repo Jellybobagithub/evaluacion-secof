@@ -17,6 +17,7 @@ import AdminPreguntas from "./pages/AdminPreguntas";
 import AdminUsuarios from "./pages/AdminUsuarios";
 import ReporteDiario from "./pages/ReporteDiario";
 import Ventas from "./pages/Ventas";
+import MetasVentas from "./pages/MetasVentas";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -59,6 +60,11 @@ function Router() {
         {/* Ventas - Histórico: manager y superior */}
         <Route path="/ventas">
           <ProtectedRoute component={Ventas} minRole="manager" />
+        </Route>
+
+        {/* Metas de Ventas: owner, manager, superadmin */}
+        <Route path="/metas-ventas">
+          <ProtectedRoute component={MetasVentas} minRole="owner" />
         </Route>
 
         {/* Colaboradores: owner, manager, superadmin */}

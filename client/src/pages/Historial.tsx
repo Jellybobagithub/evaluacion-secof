@@ -5,14 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, ClipboardList, Calendar, User, Trash2, Eye, TrendingUp, TrendingDown, Minus, PlayCircle } from "lucide-react";
+import { Building2, ClipboardList, Calendar, User, Trash2, Eye, TrendingUp, TrendingDown, Minus, PlayCircle, Download, Loader2 } from "lucide-react";
 import { getCalificacion } from "../../../shared/evaluacionData";
 import { toast } from "sonner";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { exportEvaluacionPDF } from "@/lib/exportPDF";
 
 export default function Historial() {
   const [, setLocation] = useLocation();
   const [sucursalFiltro, setSucursalFiltro] = useState<string>("all");
+  const [exportingId, setExportingId] = useState<number | null>(null);
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const { data: evaluaciones = [], refetch } = trpc.evaluaciones.list.useQuery(
@@ -23,6 +25,35 @@ export default function Historial() {
     onSuccess: () => { toast.success("Evaluación eliminada"); refetch(); },
     onError: () => toast.error("Error al eliminar"),
   });
+
+  // Cargar detalle de evaluación para exportar PDF
+  const utils = trpc.useUtils();
+
+  async function handleExportPDF(evId: number, sucursalId: number) {
+    if (exportingId) return;
+    setExportingId(evId);
+    toast.info("Cargando datos para el PDF...");
+    try {
+      const [evDetalle, sucursal] = await Promise.all([
+        utils.evaluaciones.getById.fetch({ id: evId }),
+        utils.sucursales.getById.fetch({ id: sucursalId }),
+      ]);
+      if (!evDetalle) {
+        toast.error("No se pudo cargar la evaluación");
+        return;
+      }
+      exportEvaluacionPDF(evDetalle, sucursal ? {
+        nombre: sucursal.nombre,
+        ciudad: sucursal.ciudad ?? undefined,
+        estado: sucursal.estado ?? undefined,
+        franquiciado: sucursal.franquiciado ?? undefined,
+      } : null);
+    } catch {
+      toast.error("Error al generar el PDF");
+    } finally {
+      setExportingId(null);
+    }
+  }
 
   const completadas = evaluaciones.filter(e => e.estado === "completada");
   const borradores = evaluaciones.filter(e => e.estado === "borrador");
@@ -121,7 +152,7 @@ export default function Historial() {
             </div>
           ) : (
             <div className="space-y-2">
-              {evaluaciones.map((ev, idx) => {
+              {evaluaciones.map((ev) => {
                 const sucursal = sucursales.find(s => s.id === ev.sucursalId);
                 const calif = ev.estado === "completada" ? getCalificacion(ev.porcentajeGeneral ?? 0) : null;
                 // Compare with previous evaluation of same sucursal
@@ -147,8 +178,16 @@ export default function Historial() {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(ev.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}</span>
-                          {ev.evaluadorNombre && <span className="flex items-center gap-1"><User className="h-3 w-3" />{ev.evaluadorNombre}</span>}
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(ev.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                          </span>
+                          {ev.evaluadorNombre && (
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {ev.evaluadorNombre}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -170,9 +209,30 @@ export default function Historial() {
                       )}
                       <div className="flex gap-1">
                         {ev.estado === "completada" && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Ver resultado" onClick={() => setLocation(`/evaluacion/${ev.id}`)}>
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Ver resultado"
+                              onClick={() => setLocation(`/evaluacion/${ev.id}`)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              title="Descargar PDF"
+                              disabled={exportingId === ev.id}
+                              onClick={() => handleExportPDF(ev.id, ev.sucursalId)}
+                            >
+                              {exportingId === ev.id
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Download className="h-3.5 w-3.5" />
+                              }
+                            </Button>
+                          </>
                         )}
                         {ev.estado === "borrador" && (
                           <Button
