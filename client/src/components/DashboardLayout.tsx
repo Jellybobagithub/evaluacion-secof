@@ -96,9 +96,22 @@ const ALL_NAV_GROUPS = [
     ],
   },
   {
+    id: "equipo",
+    label: "Equipo",
+    icon: Users,
+    minRole: "leader",
+    path: null,
+    items: [
+      { icon: Users, label: "Empleados", path: "/empleados", minRole: "leader" },
+      { icon: ClipboardList, label: "Checklist Actividades", path: "/checklist", minRole: "leader" },
+      { icon: ClipboardCheck, label: "Asistencia", path: "/asistencia", minRole: "leader" },
+      { icon: BarChart3, label: "KPIs Anfitriones", path: "/kpi-anfitriones", minRole: "leader" },
+    ],
+  },
+  {
     id: "colaboradores",
     label: "Colaboradores",
-    icon: Users,
+    icon: ShieldCheck,
     minRole: "owner",
     path: "/admin/usuarios",
     items: [

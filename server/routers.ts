@@ -714,5 +714,352 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ─── Empleados ───────────────────────────────────────────────────────────
+  empleados: router({
+    list: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), soloActivos: z.boolean().optional() }))
+      .query(async ({ input }) => {
+        const { getEmpleadosBySucursal } = await import('./db');
+        return getEmpleadosBySucursal(input.sucursalId, input.soloActivos ?? true);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getEmpleadoById } = await import('./db');
+        return getEmpleadoById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        nombre: z.string().min(1),
+        apellido: z.string().optional(),
+        rol: z.enum(['anfitrion', 'lider', 'administrador']).default('anfitrion'),
+        telefono: z.string().optional(),
+        fechaIngreso: z.string().optional(), // ISO string
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { createEmpleado } = await import('./db');
+        await createEmpleado({
+          sucursalId: input.sucursalId,
+          nombre: input.nombre,
+          apellido: input.apellido,
+          rol: input.rol,
+          telefono: input.telefono,
+          fechaIngreso: input.fechaIngreso ? new Date(input.fechaIngreso) : new Date(),
+          notas: input.notas,
+        });
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nombre: z.string().optional(),
+        apellido: z.string().optional(),
+        rol: z.enum(['anfitrion', 'lider', 'administrador']).optional(),
+        telefono: z.string().optional(),
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { updateEmpleado } = await import('./db');
+        const { id, ...data } = input;
+        await updateEmpleado(id, data);
+        return { success: true };
+      }),
+
+    darBaja: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { darBajaEmpleado } = await import('./db');
+        await darBajaEmpleado(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Checklist Plantillas ────────────────────────────────────────────────
+  checklistPlantillas: router({
+    list: protectedProcedure.query(async () => {
+      const { getChecklistPlantillas } = await import('./db');
+      return getChecklistPlantillas();
+    }),
+
+    create: protectedProcedure
+      .input(z.object({
+        nombre: z.string().min(1),
+        tipo: z.enum(['limpieza', 'operativo', 'apertura', 'cierre']),
+        turno: z.enum(['matutino', 'vespertino', 'ambos']),
+        items: z.array(z.object({
+          id: z.string(),
+          descripcion: z.string(),
+          orden: z.number(),
+          obligatorio: z.boolean().optional(),
+        })),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { createChecklistPlantilla } = await import('./db');
+        await createChecklistPlantilla(input as any);
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nombre: z.string().optional(),
+        tipo: z.enum(['limpieza', 'operativo', 'apertura', 'cierre']).optional(),
+        turno: z.enum(['matutino', 'vespertino', 'ambos']).optional(),
+        items: z.array(z.object({
+          id: z.string(),
+          descripcion: z.string(),
+          orden: z.number(),
+          obligatorio: z.boolean().optional(),
+        })).optional(),
+        activo: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { updateChecklistPlantilla } = await import('./db');
+        const { id, ...data } = input;
+        await updateChecklistPlantilla(id, data as any);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Checklist Registros ─────────────────────────────────────────────────
+  checklist: router({
+    list: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string().optional(),
+        fechaFin: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getChecklistRegistros } = await import('./db');
+        return getChecklistRegistros(
+          input.sucursalId,
+          input.fechaInicio ? new Date(input.fechaInicio) : undefined,
+          input.fechaFin ? new Date(input.fechaFin) : undefined,
+        );
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getChecklistRegistroById } = await import('./db');
+        return getChecklistRegistroById(input.id);
+      }),
+
+    save: protectedProcedure
+      .input(z.object({
+        id: z.number().optional(), // si existe, actualiza; si no, crea
+        plantillaId: z.number(),
+        sucursalId: z.number(),
+        empleadoId: z.number().optional(),
+        liderNombre: z.string().optional(),
+        fecha: z.string(),
+        turno: z.enum(['matutino', 'vespertino']),
+        itemsCompletados: z.record(z.string(), z.boolean()),
+        totalItems: z.number(),
+        itemsOk: z.number(),
+        porcentaje: z.number(),
+        observaciones: z.string().optional(),
+        firmado: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { createChecklistRegistro, updateChecklistRegistro } = await import('./db');
+        const data = {
+          plantillaId: input.plantillaId,
+          sucursalId: input.sucursalId,
+          empleadoId: input.empleadoId,
+          liderNombre: input.liderNombre ?? ctx.user.name ?? '',
+          fecha: new Date(input.fecha),
+          turno: input.turno,
+          itemsCompletados: input.itemsCompletados,
+          totalItems: input.totalItems,
+          itemsOk: input.itemsOk,
+          porcentaje: input.porcentaje,
+          observaciones: input.observaciones,
+          firmado: input.firmado ?? false,
+        };
+        if (input.id) {
+          await updateChecklistRegistro(input.id, data as any);
+        } else {
+          await createChecklistRegistro(data as any);
+        }
+        return { success: true };
+      }),
+  }),
+
+  // ─── Asistencia ──────────────────────────────────────────────────────────
+  asistencia: router({
+    // Endpoint público para registro por QR (desde celular sin login)
+    registrarQr: publicProcedure
+      .input(z.object({
+        qrToken: z.string(),
+        empleadoId: z.number(),
+        tipo: z.enum(['entrada', 'salida']),
+        latitud: z.number().optional(),
+        longitud: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { getSucursalByQrToken, registrarAsistencia, getUltimoRegistroAsistencia } = await import('./db');
+        const sucursal = await getSucursalByQrToken(input.qrToken);
+        if (!sucursal) throw new TRPCError({ code: 'NOT_FOUND', message: 'QR inválido o expirado' });
+        // Validar que el empleado pertenece a la sucursal
+        const { getEmpleadoById } = await import('./db');
+        const empleado = await getEmpleadoById(input.empleadoId);
+        if (!empleado || empleado.sucursalId !== sucursal.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Empleado no pertenece a esta sucursal' });
+        }
+        // Evitar doble entrada/salida en menos de 5 minutos
+        const ultimo = await getUltimoRegistroAsistencia(input.empleadoId);
+        if (ultimo && ultimo.tipo === input.tipo && Date.now() - ultimo.timestamp < 5 * 60 * 1000) {
+          throw new TRPCError({ code: 'CONFLICT', message: 'Ya registraste ' + input.tipo + ' recientemente' });
+        }
+        await registrarAsistencia({
+          empleadoId: input.empleadoId,
+          sucursalId: sucursal.id,
+          tipo: input.tipo,
+          timestamp: Date.now(),
+          metodo: 'qr',
+          latitud: input.latitud,
+          longitud: input.longitud,
+        });
+        return { success: true, sucursalNombre: sucursal.nombre, empleadoNombre: empleado.nombre };
+      }),
+
+    // Registro manual por el líder
+    registrarManual: protectedProcedure
+      .input(z.object({
+        empleadoId: z.number(),
+        sucursalId: z.number(),
+        tipo: z.enum(['entrada', 'salida']),
+        timestamp: z.number(), // Unix ms
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { registrarAsistencia } = await import('./db');
+        await registrarAsistencia({
+          ...input,
+          metodo: 'manual',
+          registradoPorId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+
+    listBySucursal: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.number().optional(),
+        fechaFin: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getAsistenciaBySucursal } = await import('./db');
+        return getAsistenciaBySucursal(input.sucursalId, input.fechaInicio, input.fechaFin);
+      }),
+
+    listByEmpleado: protectedProcedure
+      .input(z.object({
+        empleadoId: z.number(),
+        fechaInicio: z.number().optional(),
+        fechaFin: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getAsistenciaByEmpleado } = await import('./db');
+        return getAsistenciaByEmpleado(input.empleadoId, input.fechaInicio, input.fechaFin);
+      }),
+
+    // Generar/regenerar QR token para una sucursal
+    generarQrToken: protectedProcedure
+      .input(z.object({ sucursalId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { setQrToken } = await import('./db');
+        const crypto = await import('crypto');
+        const token = crypto.randomBytes(24).toString('hex');
+        await setQrToken(input.sucursalId, token);
+        return { token };
+      }),
+
+    // Obtener el QR token actual de una sucursal
+    getQrToken: protectedProcedure
+      .input(z.object({ sucursalId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getSucursalById } = await import('./db');
+        const s = await getSucursalById(input.sucursalId);
+        return { token: s?.qrToken ?? null };
+      }),
+  }),
+
+  // ─── KPIs Anfitriones (Observaciones Nivel 1) ────────────────────────────
+  kpiAnfitriones: router({
+    list: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        semana: z.string().optional(), // "2026-W13"
+      }))
+      .query(async ({ input }) => {
+        const { getObservacionesKpi } = await import('./db');
+        return getObservacionesKpi(input.sucursalId, input.semana);
+      }),
+
+    listByEmpleado: protectedProcedure
+      .input(z.object({
+        empleadoId: z.number(),
+        semana: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getObservacionesKpiByEmpleado } = await import('./db');
+        return getObservacionesKpiByEmpleado(input.empleadoId, input.semana);
+      }),
+
+    registrar: protectedProcedure
+      .input(z.object({
+        empleadoId: z.number(),
+        sucursalId: z.number(),
+        tipo: z.enum(['servicio', 'preparacion', 'caja']),
+        detalle: z.record(z.string(), z.any()),
+        cumple: z.boolean(),
+        semana: z.string(), // "2026-W13"
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { createObservacionKpi } = await import('./db');
+        await createObservacionKpi({
+          ...input,
+          observadorId: ctx.user.id,
+          detalle: input.detalle,
+        });
+        return { success: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

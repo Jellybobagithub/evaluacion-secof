@@ -18,6 +18,11 @@ import AdminUsuarios from "./pages/AdminUsuarios";
 import ReporteDiario from "./pages/ReporteDiario";
 import Ventas from "./pages/Ventas";
 import MetasVentas from "./pages/MetasVentas";
+import Empleados from "./pages/Empleados";
+import Checklist from "./pages/Checklist";
+import Asistencia from "./pages/Asistencia";
+import AsistenciaQR from "./pages/AsistenciaQR";
+import KpiAnfitriones from "./pages/KpiAnfitriones";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -65,6 +70,29 @@ function Router() {
         {/* Metas de Ventas: owner, manager, superadmin */}
         <Route path="/metas-ventas">
           <ProtectedRoute component={MetasVentas} minRole="owner" />
+        </Route>
+
+        {/* Empleados: leader y superior */}
+        <Route path="/empleados">
+          <ProtectedRoute component={Empleados} minRole="leader" />
+        </Route>
+
+        {/* Checklist de actividades: leader y superior */}
+        <Route path="/checklist">
+          <ProtectedRoute component={Checklist} minRole="leader" />
+        </Route>
+
+        {/* Asistencia: leader y superior */}
+        <Route path="/asistencia">
+          <ProtectedRoute component={Asistencia} minRole="leader" />
+        </Route>
+
+        {/* Página pública de registro QR (sin login) */}
+        <Route path="/asistencia-qr" component={AsistenciaQR} />
+
+        {/* KPIs Anfitriones: leader y superior */}
+        <Route path="/kpi-anfitriones">
+          <ProtectedRoute component={KpiAnfitriones} minRole="leader" />
         </Route>
 
         {/* Colaboradores: owner, manager, superadmin */}

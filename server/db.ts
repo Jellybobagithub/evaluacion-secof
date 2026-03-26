@@ -373,3 +373,186 @@ export async function removeUserSucursal(userId: number, sucursalId: number) {
   await db.delete(userSucursales)
     .where(and(eq(userSucursales.userId, userId), eq(userSucursales.sucursalId, sucursalId)));
 }
+
+// ─── Empleados ───────────────────────────────────────────────────────────────
+
+import {
+  empleados, InsertEmpleado,
+  checklistPlantillas, InsertChecklistPlantilla,
+  checklistRegistros, InsertChecklistRegistro,
+  asistencia, InsertAsistencia,
+  observacionesKpi, InsertObservacionKpi,
+} from "../drizzle/schema";
+import { gte, lte, sql, between } from "drizzle-orm";
+
+export async function getEmpleadosBySucursal(sucursalId: number, soloActivos = true) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = [eq(empleados.sucursalId, sucursalId)];
+  if (soloActivos) conds.push(eq(empleados.activo, true));
+  return db.select().from(empleados).where(and(...conds)).orderBy(empleados.nombre);
+}
+
+export async function getEmpleadoById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(empleados).where(eq(empleados.id, id)).limit(1);
+  return rows[0];
+}
+
+export async function createEmpleado(data: InsertEmpleado) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(empleados).values(data);
+}
+
+export async function updateEmpleado(id: number, data: Partial<InsertEmpleado>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(empleados).set(data).where(eq(empleados.id, id));
+}
+
+export async function darBajaEmpleado(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(empleados).set({ activo: false, fechaBaja: new Date() }).where(eq(empleados.id, id));
+}
+
+// ─── Checklist Plantillas ────────────────────────────────────────────────────
+
+export async function getChecklistPlantillas(soloActivas = true) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = soloActivas ? [eq(checklistPlantillas.activo, true)] : [];
+  return db.select().from(checklistPlantillas)
+    .where(conds.length ? and(...conds) : undefined)
+    .orderBy(checklistPlantillas.nombre);
+}
+
+export async function getChecklistPlantillaById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(checklistPlantillas).where(eq(checklistPlantillas.id, id)).limit(1);
+  return rows[0];
+}
+
+export async function createChecklistPlantilla(data: InsertChecklistPlantilla) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(checklistPlantillas).values(data);
+  return result;
+}
+
+export async function updateChecklistPlantilla(id: number, data: Partial<InsertChecklistPlantilla>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(checklistPlantillas).set(data).where(eq(checklistPlantillas.id, id));
+}
+
+// ─── Checklist Registros ─────────────────────────────────────────────────────
+
+export async function getChecklistRegistros(sucursalId: number, fechaInicio?: Date, fechaFin?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = [eq(checklistRegistros.sucursalId, sucursalId)];
+  if (fechaInicio) conds.push(gte(checklistRegistros.fecha, fechaInicio));
+  if (fechaFin) conds.push(lte(checklistRegistros.fecha, fechaFin));
+  return db.select().from(checklistRegistros)
+    .where(and(...conds))
+    .orderBy(desc(checklistRegistros.fecha));
+}
+
+export async function getChecklistRegistroById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(checklistRegistros).where(eq(checklistRegistros.id, id)).limit(1);
+  return rows[0];
+}
+
+export async function createChecklistRegistro(data: InsertChecklistRegistro) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(checklistRegistros).values(data);
+  return result;
+}
+
+export async function updateChecklistRegistro(id: number, data: Partial<InsertChecklistRegistro>) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(checklistRegistros).set(data).where(eq(checklistRegistros.id, id));
+}
+
+// ─── Asistencia ──────────────────────────────────────────────────────────────
+
+export async function getAsistenciaBySucursal(sucursalId: number, fechaInicio?: number, fechaFin?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = [eq(asistencia.sucursalId, sucursalId)];
+  if (fechaInicio) conds.push(gte(asistencia.timestamp, fechaInicio));
+  if (fechaFin) conds.push(lte(asistencia.timestamp, fechaFin));
+  return db.select().from(asistencia).where(and(...conds)).orderBy(desc(asistencia.timestamp));
+}
+
+export async function getAsistenciaByEmpleado(empleadoId: number, fechaInicio?: number, fechaFin?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = [eq(asistencia.empleadoId, empleadoId)];
+  if (fechaInicio) conds.push(gte(asistencia.timestamp, fechaInicio));
+  if (fechaFin) conds.push(lte(asistencia.timestamp, fechaFin));
+  return db.select().from(asistencia).where(and(...conds)).orderBy(desc(asistencia.timestamp));
+}
+
+export async function registrarAsistencia(data: InsertAsistencia) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(asistencia).values(data);
+}
+
+export async function getUltimoRegistroAsistencia(empleadoId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(asistencia)
+    .where(eq(asistencia.empleadoId, empleadoId))
+    .orderBy(desc(asistencia.timestamp))
+    .limit(1);
+  return rows[0];
+}
+
+// ─── Observaciones KPI ───────────────────────────────────────────────────────
+
+export async function getObservacionesKpi(sucursalId: number, semana?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = [eq(observacionesKpi.sucursalId, sucursalId)];
+  if (semana) conds.push(eq(observacionesKpi.semana, semana));
+  return db.select().from(observacionesKpi).where(and(...conds)).orderBy(desc(observacionesKpi.createdAt));
+}
+
+export async function getObservacionesKpiByEmpleado(empleadoId: number, semana?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const conds = [eq(observacionesKpi.empleadoId, empleadoId)];
+  if (semana) conds.push(eq(observacionesKpi.semana, semana));
+  return db.select().from(observacionesKpi).where(and(...conds)).orderBy(desc(observacionesKpi.createdAt));
+}
+
+export async function createObservacionKpi(data: InsertObservacionKpi) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.insert(observacionesKpi).values(data);
+}
+
+// ─── QR Token de Sucursal ────────────────────────────────────────────────────
+
+export async function getSucursalByQrToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(sucursales).where(eq(sucursales.qrToken, token)).limit(1);
+  return rows[0];
+}
+
+export async function setQrToken(sucursalId: number, token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(sucursales).set({ qrToken: token }).where(eq(sucursales.id, sucursalId));
+}

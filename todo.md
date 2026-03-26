@@ -286,3 +286,22 @@
 - [x] Backend: scheduler semanal (lunes 8am) que envía notificación con resumen SECOF + ventas
 - [x] Backend: resumenSemanal incluye avance vs meta del mes actual por sucursal
 - [x] Ventas: exportación a CSV mejorada (incluye meta, avance %, sucursal, período, día de semana)
+
+## Módulos Anfitriones y Líder (v23) ✔
+- [x] Schema: tabla empleados (nombre, rol, sucursal, fecha ingreso, activo)
+- [x] Schema: tabla checklist_plantillas (nombre, tipo: limpieza/operativo, items JSON)
+- [x] Schema: tabla checklist_registros (empleado, plantilla, fecha, items_completados, firmado)
+- [x] Schema: tabla asistencia (empleado, sucursal, tipo: entrada/salida, timestamp, método: qr/manual, lat/lng)
+- [x] Schema: tabla observaciones_kpi (empleado, semana, tipo: servicio/preparacion/caja, valor, notas)
+- [x] Backend: CRUD empleados por sucursal
+- [x] Backend: CRUD plantillas de checklist
+- [x] Backend: registro de checklist diario (líder firma)
+- [x] Backend: endpoint QR de asistencia (público, por token de sucursal)
+- [x] Backend: registro de asistencia manual
+- [x] Backend: KPI observaciones de servicio (% interacciones cumplidas por tipo)
+- [x] Página Empleados: listado y alta/baja por sucursal (Líder/Manager)
+- [x] Página Checklist: vista diaria con ítems por turno + plantillas Snowtea LI-FR-001/002
+- [x] Página Asistencia QR: página pública mobile-first para escanear QR (entrada/salida)
+- [x] Página Asistencia Admin: historial del día y registro manual (Líder)
+- [x] Página KPIs Anfitriones: dashboard de KPIs Nivel 1 por empleado (servicio, preparación, caja)
+- [x] Navegación: grupo "Equipo" en menú lateral con 4 sub-ítems
