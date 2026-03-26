@@ -49,6 +49,8 @@ export const appRouter = router({
       direccion: z.string().optional(),
       franquiciado: z.string().optional(),
       metaVentasMensual: z.number().optional(),
+      fotoUrl: z.string().optional(),
+      telefono: z.string().optional(),
     })).mutation(async ({ input }) => {
       await createSucursal(input);
       return { success: true };
@@ -62,11 +64,26 @@ export const appRouter = router({
       direccion: z.string().optional(),
       franquiciado: z.string().optional(),
       metaVentasMensual: z.number().optional(),
+      fotoUrl: z.string().optional(),
+      telefono: z.string().optional(),
       activa: z.boolean().optional(),
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
       await updateSucursal(id, data);
       return { success: true };
+    }),
+
+    uploadFoto: protectedProcedure.input(z.object({
+      sucursalId: z.number(),
+      base64: z.string(),  // base64 de la imagen
+      mimeType: z.string().default("image/jpeg"),
+    })).mutation(async ({ input }) => {
+      const buffer = Buffer.from(input.base64, "base64");
+      const ext = input.mimeType === "image/png" ? "png" : "jpg";
+      const key = `sucursales/${input.sucursalId}-foto-${Date.now()}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      await updateSucursal(input.sucursalId, { fotoUrl: url });
+      return { url };
     }),
 
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
@@ -532,6 +549,57 @@ export const appRouter = router({
         };
       });
     }),
+
+    // Reporte semanal: enviar resumen al superadmin manualmente
+    enviarResumenSemanal: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (!['superadmin', 'owner', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getReportesDiarios, getSucursales, getEvaluaciones } = await import('./db');
+        const { notifyOwner } = await import('./_core/notification');
+        const [todos, sucursales, evaluaciones] = await Promise.all([
+          getReportesDiarios(undefined, undefined, 1000),
+          getSucursales(),
+          getEvaluaciones(),
+        ]);
+        const ahora = new Date();
+        const hace7 = new Date(); hace7.setDate(ahora.getDate() - 7);
+        const recientes = todos.filter(r => new Date(r.fecha) >= hace7 && r.estado === 'enviado');
+        const totalVentas = recientes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+        const totalTx = recientes.reduce((s, r) => s + (r.transacciones ?? 0), 0);
+        const activasSuc = sucursales.filter(s => s.activa);
+        const conReporte = new Set(recientes.map(r => r.sucursalId));
+        const sinReporte = activasSuc.filter(s => !conReporte.has(s.id));
+        const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        const evsRecientes = evaluaciones.filter(e => e.estado === 'completada' && new Date(e.fecha) >= hace7);
+        const avgSecof = evsRecientes.length > 0
+          ? evsRecientes.reduce((s, e) => s + (e.porcentajeGeneral ?? 0), 0) / evsRecientes.length
+          : null;
+        const lineas = [
+          `📊 RESUMEN SEMANAL — ${hace7.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} al ${ahora.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+          ``,
+          `💰 VENTAS`,
+          `  Total: $${totalVentas.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+          `  Transacciones: ${totalTx}`,
+          `  Ticket promedio: ${totalTx > 0 ? '$' + (totalVentas / totalTx).toFixed(2) : 'N/A'}`,
+          `  Reportes enviados: ${recientes.length}`,
+          ``,
+          `📋 SECOF`,
+          `  Evaluaciones esta semana: ${evsRecientes.length}`,
+          `  Promedio general: ${avgSecof !== null ? avgSecof.toFixed(1) + '%' : 'Sin datos'}`,
+          ``,
+          `🏪 TIENDAS (${activasSuc.length} activas)`,
+          sinReporte.length > 0
+            ? `  ⚠️ Sin reporte (7 días): ${sinReporte.map(s => s.nombre).join(', ')}`
+            : `  ✅ Todas las tiendas reportaron esta semana`,
+        ];
+        await notifyOwner({
+          title: `Resumen Semanal SECOF — ${ahora.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}`,
+          content: lineas.join('\n'),
+        });
+        return { success: true };
+      }),
 
     // Sucursales sin reporte en los últimos N días
     sinReporte: protectedProcedure

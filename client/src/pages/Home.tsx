@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { getCalificacion } from "../../../shared/evaluacionData";
 import { hasRoleAccess } from "@/components/RoleGuard";
+import { toast } from "sonner";
 
 function getSemaforo(pct: number | null) {
   if (pct === null) return { color: "text-gray-400", bg: "bg-gray-50", dot: "bg-gray-300", label: "Sin evaluar", border: "border-gray-200" };
@@ -45,6 +46,11 @@ export default function Home() {
   const isAdmin = hasRoleAccess(role, "admin");
   const isManager = hasRoleAccess(role, "manager");
   const isLeader = hasRoleAccess(role, "leader");
+
+  const resumenSemanalMutation = trpc.reportesDiarios.enviarResumenSemanal.useMutation({
+    onSuccess: () => toast.success("Resumen semanal enviado a tus notificaciones"),
+    onError: () => toast.error("Error al enviar el resumen"),
+  });
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const { data: evaluaciones = [] } = trpc.evaluaciones.list.useQuery({});
@@ -106,12 +112,26 @@ export default function Home() {
             <span className="text-foreground/60 capitalize">{role === "superadmin" ? "Super Admin" : role === "owner" ? "Dueño" : role === "manager" ? "Admin Tienda" : role === "leader" ? "Líder" : role}</span>
           </p>
         </div>
-        {isLeader && (
-          <Button onClick={() => setLocation("/evaluacion/nueva")} className="gap-2 bg-green-600 hover:bg-green-700">
-            <PlusCircle className="h-4 w-4" />
-            Nueva Evaluación
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {isManager && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs"
+              onClick={() => resumenSemanalMutation.mutate()}
+              disabled={resumenSemanalMutation.isPending}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {resumenSemanalMutation.isPending ? "Enviando..." : "Resumen Semanal"}
+            </Button>
+          )}
+          {isLeader && (
+            <Button onClick={() => setLocation("/evaluacion/nueva")} className="gap-2 bg-green-600 hover:bg-green-700">
+              <PlusCircle className="h-4 w-4" />
+              Nueva Evaluación
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* === PILAR 1: KPIs Globales === */}

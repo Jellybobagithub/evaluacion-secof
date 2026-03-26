@@ -36,6 +36,8 @@ export const sucursales = mysqlTable("sucursales", {
   direccion: text("direccion"),
   franquiciado: varchar("franquiciado", { length: 255 }),
   metaVentasMensual: float("metaVentasMensual").default(0),
+  fotoUrl: text("fotoUrl"),  // URL de S3 de la foto de la sucursal (opcional)
+  telefono: varchar("telefono", { length: 30 }),
   activa: boolean("activa").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

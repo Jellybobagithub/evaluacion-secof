@@ -50,6 +50,13 @@
       "when": 1774497361875,
       "tag": "0006_strange_greymalkin",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1774498809719,
+      "tag": "0007_yielding_gideon",
+      "breakpoints": true
     }
   ]
 }

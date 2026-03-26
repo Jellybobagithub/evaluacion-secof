@@ -262,3 +262,12 @@
 - [x] Ventas: comparativa entre sucursales con barras horizontales ordenadas por ventas
 - [x] Backend: endpoint sinReporte (tiendas sin reporte en N días)
 - [x] Backend: endpoint avanceMeta (ventas del mes vs meta por sucursal)
+
+## Mejoras v20 (Mar 26)
+- [ ] Foto de perfil en sucursales: campo foto_url en tabla sucursales
+- [ ] Foto de perfil en sucursales: subida a S3 desde formulario
+- [ ] Foto de perfil en sucursales: mostrar en tarjetas del Dashboard y lista de sucursales
+- [ ] Reporte semanal automático: endpoint tRPC para generar resumen semanal
+- [ ] Reporte semanal automático: notificación al superadmin con estado de todas las tiendas
+- [ ] UX: indicador de carga mejorado en formulario de evaluación
+- [ ] UX: mensaje de bienvenida personalizado en Dashboard según rol
