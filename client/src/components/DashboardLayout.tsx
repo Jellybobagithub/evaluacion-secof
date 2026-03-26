@@ -12,13 +12,8 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
@@ -38,7 +33,13 @@ import {
   Users,
   ShieldCheck,
   ChevronRight,
+  ChevronDown,
   ClipboardList,
+  BarChart3,
+  FileText,
+  Store,
+  Settings,
+  DollarSign,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -47,54 +48,70 @@ import { Button } from "./ui/button";
 import { hasRoleAccess } from "./RoleGuard";
 
 /**
- * Grupos de navegación con rol mínimo requerido por ítem.
- *
- * Jerarquía:
- *   superadmin (6) > owner = manager (5) > leader (3) > host (2) > user (1)
- *
- * - superadmin: todo
- * - owner / manager: Franquicias + SECOF + Colaboradores
- * - leader: SECOF operativo
- * - host / user: solo Dashboard
+ * Grupos de navegación con sub-ítems expandibles.
+ * Cada grupo puede tener sub-ítems que se muestran al expandir.
  */
 const ALL_NAV_GROUPS = [
   {
+    id: "inicio",
     label: "Inicio",
+    icon: LayoutDashboard,
     minRole: "user",
-    items: [
-      { icon: LayoutDashboard, label: "Dashboard HQ", path: "/", minRole: "user" },
-    ],
+    path: "/",
+    items: [],
   },
   {
-    label: "Franquicias",
+    id: "tiendas",
+    label: "Tiendas",
+    icon: Store,
     minRole: "manager",
+    path: "/sucursales",
     items: [
-      { icon: Building2, label: "Sucursales", path: "/sucursales", minRole: "manager" },
+      { icon: Building2, label: "Lista de Sucursales", path: "/sucursales", minRole: "manager" },
     ],
   },
   {
-    label: "Módulo SECOF",
+    id: "secof",
+    label: "SECOF",
+    icon: ClipboardCheck,
     minRole: "leader",
+    path: null,
     items: [
       { icon: PlusCircle, label: "Nueva Evaluación", path: "/evaluacion/nueva", minRole: "leader" },
       { icon: History, label: "Historial", path: "/historial", minRole: "leader" },
-      { icon: TrendingUp, label: "Comparativa", path: "/comparativa", minRole: "manager" },
+      { icon: BarChart3, label: "Comparativa", path: "/comparativa", minRole: "manager" },
       { icon: Target, label: "Plan de Acción", path: "/plan-accion", minRole: "leader" },
-      { icon: ClipboardList, label: "Reporte Diario", path: "/reporte-diario", minRole: "leader" },
     ],
   },
   {
+    id: "ventas",
+    label: "Ventas",
+    icon: DollarSign,
+    minRole: "leader",
+    path: null,
+    items: [
+      { icon: FileText, label: "Reporte Diario", path: "/reporte-diario", minRole: "leader" },
+      { icon: TrendingUp, label: "Tendencias", path: "/comparativa", minRole: "manager" },
+    ],
+  },
+  {
+    id: "colaboradores",
     label: "Colaboradores",
+    icon: Users,
     minRole: "owner",
+    path: "/admin/usuarios",
     items: [
       { icon: Users, label: "Usuarios y Roles", path: "/admin/usuarios", minRole: "owner" },
     ],
   },
   {
+    id: "configuracion",
     label: "Configuración",
+    icon: Settings,
     minRole: "superadmin",
+    path: null,
     items: [
-      { icon: ClipboardCheck, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
+      { icon: ClipboardList, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
     ],
   },
 ];
@@ -240,18 +257,47 @@ function DashboardLayoutContent({
   const roleLabel = ROLE_LABELS[role] ?? role;
   const roleColor = ROLE_COLORS[role] ?? ROLE_COLORS.user;
 
-  // Filtrar grupos e ítems según el rol del usuario
+  // Determinar qué grupos están activos según la ruta actual
+  const getGroupActive = (group: typeof ALL_NAV_GROUPS[0]) => {
+    if (group.path === "/" && location === "/") return true;
+    if (group.path && group.path !== "/" && location.startsWith(group.path)) return true;
+    return group.items.some(item => item.path !== "/" && location.startsWith(item.path));
+  };
+
+  // Estado de expansión de grupos (auto-expande el grupo activo)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    ALL_NAV_GROUPS.forEach(g => {
+      initial[g.id] = getGroupActive(g);
+    });
+    return initial;
+  });
+
+  // Auto-expandir grupo activo cuando cambia la ruta
+  useEffect(() => {
+    ALL_NAV_GROUPS.forEach(g => {
+      if (getGroupActive(g)) {
+        setExpandedGroups(prev => ({ ...prev, [g.id]: true }));
+      }
+    });
+  }, [location]);
+
+  // Filtrar grupos según rol
   const navGroups = ALL_NAV_GROUPS
     .filter(group => hasRoleAccess(role, group.minRole))
     .map(group => ({
       ...group,
       items: group.items.filter(item => hasRoleAccess(role, item.minRole)),
-    }))
-    .filter(group => group.items.length > 0);
+    }));
 
   const activeLabel = navGroups
     .flatMap(g => g.items)
-    .find(i => i.path === location)?.label ?? "Snowtea HQ";
+    .find(i => i.path !== "/" && location.startsWith(i.path))?.label
+    ?? (location === "/" ? "Dashboard HQ" : "Snowtea HQ");
+
+  const toggleGroup = (id: string) => {
+    setExpandedGroups(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => {
     if (isCollapsed) setIsResizing(false);
@@ -313,41 +359,72 @@ function DashboardLayoutContent({
 
           {/* Navigation */}
           <SidebarContent className="gap-0 py-2">
-            {navGroups.map(group => (
-              <SidebarGroup key={group.label} className="py-0">
-                {!isCollapsed && (
-                  <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40 px-4 py-2">
-                    {group.label}
-                  </SidebarGroupLabel>
-                )}
-                <SidebarMenu className="px-2">
-                  {group.items.map(item => {
-                    const isActive = location === item.path ||
-                      (item.path !== "/" && location.startsWith(item.path));
-                    return (
-                      <SidebarMenuItem key={item.path}>
-                        <SidebarMenuButton
-                          isActive={isActive}
-                          onClick={() => setLocation(item.path)}
-                          tooltip={item.label}
-                          className={`h-9 transition-all font-normal text-sm ${
-                            isActive
-                              ? "bg-sidebar-accent text-sidebar-foreground font-medium"
-                              : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-                          }`}
-                        >
-                          <item.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-green-400" : ""}`} />
-                          <span>{item.label}</span>
-                          {isActive && !isCollapsed && (
-                            <ChevronRight className="ml-auto h-3 w-3 text-green-400" />
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroup>
-            ))}
+            {navGroups.map(group => {
+              const isGroupActive = getGroupActive(group);
+              const isExpanded = expandedGroups[group.id] ?? false;
+              const hasSubItems = group.items.length > 0;
+
+              return (
+                <div key={group.id} className="px-2 mb-0.5">
+                  {/* Grupo principal (clickable) */}
+                  <button
+                    onClick={() => {
+                      if (!hasSubItems && group.path) {
+                        setLocation(group.path);
+                      } else if (hasSubItems) {
+                        if (!isCollapsed) toggleGroup(group.id);
+                        // Si colapsado, navegar al primer ítem
+                        if (isCollapsed && group.items[0]) setLocation(group.items[0].path);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg transition-all text-sm font-medium ${
+                      isGroupActive
+                        ? "bg-sidebar-accent text-sidebar-foreground"
+                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                    }`}
+                    title={isCollapsed ? group.label : undefined}
+                  >
+                    <group.icon className={`h-4 w-4 shrink-0 ${isGroupActive ? "text-green-400" : ""}`} />
+                    {!isCollapsed && (
+                      <>
+                        <span className="flex-1 text-left">{group.label}</span>
+                        {hasSubItems && (
+                          <span className="ml-auto">
+                            {isExpanded
+                              ? <ChevronDown className="h-3.5 w-3.5 text-sidebar-foreground/40" />
+                              : <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/40" />
+                            }
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+
+                  {/* Sub-ítems expandibles */}
+                  {!isCollapsed && hasSubItems && isExpanded && (
+                    <div className="mt-0.5 ml-3 pl-3 border-l border-sidebar-border/40 space-y-0.5">
+                      {group.items.map(item => {
+                        const isActive = item.path !== "/" && location.startsWith(item.path);
+                        return (
+                          <button
+                            key={item.path}
+                            onClick={() => setLocation(item.path)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-all text-xs ${
+                              isActive
+                                ? "bg-green-500/15 text-green-400 font-medium"
+                                : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
+                            }`}
+                          >
+                            <item.icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? "text-green-400" : ""}`} />
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </SidebarContent>
 
           {/* Footer */}

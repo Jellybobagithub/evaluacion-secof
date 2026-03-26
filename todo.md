@@ -217,3 +217,16 @@
 - [x] Notificación al superadmin cuando se envía un Reporte Diario
 - [x] Asignación de sucursales desde panel Usuarios y Roles (ya implementado en AdminUsuarios)
 - [x] Backend: endpoint resumenVentas (7 días, ventas totales, transacciones, ticket promedio)
+
+## Rediseño Dashboard Global (Mar 25)
+- [ ] Dashboard HQ: vista ejecutiva global con dos pilares (SECOF + Ventas)
+- [ ] Dashboard HQ: KPIs globales en tarjetas grandes (puntaje promedio, ventas totales, tiendas activas, reportes pendientes)
+- [ ] Dashboard HQ: resumen por pilar sin semáforo detallado (solo indicadores clave)
+- [ ] Sección SECOF/Historial: mover semáforo detallado por tienda aquí
+- [ ] Sección SECOF: puntajes por categoría, tendencias y alertas de tiendas con bajo puntaje
+
+## Menú Lateral + Dashboard Global (Mar 25)
+- [x] Menú lateral: grupos expandibles (SECOF, Ventas, Tiendas, Configuración)
+- [x] Menú lateral: sub-ítems por grupo según rol del usuario
+- [x] Dashboard: vista ejecutiva global con KPIs de ventas + SECOF + semáforo de tiendas
+- [x] Dashboard: sección de gestión de tiendas con estado rápido
