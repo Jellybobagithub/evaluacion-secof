@@ -1,4 +1,4 @@
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, puntosEvaluacion, userSucursales, InsertSucursal, InsertEvaluacion, InsertRespuesta, InsertPlanAccion, InsertPuntoEvaluacion } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -254,6 +254,76 @@ export async function getHistorialComparativo(sucursalId?: number, limit = 20) {
     .orderBy(evaluaciones.fecha)
     .limit(limit);
   return query;
+}
+
+// ─── Reportes Diarios ────────────────────────────────────────────────────────────────────────────────────
+
+export async function getReportesDiarios(sucursalId?: number, userId?: number, limit = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  const { reportesDiarios } = await import('../drizzle/schema');
+  let q = db.select().from(reportesDiarios).$dynamic();
+  if (sucursalId) q = q.where(eq(reportesDiarios.sucursalId, sucursalId));
+  else if (userId) q = q.where(eq(reportesDiarios.usuarioId, userId));
+  return q.orderBy(desc(reportesDiarios.fecha)).limit(limit);
+}
+
+export async function getReporteDiarioById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { reportesDiarios } = await import('../drizzle/schema');
+  const result = await db.select().from(reportesDiarios).where(eq(reportesDiarios.id, id)).limit(1);
+  return result[0];
+}
+
+export async function createReporteDiario(data: import('../drizzle/schema').InsertReporteDiario) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { reportesDiarios } = await import('../drizzle/schema');
+  return db.insert(reportesDiarios).values(data);
+}
+
+export async function updateReporteDiario(id: number, data: Partial<import('../drizzle/schema').InsertReporteDiario>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { reportesDiarios } = await import('../drizzle/schema');
+  return db.update(reportesDiarios).set(data).where(eq(reportesDiarios.id, id));
+}
+
+export async function deleteReporteDiario(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { reportesDiarios } = await import('../drizzle/schema');
+  return db.delete(reportesDiarios).where(eq(reportesDiarios.id, id));
+}
+
+// ─── Sucursales asignadas al usuario ────────────────────────────────────────
+
+export async function getSucursalesAsignadas(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const asignaciones = await db.select().from(userSucursales).where(eq(userSucursales.userId, userId));
+  if (asignaciones.length === 0) return [];
+  const ids = asignaciones.map(a => a.sucursalId);
+  return db.select().from(sucursales).where(inArray(sucursales.id, ids)).orderBy(desc(sucursales.createdAt));
+}
+
+export async function getEvaluacionesByUser(userId: number, userRole: string, sucursalId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  // superadmin, owner, manager ven todas las evaluaciones
+  if (['superadmin', 'owner', 'manager'].includes(userRole)) {
+    return getEvaluaciones(sucursalId);
+  }
+  // leader y host solo ven las de sus sucursales asignadas
+  const asignaciones = await db.select().from(userSucursales).where(eq(userSucursales.userId, userId));
+  if (asignaciones.length === 0) return [];
+  const ids = asignaciones.map(a => a.sucursalId);
+  if (sucursalId && !ids.includes(sucursalId)) return [];
+  const filterIds = sucursalId ? [sucursalId] : ids;
+  return db.select().from(evaluaciones)
+    .where(inArray(evaluaciones.sucursalId, filterIds))
+    .orderBy(desc(evaluaciones.fecha));
 }
 
 // ─── Admin: Gestión de Usuarios ──────────────────────────────────────────────

@@ -134,3 +134,31 @@ export const userSucursales = mysqlTable("user_sucursales", {
 
 export type UserSucursal = typeof userSucursales.$inferSelect;
 export type InsertUserSucursal = typeof userSucursales.$inferInsert;
+
+// Reportes Diarios de Tienda
+export const reportesDiarios = mysqlTable("reportes_diarios", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  usuarioId: int("usuarioId").notNull(),
+  usuarioNombre: varchar("usuarioNombre", { length: 255 }),
+  fecha: timestamp("fecha").defaultNow().notNull(),
+  // Ventas
+  ventasTotales: float("ventasTotales").default(0),
+  transacciones: int("transacciones").default(0),
+  ticketPromedio: float("ticketPromedio").default(0),
+  // Operación
+  apertura: varchar("apertura", { length: 10 }),   // HH:MM
+  cierre: varchar("cierre", { length: 10 }),       // HH:MM
+  personalPresente: int("personalPresente").default(0),
+  // Incidentes y novedades
+  incidentes: text("incidentes"),
+  novedades: text("novedades"),
+  observaciones: text("observaciones"),
+  // Estado
+  estado: mysqlEnum("estado", ["borrador", "enviado"]).default("borrador").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReporteDiario = typeof reportesDiarios.$inferSelect;
+export type InsertReporteDiario = typeof reportesDiarios.$inferInsert;

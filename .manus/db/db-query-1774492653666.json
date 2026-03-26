@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `reportes_diarios` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sucursalId` int NOT NULL,\n\t`usuarioId` int NOT NULL,\n\t`usuarioNombre` varchar(255),\n\t`fecha` timestamp NOT NULL DEFAULT (now()),\n\t`ventasTotales` float DEFAULT 0,\n\t`transacciones` int DEFAULT 0,\n\t`ticketPromedio` float DEFAULT 0,\n\t`apertura` varchar(10),\n\t`cierre` varchar(10),\n\t`personalPresente` int DEFAULT 0,\n\t`incidentes` text,\n\t`novedades` text,\n\t`observaciones` text,\n\t`estado` enum('borrador','enviado') NOT NULL DEFAULT 'borrador',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `reportes_diarios_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute CREATE TABLE IF NOT EXISTS `reportes_diarios` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sucursalId` int NOT NULL,\n\t`usuarioId` int NOT NULL,\n\t`usuarioNombre` varchar(255),\n\t`fecha` timestamp NOT NULL DEFAULT (now()),\n\t`ventasTotales` float DEFAULT 0,\n\t`transacciones` int DEFAULT 0,\n\t`ticketPromedio` float DEFAULT 0,\n\t`apertura` varchar(10),\n\t`cierre` varchar(10),\n\t`personalPresente` int DEFAULT 0,\n\t`incidentes` text,\n\t`novedades` text,\n\t`observaciones` text,\n\t`estado` enum('borrador','enviado') NOT NULL DEFAULT 'borrador',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `reportes_diarios_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 549
+}

@@ -11,6 +11,7 @@ import {
   getPlanAccion, createPlanAccion, updatePlanAccion, deletePlanAccion,
   getHistorialComparativo,
   getPuntosEvaluacion, getPuntoById, createPunto, updatePunto, togglePuntoActivo, deletePunto,
+  getSucursalesAsignadas, getEvaluacionesByUser,
 } from "./db";
 import { calcularPuntuacion } from "../shared/evaluacionData";
 import { storagePut } from "./storage";
@@ -29,8 +30,12 @@ export const appRouter = router({
 
   // // --- Sucursales ---
   sucursales: router({
-    list: publicProcedure.query(async () => {
-      return getSucursales();
+    list: protectedProcedure.query(async ({ ctx }) => {
+      // superadmin, owner, manager ven todas; leader/host solo las asignadas
+      if (['superadmin', 'owner', 'manager'].includes(ctx.user.role)) {
+        return getSucursales();
+      }
+      return getSucursalesAsignadas(ctx.user.id);
     }),
 
     getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
@@ -70,8 +75,8 @@ export const appRouter = router({
 
   // // --- Evaluaciones ---
   evaluaciones: router({
-    list: publicProcedure.input(z.object({ sucursalId: z.number().optional() })).query(async ({ input }) => {
-      return getEvaluaciones(input.sucursalId);
+    list: protectedProcedure.input(z.object({ sucursalId: z.number().optional() })).query(async ({ input, ctx }) => {
+      return getEvaluacionesByUser(ctx.user.id, ctx.user.role, input.sucursalId);
     }),
 
     getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
@@ -331,6 +336,88 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+  // // --- Reportes Diarios ---
+  reportesDiarios: router({
+    list: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number().optional(),
+        limit: z.number().min(1).max(100).optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        const { getReportesDiarios } = await import('./db');
+        // leader/host solo ven sus propios reportes o de sus sucursales
+        if (['leader', 'host'].includes(ctx.user.role)) {
+          return getReportesDiarios(input.sucursalId, ctx.user.id, input.limit ?? 30);
+        }
+        return getReportesDiarios(input.sucursalId, undefined, input.limit ?? 30);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getReporteDiarioById } = await import('./db');
+        return getReporteDiarioById(input.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fecha: z.string().optional(),
+        ventasTotales: z.number().optional(),
+        transacciones: z.number().optional(),
+        ticketPromedio: z.number().optional(),
+        apertura: z.string().optional(),
+        cierre: z.string().optional(),
+        personalPresente: z.number().optional(),
+        incidentes: z.string().optional(),
+        novedades: z.string().optional(),
+        observaciones: z.string().optional(),
+        estado: z.enum(['borrador', 'enviado']).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createReporteDiario } = await import('./db');
+        const result = await createReporteDiario({
+          ...input,
+          fecha: input.fecha ? new Date(input.fecha) : new Date(),
+          usuarioId: ctx.user.id,
+          usuarioNombre: ctx.user.name ?? 'Usuario',
+          estado: input.estado ?? 'borrador',
+        });
+        // @ts-ignore
+        const insertId = result[0]?.insertId ?? (result as any).insertId;
+        return { id: insertId, success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        ventasTotales: z.number().optional(),
+        transacciones: z.number().optional(),
+        ticketPromedio: z.number().optional(),
+        apertura: z.string().optional(),
+        cierre: z.string().optional(),
+        personalPresente: z.number().optional(),
+        incidentes: z.string().optional(),
+        novedades: z.string().optional(),
+        observaciones: z.string().optional(),
+        estado: z.enum(['borrador', 'enviado']).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateReporteDiario } = await import('./db');
+        const { id, ...data } = input;
+        await updateReporteDiario(id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deleteReporteDiario } = await import('./db');
+        await deleteReporteDiario(input.id);
+        return { success: true };
+      }),
+  }),
+
   adminUsuarios: router({
     // Listar todos los usuarios
     list: protectedProcedure.query(async ({ ctx }) => {

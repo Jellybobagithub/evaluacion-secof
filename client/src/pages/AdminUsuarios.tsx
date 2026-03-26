@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,14 @@ export default function AdminUsuarios() {
   const [editRole, setEditRole] = useState("");
   const [editNotas, setEditNotas] = useState("");
   const [assigningUser, setAssigningUser] = useState<UserRow | null>(null);
+
+  const { user: currentUser } = useAuth();
+  const currentRole = (currentUser as any)?.role ?? "user";
+
+  // Roles que puede asignar según el rol del usuario actual
+  const rolesAsignables = currentRole === "superadmin"
+    ? ROLES
+    : ROLES.filter(r => ["leader", "host", "user"].includes(r.value));
 
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.adminUsuarios.list.useQuery();
@@ -338,7 +347,7 @@ export default function AdminUsuarios() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLES.map(r => (
+                    {rolesAsignables.map(r => (
                       <SelectItem key={r.value} value={r.value}>
                         <div className="flex flex-col">
                           <span>{r.label}</span>

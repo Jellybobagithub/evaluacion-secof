@@ -196,3 +196,17 @@
 
 ## Bug Fix - Hooks (Mar 25)
 - [x] Corregir error "Rendered more hooks than during previous render" en DashboardLayout.tsx
+
+## Mejoras Completas (Mar 25 - v15)
+- [x] Restricción de roles: manager solo puede asignar leader/host, no owner/superadmin
+- [x] Filtrar evaluaciones por sucursal asignada al usuario (leader ve solo sus tiendas)
+- [x] Filtrar historial y plan de acción por sucursales asignadas al usuario
+- [x] Módulo Reporte Diario: schema DB (tabla reportes_diarios)
+- [x] Módulo Reporte Diario: tRPC CRUD (crear, listar, ver detalle)
+- [x] Módulo Reporte Diario: formulario (ventas, incidentes, novedades del día)
+- [x] Módulo Reporte Diario: listado con filtro por sucursal y fecha
+- [x] Módulo Reporte Diario: ruta y entrada en sidebar para leader/manager/owner
+- [x] PDF: resumen por categoría con porcentaje y barra visual (ya estaba implementado)
+- [x] PDF: resumen por sección con porcentaje y barra visual (ya estaba implementado)
+- [x] PDF: lista completa de puntos fallidos con criterio y observación (mejorado)
+- [x] PDF: sección de áreas de mejora con recomendaciones priorizadas (ya estaba implementado)

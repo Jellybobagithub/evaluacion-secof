@@ -162,15 +162,25 @@ export default function EvaluacionDetalle() {
 
   <div class="page-break"></div>
   <h2>Puntos No Aprobados (${puntosNoAprobados.length})</h2>
-  ${puntosNoAprobados.length === 0
+    ${puntosNoAprobados.length === 0
     ? '<p style="color:#16a34a;font-weight:bold">¡Todos los puntos evaluados fueron aprobados!</p>'
-    : `<table>
-    <tr><th>Código</th><th>Categoría</th><th>Descripción</th><th>Pts</th><th>Observación</th></tr>
-    ${puntosNoAprobados.map(p => {
+    : puntosNoAprobados.map(p => {
       const obs = (ev.respuestas ?? []).find(r => r.puntoId === p.id)?.observacion ?? "";
-      return `<tr><td style="font-weight:bold">${p.id}</td><td>${p.categoria}</td><td>${p.descripcion}</td><td>${p.valor}</td><td style="color:#78350f;font-style:italic">${obs || '—'}</td></tr>`;
+      const fotoUrl = (ev.respuestas ?? []).find(r => r.puntoId === p.id)?.fotoUrl ?? "";
+      const color = '#dc2626';
+      return `<div style="border:1px solid #fecaca;background:#fff7f7;border-radius:8px;padding:12px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div style="flex:1">
+            <span style="font-weight:bold;color:#991b1b;font-size:13px">[${p.id}] ${p.descripcion}</span>
+            <span style="margin-left:8px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:bold">${p.categoria}</span>
+            <span style="margin-left:4px;color:#9ca3af;font-size:11px">${p.valor} pts</span>
+          </div>
+        </div>
+        ${p.criterio ? `<div style="margin-top:6px;font-size:11px;color:#374151;"><strong>Criterio:</strong> ${p.criterio}</div>` : ''}
+        ${obs ? `<div style="margin-top:4px;background:#fef9c3;border-left:3px solid #f59e0b;padding:4px 8px;font-size:11px;color:#78350f;border-radius:0 4px 4px 0"><strong>Observación:</strong> ${obs}</div>` : ''}
+        ${fotoUrl ? `<div style="margin-top:4px"><img src="${fotoUrl}" style="max-width:200px;max-height:120px;border-radius:4px;border:1px solid #e5e7eb" /></div>` : ''}
+      </div>`;
     }).join("")}
-  </table>`}
 
   <h2>Áreas de Mejora Prioritarias</h2>
   ${(() => {

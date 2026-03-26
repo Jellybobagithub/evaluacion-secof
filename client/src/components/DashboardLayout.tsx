@@ -38,6 +38,7 @@ import {
   Users,
   ShieldCheck,
   ChevronRight,
+  ClipboardList,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -79,6 +80,7 @@ const ALL_NAV_GROUPS = [
       { icon: History, label: "Historial", path: "/historial", minRole: "leader" },
       { icon: TrendingUp, label: "Comparativa", path: "/comparativa", minRole: "manager" },
       { icon: Target, label: "Plan de Acción", path: "/plan-accion", minRole: "leader" },
+      { icon: ClipboardList, label: "Reporte Diario", path: "/reporte-diario", minRole: "leader" },
     ],
   },
   {

@@ -15,6 +15,7 @@ import PlanAccion from "./pages/PlanAccion";
 import Comparativa from "./pages/Comparativa";
 import AdminPreguntas from "./pages/AdminPreguntas";
 import AdminUsuarios from "./pages/AdminUsuarios";
+import ReporteDiario from "./pages/ReporteDiario";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -47,6 +48,11 @@ function Router() {
         </Route>
         <Route path="/plan-accion">
           <ProtectedRoute component={PlanAccion} minRole="leader" />
+        </Route>
+
+        {/* Reporte Diario: leader y superior */}
+        <Route path="/reporte-diario">
+          <ProtectedRoute component={ReporteDiario} minRole="leader" />
         </Route>
 
         {/* Colaboradores: owner, manager, superadmin */}
