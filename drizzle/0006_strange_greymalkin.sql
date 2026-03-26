@@ -1,0 +1,1 @@
+ALTER TABLE `sucursales` ADD `metaVentasMensual` float DEFAULT 0;

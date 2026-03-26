@@ -16,6 +16,7 @@ import Comparativa from "./pages/Comparativa";
 import AdminPreguntas from "./pages/AdminPreguntas";
 import AdminUsuarios from "./pages/AdminUsuarios";
 import ReporteDiario from "./pages/ReporteDiario";
+import Ventas from "./pages/Ventas";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -53,6 +54,11 @@ function Router() {
         {/* Reporte Diario: leader y superior */}
         <Route path="/reporte-diario">
           <ProtectedRoute component={ReporteDiario} minRole="leader" />
+        </Route>
+
+        {/* Ventas - Histórico: manager y superior */}
+        <Route path="/ventas">
+          <ProtectedRoute component={Ventas} minRole="manager" />
         </Route>
 
         {/* Colaboradores: owner, manager, superadmin */}

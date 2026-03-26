@@ -230,3 +230,20 @@
 - [x] Menú lateral: sub-ítems por grupo según rol del usuario
 - [x] Dashboard: vista ejecutiva global con KPIs de ventas + SECOF + semáforo de tiendas
 - [x] Dashboard: sección de gestión de tiendas con estado rápido
+
+## Módulo Ventas - Gráfica Histórica (Mar 26)
+- [ ] Página Ventas: gráfica de evolución histórica (ingresos, transacciones, ticket promedio)
+- [x] Página Ventas: filtros por sucursal y período (7d, 30d, 90d)
+- [ ] Backend: endpoint para datos históricos de ventas por día/semana
+- [ ] Dashboard: sección Ventas con tendencia propia (no SECOF)
+- [ ] Ruta /ventas registrada en App.tsx y menú lateral
+
+## Ventas + Meta + Excel (Mar 26)
+- [x] Backend: endpoint historico de ventas por día con filtro por sucursal y período
+- [x] Backend: campo metaVentasMensual en tabla sucursales
+- [x] Página Ventas: gráfica histórica de evolución (ingresos, transacciones, ticket promedio)
+- [x] Página Ventas: filtros por sucursal y período (7d, 30d, 90d)
+- [x] Sucursales: campo meta de ventas mensual en formulario de alta/edición
+- [ ] Dashboard: indicador de avance vs meta en tarjeta de ventas
+- [x] Exportación a CSV del historial de ventas (integrado en página Ventas)
+- [x] Ruta /ventas en App.tsx y menú lateral

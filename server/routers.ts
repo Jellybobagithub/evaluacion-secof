@@ -48,6 +48,7 @@ export const appRouter = router({
       estado: z.string().optional(),
       direccion: z.string().optional(),
       franquiciado: z.string().optional(),
+      metaVentasMensual: z.number().optional(),
     })).mutation(async ({ input }) => {
       await createSucursal(input);
       return { success: true };
@@ -60,6 +61,7 @@ export const appRouter = router({
       estado: z.string().optional(),
       direccion: z.string().optional(),
       franquiciado: z.string().optional(),
+      metaVentasMensual: z.number().optional(),
       activa: z.boolean().optional(),
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
@@ -446,6 +448,42 @@ export const appRouter = router({
         const { deleteReporteDiario } = await import('./db');
         await deleteReporteDiario(input.id);
         return { success: true };
+      }),
+
+    historico: protectedProcedure
+      .input(z.object({
+        dias: z.number().min(7).max(365).optional(),
+        sucursalId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getReportesDiarios } = await import('./db');
+        const dias = input.dias ?? 30;
+        const todos = await getReportesDiarios(input.sucursalId, undefined, 1000);
+        const corte = new Date();
+        corte.setDate(corte.getDate() - dias);
+        const recientes = todos.filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado');
+        // Agrupar por fecha (YYYY-MM-DD)
+        const porDia: Record<string, { ventas: number; tx: number; reportes: number }> = {};
+        for (const r of recientes) {
+          const dia = new Date(r.fecha).toISOString().split('T')[0];
+          if (!porDia[dia]) porDia[dia] = { ventas: 0, tx: 0, reportes: 0 };
+          porDia[dia].ventas += r.ventasTotales ?? 0;
+          porDia[dia].tx += r.transacciones ?? 0;
+          porDia[dia].reportes += 1;
+        }
+        // Construir serie ordenada por fecha
+        const serie = Object.entries(porDia)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([fecha, d]) => ({
+            fecha,
+            ventas: d.ventas,
+            transacciones: d.tx,
+            ticketPromedio: d.tx > 0 ? d.ventas / d.tx : 0,
+            reportes: d.reportes,
+          }));
+        const totalVentas = recientes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+        const totalTx = recientes.reduce((s, r) => s + (r.transacciones ?? 0), 0);
+        return { serie, totalVentas, totalTx, avgTicket: totalTx > 0 ? totalVentas / totalTx : 0, dias };
       }),
 
     resumen: protectedProcedure

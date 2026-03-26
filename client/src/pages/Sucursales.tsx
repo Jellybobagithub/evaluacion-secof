@@ -15,7 +15,7 @@ export default function Sucursales() {
   const [, setLocation] = useLocation();
   const [showDialog, setShowDialog] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState({ nombre: "", ciudad: "", estado: "", direccion: "", franquiciado: "" });
+  const [form, setForm] = useState({ nombre: "", ciudad: "", estado: "", direccion: "", franquiciado: "", metaVentasMensual: "" });
 
   const { data: sucursales = [], refetch } = trpc.sucursales.list.useQuery();
   const { data: evaluaciones = [] } = trpc.evaluaciones.list.useQuery({});
@@ -36,22 +36,26 @@ export default function Sucursales() {
   });
 
   function resetForm() {
-    setForm({ nombre: "", ciudad: "", estado: "", direccion: "", franquiciado: "" });
+    setForm({ nombre: "", ciudad: "", estado: "", direccion: "", franquiciado: "", metaVentasMensual: "" });
     setEditId(null);
   }
 
   function openEdit(s: typeof sucursales[0]) {
     setEditId(s.id);
-    setForm({ nombre: s.nombre, ciudad: s.ciudad ?? "", estado: s.estado ?? "", direccion: s.direccion ?? "", franquiciado: s.franquiciado ?? "" });
+    setForm({ nombre: s.nombre, ciudad: s.ciudad ?? "", estado: s.estado ?? "", direccion: s.direccion ?? "", franquiciado: s.franquiciado ?? "", metaVentasMensual: s.metaVentasMensual ? String(s.metaVentasMensual) : "" });
     setShowDialog(true);
   }
 
   function handleSubmit() {
     if (!form.nombre.trim()) { toast.error("El nombre es requerido"); return; }
+    const payload = {
+      ...form,
+      metaVentasMensual: form.metaVentasMensual ? parseFloat(form.metaVentasMensual) : undefined,
+    };
     if (editId) {
-      updateMutation.mutate({ id: editId, ...form });
+      updateMutation.mutate({ id: editId, ...payload });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate(payload);
     }
   }
 
@@ -179,6 +183,10 @@ export default function Sucursales() {
             <div className="space-y-1.5">
               <Label htmlFor="franquiciado">Franquiciado</Label>
               <Input id="franquiciado" placeholder="Nombre del franquiciado" value={form.franquiciado} onChange={e => setForm(f => ({ ...f, franquiciado: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="metaVentasMensual">Meta de Ventas Mensual (MXN)</Label>
+              <Input id="metaVentasMensual" type="number" placeholder="Ej. 150000" value={form.metaVentasMensual} onChange={e => setForm(f => ({ ...f, metaVentasMensual: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>

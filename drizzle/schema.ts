@@ -35,6 +35,7 @@ export const sucursales = mysqlTable("sucursales", {
   estado: varchar("estado", { length: 255 }),
   direccion: text("direccion"),
   franquiciado: varchar("franquiciado", { length: 255 }),
+  metaVentasMensual: float("metaVentasMensual").default(0),
   activa: boolean("activa").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
