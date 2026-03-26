@@ -4,6 +4,7 @@ import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 import { getGoogleAuthUrl, getGoogleUserInfo } from "./googleAuth";
+import { ENV } from "./env";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -93,12 +94,16 @@ export function registerOAuthRoutes(app: Express) {
       // Usar googleId como openId para mantener compatibilidad con el sistema de sesiones
       const openId = `google:${googleUser.googleId}`;
 
+      // Si el email coincide con el owner, asignar superadmin automáticamente
+      const isOwner = ENV.ownerEmail && googleUser.email === ENV.ownerEmail;
+
       await db.upsertUser({
         openId,
         name: googleUser.name,
         email: googleUser.email,
         loginMethod: "google",
         lastSignedIn: new Date(),
+        ...(isOwner ? { role: 'superadmin' } : {}),
       });
 
       const sessionToken = await sdk.createSessionToken(openId, {
