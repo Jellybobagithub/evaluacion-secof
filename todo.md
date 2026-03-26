@@ -183,3 +183,13 @@
 - [x] Frontend: botón "Continuar con Google", eliminar Manus OAuth
 - [x] Configurar Authorized Redirect URI en Google Cloud Console
 - [x] Migrar useAuth: compatible con sesión JWT propia (sin cambios necesarios)
+
+## Módulos Principales (Mar 25 - v13)
+- [x] Pantalla de cuenta pendiente de activación para rol 'user'
+- [x] Notificación automática al superadmin cuando entra un colaborador nuevo
+- [x] Módulo Evaluación SECOF: formulario de preguntas por categoría (ya implementado)
+- [x] Módulo Evaluación SECOF: guardar respuestas y calcular puntaje (ya implementado)
+- [x] Módulo Evaluación SECOF: historial de evaluaciones por sucursal (ya implementado)
+- [x] Gestión de Sucursales: registro con nombre, ciudad, franquiciado (ya implementado)
+- [x] Gestión de Sucursales: listado con estado y última evaluación (ya implementado)
+- [x] Gestión de Sucursales: asignación de usuarios a sucursal (SucursalDetalle)

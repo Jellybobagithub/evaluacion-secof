@@ -5,6 +5,8 @@ import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 import { getGoogleAuthUrl, getGoogleUserInfo } from "./googleAuth";
 import { ENV } from "./env";
+import { notifyOwner } from "./notification";
+import { isNewUser } from "../db";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -94,6 +96,9 @@ export function registerOAuthRoutes(app: Express) {
       // Usar googleId como openId para mantener compatibilidad con el sistema de sesiones
       const openId = `google:${googleUser.googleId}`;
 
+      // Verificar si es un usuario nuevo antes del upsert
+      const esNuevo = await isNewUser(openId);
+
       // Si el email coincide con el owner, asignar superadmin automáticamente
       const isOwner = ENV.ownerEmail && googleUser.email === ENV.ownerEmail;
 
@@ -105,6 +110,14 @@ export function registerOAuthRoutes(app: Express) {
         lastSignedIn: new Date(),
         ...(isOwner ? { role: 'superadmin' } : {}),
       });
+
+      // Notificar al superadmin si es un colaborador nuevo (no el owner)
+      if (esNuevo && !isOwner) {
+        notifyOwner({
+          title: `Nuevo colaborador registrado: ${googleUser.name ?? googleUser.email}`,
+          content: `Un nuevo colaborador se registró en Snowtea HQ y está pendiente de activación.\n\nNombre: ${googleUser.name ?? 'Sin nombre'}\nEmail: ${googleUser.email ?? 'Sin email'}\n\nEntra a Usuarios y Roles para asignarle un rol.`,
+        }).catch(() => {}); // no bloquear el login si la notificación falla
+      }
 
       const sessionToken = await sdk.createSessionToken(openId, {
         name: googleUser.name || "",

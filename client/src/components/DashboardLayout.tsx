@@ -133,6 +133,47 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) return <DashboardLayoutSkeleton />;
 
+  // Pantalla de cuenta pendiente para usuarios sin rol asignado
+  const { logout } = useAuth();
+  if (user && (user as any).role === 'user') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-950 via-green-900 to-green-800">
+        <div className="flex flex-col items-center gap-6 p-8 max-w-md w-full">
+          <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 shadow-xl">
+            <ShieldCheck className="w-8 h-8 text-yellow-300" />
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white tracking-tight">Cuenta pendiente de activación</h1>
+            <p className="text-green-300 text-sm mt-2">Tu cuenta fue registrada exitosamente.</p>
+          </div>
+          <div className="w-full bg-white/10 backdrop-blur rounded-2xl p-6 border border-white/20 shadow-2xl text-center">
+            <p className="text-green-100 text-sm leading-relaxed">
+              El administrador del sistema debe asignarte un rol para que puedas acceder.
+              Una vez que te activen, recarga esta página.
+            </p>
+            <div className="mt-4 p-3 bg-yellow-400/10 border border-yellow-400/30 rounded-lg">
+              <p className="text-yellow-300 text-xs font-medium">Cuenta: {(user as any).email ?? (user as any).name}</p>
+            </div>
+            <Button
+              onClick={() => window.location.reload()}
+              size="sm"
+              variant="outline"
+              className="mt-4 bg-white/10 hover:bg-white/20 text-white border-white/20"
+            >
+              Verificar activación
+            </Button>
+          </div>
+          <button
+            onClick={() => { logout(); }}
+            className="text-green-400 text-xs hover:text-green-300 underline"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-950 via-green-900 to-green-800">

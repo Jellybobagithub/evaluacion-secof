@@ -52,6 +52,13 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function isNewUser(openId: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: users.id }).from(users).where(eq(users.openId, openId)).limit(1);
+  return result.length === 0;
+}
+
 // ─── Sucursales ───────────────────────────────────────────────────────────────
 
 export async function getSucursales() {
