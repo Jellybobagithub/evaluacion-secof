@@ -277,3 +277,12 @@
 - [x] Meta de ventas: mover a sección separada "Metas de Ventas" accesible solo para owner/superadmin
 - [x] Gráfica de tendencia SECOF en detalle de sucursal (línea histórica de puntajes)
 - [x] Exportar PDF directamente desde el listado de historial (sin entrar al detalle)
+
+## Mejoras v22 (Mar 26 - 6 pasos)
+- [x] Dashboard: tarjeta de avance vs meta mensual global (% cumplimiento + barra)
+- [x] Dashboard: mejorar indicador de tiendas sin reporte (con nombre de tienda y días sin reportar)
+- [x] Ventas: comparativa multi-sucursal (selector múltiple hasta 5 tiendas + gráfica de líneas)
+- [x] Dashboard: mensaje de bienvenida personalizado por rol (owner, manager, leader, host)
+- [x] Backend: scheduler semanal (lunes 8am) que envía notificación con resumen SECOF + ventas
+- [x] Backend: resumenSemanal incluye avance vs meta del mes actual por sucursal
+- [x] Ventas: exportación a CSV mejorada (incluye meta, avance %, sucursal, período, día de semana)

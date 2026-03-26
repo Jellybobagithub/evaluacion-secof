@@ -101,15 +101,19 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header con bienvenida personalizada por rol */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            {isAdmin ? "Dashboard Ejecutivo" : isManager ? "Panel de Tiendas" : "Mi Panel"}
+            {isAdmin ? "Dashboard Ejecutivo" : isManager ? "Panel de Tiendas" : isLeader ? "Mi Panel Operativo" : "Mi Panel"}
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Bienvenido, {user?.name?.split(" ")[0] ?? "usuario"} ·{" "}
-            <span className="text-foreground/60 capitalize">{role === "superadmin" ? "Super Admin" : role === "owner" ? "Dueño" : role === "manager" ? "Admin Tienda" : role === "leader" ? "Líder" : role}</span>
+            {role === "superadmin" && `Hola ${user?.name?.split(" ")[0] ?? "Admin"} — Vista completa del sistema`}
+            {role === "owner" && `Bienvenido, ${user?.name?.split(" ")[0] ?? "Dueño"} — Resumen ejecutivo de tus tiendas`}
+            {role === "manager" && `Hola ${user?.name?.split(" ")[0] ?? "Manager"} — Estado operativo de tu tienda`}
+            {role === "leader" && `Hola ${user?.name?.split(" ")[0] ?? "Líder"} — Tus evaluaciones y reportes del día`}
+            {role === "host" && `Hola ${user?.name?.split(" ")[0] ?? "Anfitrión"} — Bienvenido al sistema`}
+            {!(["superadmin","owner","manager","leader","host"].includes(role)) && `Bienvenido, ${user?.name?.split(" ")[0] ?? "usuario"}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -330,17 +334,36 @@ export default function Home() {
 
       {/* === ALERTA: Tiendas sin reporte === */}
       {isManager && sinReporte.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-amber-800">Tiendas sin reporte en los últimos 2 días</p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              {sinReporte.map(s => s.nombre).join(" · ")}
-            </p>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800">
+                {sinReporte.length} tienda{sinReporte.length !== 1 ? "s" : ""} sin reporte en los últimos 2 días
+              </p>
+              <p className="text-xs text-amber-700 mt-1">Haz clic en una tienda para ir a reportes</p>
+            </div>
+            <Button variant="ghost" size="sm" className="text-xs text-amber-700 hover:bg-amber-100 h-7" onClick={() => setLocation("/reporte-diario")}>
+              Ver reportes
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" className="text-xs text-amber-700 hover:bg-amber-100 h-7" onClick={() => setLocation("/reporte-diario")}>
-            Ver reportes
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(sinReporte as any[]).map((s: any) => (
+              <button
+                key={s.id}
+                onClick={() => setLocation(`/sucursales/${s.id}`)}
+                className="flex items-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
+              >
+                <Building2 className="h-3 w-3" />
+                {s.nombre}
+                {s.diasSinReporte != null && (
+                  <span className="bg-amber-300 text-amber-900 rounded px-1 py-0.5 text-xs font-bold ml-1">
+                    {s.diasSinReporte}d
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

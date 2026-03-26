@@ -3,12 +3,13 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
 } from "recharts";
 import {
-  DollarSign, TrendingUp, BarChart3, ShoppingCart, Download, FileText, Building2,
+  DollarSign, TrendingUp, BarChart3, ShoppingCart, Download, Building2, X, Check,
 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 
@@ -16,6 +17,12 @@ const PERIODOS = [
   { label: "7 días", value: 7 },
   { label: "30 días", value: 30 },
   { label: "90 días", value: 90 },
+];
+
+// Paleta de colores para multi-sucursal
+const COLORES = [
+  "#16a34a", "#2563eb", "#7c3aed", "#dc2626", "#ea580c",
+  "#0891b2", "#65a30d", "#9333ea", "#db2777", "#0d9488",
 ];
 
 function formatMXN(v: number) {
@@ -30,20 +37,23 @@ function formatFecha(fecha: string, dias: number) {
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
 }
 
-// Tooltip personalizado
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm">
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm max-w-xs">
       <p className="font-semibold text-foreground mb-2">{label}</p>
       {payload.map((p: any) => (
         <div key={p.dataKey} className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
-          <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-medium">
-            {p.dataKey === "ventas" ? formatMXN(p.value) :
-             p.dataKey === "ticketPromedio" ? `$${p.value.toFixed(2)}` :
-             p.value.toLocaleString("es-MX")}
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: p.color }} />
+          <span className="text-muted-foreground truncate">{p.name}:</span>
+          <span className="font-medium ml-auto">
+            {typeof p.value === "number"
+              ? p.dataKey?.includes("ventas") || p.dataKey?.includes("Ventas")
+                ? formatMXN(p.value)
+                : p.dataKey?.includes("ticket") || p.dataKey?.includes("Ticket")
+                ? `$${p.value.toFixed(2)}`
+                : p.value.toLocaleString("es-MX")
+              : p.value}
           </span>
         </div>
       ))}
@@ -56,17 +66,65 @@ export default function Ventas() {
   const [dias, setDias] = useState(30);
   const [sucursalId, setSucursalId] = useState<number | undefined>(undefined);
   const [metrica, setMetrica] = useState<"ventas" | "transacciones" | "ticketPromedio">("ventas");
+  // Multi-sucursal comparativa
+  const [sucursalesSeleccionadas, setSucursalesSeleccionadas] = useState<number[]>([]);
+  const [modoComparativa, setModoComparativa] = useState(false);
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const { data: historico, isLoading } = trpc.reportesDiarios.historico.useQuery(
     { dias, sucursalId },
     {}
   );
-  // Comparativa entre sucursales (solo cuando no hay filtro de sucursal)
   const { data: avanceMeta = [] } = trpc.reportesDiarios.avanceMeta.useQuery(
     undefined,
     { enabled: !sucursalId }
   );
+
+  // Cargar histórico por cada sucursal seleccionada para comparativa
+  const { data: historicoComp1 } = trpc.reportesDiarios.historico.useQuery(
+    { dias, sucursalId: sucursalesSeleccionadas[0] },
+    { enabled: modoComparativa && sucursalesSeleccionadas.length >= 1 }
+  );
+  const { data: historicoComp2 } = trpc.reportesDiarios.historico.useQuery(
+    { dias, sucursalId: sucursalesSeleccionadas[1] },
+    { enabled: modoComparativa && sucursalesSeleccionadas.length >= 2 }
+  );
+  const { data: historicoComp3 } = trpc.reportesDiarios.historico.useQuery(
+    { dias, sucursalId: sucursalesSeleccionadas[2] },
+    { enabled: modoComparativa && sucursalesSeleccionadas.length >= 3 }
+  );
+  const { data: historicoComp4 } = trpc.reportesDiarios.historico.useQuery(
+    { dias, sucursalId: sucursalesSeleccionadas[3] },
+    { enabled: modoComparativa && sucursalesSeleccionadas.length >= 4 }
+  );
+  const { data: historicoComp5 } = trpc.reportesDiarios.historico.useQuery(
+    { dias, sucursalId: sucursalesSeleccionadas[4] },
+    { enabled: modoComparativa && sucursalesSeleccionadas.length >= 5 }
+  );
+
+  const historicosPorSucursal = [
+    historicoComp1, historicoComp2, historicoComp3, historicoComp4, historicoComp5
+  ].slice(0, sucursalesSeleccionadas.length);
+
+  // Construir serie comparativa multi-sucursal
+  const serieComparativa = useMemo(() => {
+    if (!modoComparativa || sucursalesSeleccionadas.length === 0) return [];
+    // Unir todas las fechas
+    const todasFechas = new Set<string>();
+    historicosPorSucursal.forEach(h => h?.serie?.forEach(d => todasFechas.add(d.fecha)));
+    const fechasOrdenadas = Array.from(todasFechas).sort();
+    return fechasOrdenadas.map(fecha => {
+      const row: any = { fecha, fechaLabel: formatFecha(fecha, dias) };
+      sucursalesSeleccionadas.forEach((sId, idx) => {
+        const h = historicosPorSucursal[idx];
+        const punto = h?.serie?.find(d => d.fecha === fecha);
+        const nombre = sucursales.find(s => s.id === sId)?.nombre ?? `Tienda ${sId}`;
+        row[`ventas_${nombre}`] = punto?.ventas ?? 0;
+        row[`tx_${nombre}`] = punto?.transacciones ?? 0;
+      });
+      return row;
+    });
+  }, [modoComparativa, sucursalesSeleccionadas, historicosPorSucursal, dias, sucursales]);
 
   const serie = useMemo(() => {
     if (!historico?.serie) return [];
@@ -76,7 +134,6 @@ export default function Ventas() {
     }));
   }, [historico, dias]);
 
-  // Calcular tendencia (comparar primera mitad vs segunda mitad)
   const tendencia = useMemo(() => {
     if (serie.length < 4) return null;
     const mid = Math.floor(serie.length / 2);
@@ -85,33 +142,86 @@ export default function Ventas() {
     return segunda > primera ? "up" : segunda < primera ? "down" : "flat";
   }, [serie]);
 
-  // Promedio para línea de referencia
   const promedioVentas = useMemo(() => {
     if (!serie.length) return 0;
     return serie.reduce((s, d) => s + d.ventas, 0) / serie.length;
   }, [serie]);
 
-  const exportarExcel = async () => {
-    // Generar CSV simple
-    const headers = ["Fecha", "Ventas (MXN)", "Transacciones", "Ticket Promedio (MXN)", "Reportes"];
-    const rows = serie.map(d => [
-      d.fecha,
-      d.ventas.toFixed(2),
-      d.transacciones,
-      d.ticketPromedio.toFixed(2),
-      d.reportes,
-    ]);
-    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
+  function toggleSucursal(id: number) {
+    setSucursalesSeleccionadas(prev =>
+      prev.includes(id)
+        ? prev.filter(s => s !== id)
+        : prev.length < 5 ? [...prev, id] : prev
+    );
+  }
+
+  // Exportación Excel mejorada (CSV con más columnas)
+  const exportarExcel = () => {
     const sucursalNombre = sucursalId
       ? sucursales.find(s => s.id === sucursalId)?.nombre ?? "todas"
       : "todas";
-    a.download = `ventas_${sucursalNombre}_${dias}d_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    if (modoComparativa && sucursalesSeleccionadas.length > 0) {
+      // Exportar comparativa multi-sucursal
+      const nombresSelec = sucursalesSeleccionadas.map(id => sucursales.find(s => s.id === id)?.nombre ?? `Tienda ${id}`);
+      const headers = ["Fecha", ...nombresSelec.flatMap(n => [`Ventas ${n}`, `Transacciones ${n}`])];
+      const rows = serieComparativa.map(d => [
+        d.fecha,
+        ...nombresSelec.flatMap(n => [
+          (d[`ventas_${n}`] ?? 0).toFixed(2),
+          (d[`tx_${n}`] ?? 0),
+        ]),
+      ]);
+      const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `comparativa_ventas_${dias}d_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // Exportar serie individual con meta y avance
+      const metaSucursal = avanceMeta.find(a => a.sucursalId === sucursalId)?.meta ?? 0;
+      const ventasMes = avanceMeta.find(a => a.sucursalId === sucursalId)?.ventasMes ?? 0;
+      const avancePct = metaSucursal > 0 ? ((ventasMes / metaSucursal) * 100).toFixed(1) : "N/A";
+
+      const headers = [
+        "Fecha",
+        "Día de la semana",
+        "Ventas (MXN)",
+        "Transacciones",
+        "Ticket Promedio (MXN)",
+        "Reportes del día",
+        "Sucursal",
+        "Período (días)",
+        "Meta mensual",
+        "Avance vs meta",
+      ];
+      const rows = [...serie].reverse().map(d => {
+        const fecha = new Date(d.fecha + "T12:00:00");
+        return [
+          d.fecha,
+          fecha.toLocaleDateString("es-MX", { weekday: "long" }),
+          d.ventas.toFixed(2),
+          d.transacciones,
+          d.ticketPromedio.toFixed(2),
+          d.reportes,
+          sucursalNombre,
+          dias,
+          metaSucursal > 0 ? metaSucursal.toFixed(2) : "",
+          metaSucursal > 0 ? avancePct + "%" : "",
+        ];
+      });
+      const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ventas_${sucursalNombre}_${dias}d_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   const metricas = [
@@ -119,7 +229,6 @@ export default function Ventas() {
     { key: "transacciones" as const, label: "Transacciones", color: "#2563eb", icon: ShoppingCart },
     { key: "ticketPromedio" as const, label: "Ticket Promedio", color: "#7c3aed", icon: TrendingUp },
   ];
-
   const metricaActual = metricas.find(m => m.key === metrica)!;
 
   return (
@@ -130,10 +239,30 @@ export default function Ventas() {
           <h1 className="text-2xl font-bold text-foreground">Evolución de Ventas</h1>
           <p className="text-muted-foreground mt-1 text-sm">Histórico de desempeño comercial por período y sucursal</p>
         </div>
-        <Button variant="outline" size="sm" className="gap-2" onClick={exportarExcel} disabled={!serie.length}>
-          <Download className="h-4 w-4" />
-          Exportar CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={modoComparativa ? "default" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={() => {
+              setModoComparativa(!modoComparativa);
+              if (!modoComparativa) setSucursalId(undefined);
+            }}
+          >
+            <BarChart3 className="h-4 w-4" />
+            {modoComparativa ? "Modo individual" : "Comparar tiendas"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={exportarExcel}
+            disabled={modoComparativa ? sucursalesSeleccionadas.length === 0 : !serie.length}
+          >
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -149,24 +278,69 @@ export default function Ventas() {
           </SelectContent>
         </Select>
 
-        <Select
-          value={sucursalId ? String(sucursalId) : "todas"}
-          onValueChange={v => setSucursalId(v === "todas" ? undefined : Number(v))}
-        >
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Todas las tiendas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas las tiendas</SelectItem>
-            {sucursales.map(s => (
-              <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {!modoComparativa && (
+          <Select
+            value={sucursalId ? String(sucursalId) : "todas"}
+            onValueChange={v => setSucursalId(v === "todas" ? undefined : Number(v))}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Todas las tiendas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas las tiendas</SelectItem>
+              {sucursales.map(s => (
+                <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
-      {/* KPIs de resumen */}
-      {historico && (
+      {/* Selector multi-sucursal para comparativa */}
+      {modoComparativa && (
+        <Card className="border-0 shadow-sm bg-white">
+          <CardContent className="p-4">
+            <p className="text-sm font-medium mb-3">Selecciona hasta 5 tiendas para comparar:</p>
+            <div className="flex flex-wrap gap-2">
+              {sucursales.map((s, idx) => {
+                const selIdx = sucursalesSeleccionadas.indexOf(s.id);
+                const isSelected = selIdx !== -1;
+                const color = isSelected ? COLORES[selIdx % COLORES.length] : undefined;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => toggleSucursal(s.id)}
+                    disabled={!isSelected && sucursalesSeleccionadas.length >= 5}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      isSelected
+                        ? "text-white border-transparent"
+                        : "bg-white border-gray-200 text-muted-foreground hover:border-gray-400 disabled:opacity-40"
+                    }`}
+                    style={isSelected ? { backgroundColor: color, borderColor: color } : {}}
+                  >
+                    {isSelected ? <Check className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                    {s.nombre}
+                  </button>
+                );
+              })}
+            </div>
+            {sucursalesSeleccionadas.length > 0 && (
+              <div className="flex items-center gap-2 mt-3">
+                <span className="text-xs text-muted-foreground">{sucursalesSeleccionadas.length} seleccionada{sucursalesSeleccionadas.length !== 1 ? "s" : ""}</span>
+                <button
+                  onClick={() => setSucursalesSeleccionadas([])}
+                  className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
+                >
+                  <X className="h-3 w-3" /> Limpiar
+                </button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* KPIs de resumen (modo individual) */}
+      {!modoComparativa && historico && (
         <div className="grid grid-cols-3 gap-3">
           <Card className="border-0 shadow-sm bg-white">
             <CardContent className="p-4">
@@ -205,7 +379,7 @@ export default function Ventas() {
                 <div>
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Ticket Promedio</p>
                   <p className="text-xl font-bold text-purple-700">${historico.avgTicket.toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <p className="text-xs text-muted-foreground">
                     {tendencia === "up" && <span className="text-green-600">↑ Tendencia al alza</span>}
                     {tendencia === "down" && <span className="text-red-600">↓ Tendencia a la baja</span>}
                     {tendencia === "flat" && <span className="text-gray-500">→ Estable</span>}
@@ -218,94 +392,216 @@ export default function Ventas() {
         </div>
       )}
 
-      {/* Gráfica principal */}
-      <Card className="border-0 shadow-sm bg-white">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <CardTitle className="text-base font-semibold">
-              {metricaActual.label} — Últimos {dias} días
-              {sucursalId && sucursales.find(s => s.id === sucursalId) && (
-                <span className="text-muted-foreground font-normal text-sm ml-2">
-                  · {sucursales.find(s => s.id === sucursalId)?.nombre}
-                </span>
-              )}
-            </CardTitle>
-            {/* Selector de métrica */}
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-              {metricas.map(m => (
-                <button
-                  key={m.key}
-                  onClick={() => setMetrica(m.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                    metrica === m.key
-                      ? "bg-white shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <m.icon className="h-3.5 w-3.5" />
-                  {m.label}
-                </button>
-              ))}
+      {/* === GRÁFICA COMPARATIVA MULTI-SUCURSAL === */}
+      {modoComparativa && sucursalesSeleccionadas.length > 0 && (
+        <Card className="border-0 shadow-sm bg-white">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <CardTitle className="text-base font-semibold">
+                Comparativa de Ventas — Últimos {dias} días
+              </CardTitle>
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                {[
+                  { key: "ventas", label: "Ventas" },
+                  { key: "tx", label: "Transacciones" },
+                ].map(m => (
+                  <button
+                    key={m.key}
+                    onClick={() => setMetrica(m.key === "tx" ? "transacciones" : "ventas")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      (m.key === "ventas" && metrica === "ventas") || (m.key === "tx" && metrica === "transacciones")
+                        ? "bg-white shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="h-64 flex items-center justify-center">
-              <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
-            </div>
-          ) : serie.length === 0 ? (
-            <div className="h-64 flex flex-col items-center justify-center text-center">
-              <BarChart3 className="h-12 w-12 text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">No hay reportes enviados en este período</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">Los datos aparecen cuando los líderes envían sus reportes diarios</p>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={serie} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis
-                  dataKey="fechaLabel"
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval={dias <= 14 ? 0 : dias <= 30 ? 2 : 6}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={v =>
-                    metrica === "ventas" ? formatMXN(v) :
-                    metrica === "ticketPromedio" ? `$${v}` :
-                    v.toLocaleString("es-MX")
-                  }
-                  width={55}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                {metrica === "ventas" && promedioVentas > 0 && (
-                  <ReferenceLine
-                    y={promedioVentas}
-                    stroke="#94a3b8"
-                    strokeDasharray="4 4"
-                    label={{ value: "Prom.", position: "right", fontSize: 10, fill: "#94a3b8" }}
+          </CardHeader>
+          <CardContent>
+            {serieComparativa.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center text-center">
+                <BarChart3 className="h-12 w-12 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground">No hay datos en este período para las tiendas seleccionadas</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={serieComparativa} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis
+                    dataKey="fechaLabel"
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={dias <= 14 ? 0 : dias <= 30 ? 2 : 6}
                   />
-                )}
-                <Bar
-                  dataKey={metrica}
-                  name={metricaActual.label}
-                  fill={metricaActual.color}
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={40}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={v => metrica === "ventas" ? formatMXN(v) : v.toLocaleString("es-MX")}
+                    width={55}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} iconType="circle" iconSize={8} />
+                  {sucursalesSeleccionadas.map((sId, idx) => {
+                    const nombre = sucursales.find(s => s.id === sId)?.nombre ?? `Tienda ${sId}`;
+                    const dataKey = metrica === "ventas" ? `ventas_${nombre}` : `tx_${nombre}`;
+                    return (
+                      <Line
+                        key={sId}
+                        type="monotone"
+                        dataKey={dataKey}
+                        name={nombre}
+                        stroke={COLORES[idx % COLORES.length]}
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: COLORES[idx % COLORES.length] }}
+                        activeDot={{ r: 5 }}
+                      />
+                    );
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Gráfica de línea comparativa (ventas + ticket) */}
-      {serie.length > 0 && (
+      {/* KPIs comparativos por sucursal seleccionada */}
+      {modoComparativa && sucursalesSeleccionadas.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {sucursalesSeleccionadas.map((sId, idx) => {
+            const h = historicosPorSucursal[idx];
+            const nombre = sucursales.find(s => s.id === sId)?.nombre ?? `Tienda ${sId}`;
+            const color = COLORES[idx % COLORES.length];
+            const meta = avanceMeta.find(a => a.sucursalId === sId);
+            return (
+              <Card key={sId} className="border-0 shadow-sm bg-white">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <p className="text-sm font-semibold truncate">{nombre}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Ventas {dias}d</p>
+                      <p className="font-bold text-green-700">{h ? formatMXN(h.totalVentas) : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Transacciones</p>
+                      <p className="font-bold text-blue-700">{h ? h.totalTx.toLocaleString("es-MX") : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Ticket prom.</p>
+                      <p className="font-bold text-purple-700">{h ? `$${h.avgTicket.toFixed(2)}` : "—"}</p>
+                    </div>
+                    {meta && meta.meta > 0 && (
+                      <div>
+                        <p className="text-muted-foreground">Avance meta</p>
+                        <p className={`font-bold ${(meta.porcentaje ?? 0) >= 90 ? "text-green-700" : (meta.porcentaje ?? 0) >= 60 ? "text-yellow-700" : "text-red-700"}`}>
+                          {(meta.porcentaje ?? 0).toFixed(0)}%
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Gráfica principal (modo individual) */}
+      {!modoComparativa && (
+        <Card className="border-0 shadow-sm bg-white">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <CardTitle className="text-base font-semibold">
+                {metricaActual.label} — Últimos {dias} días
+                {sucursalId && sucursales.find(s => s.id === sucursalId) && (
+                  <span className="text-muted-foreground font-normal text-sm ml-2">
+                    · {sucursales.find(s => s.id === sucursalId)?.nombre}
+                  </span>
+                )}
+              </CardTitle>
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                {metricas.map(m => (
+                  <button
+                    key={m.key}
+                    onClick={() => setMetrica(m.key)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      metrica === m.key
+                        ? "bg-white shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <m.icon className="h-3.5 w-3.5" />
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="h-64 flex items-center justify-center">
+                <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : serie.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center text-center">
+                <BarChart3 className="h-12 w-12 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground">No hay reportes enviados en este período</p>
+                <p className="text-xs text-muted-foreground/70 mt-1">Los datos aparecen cuando los líderes envían sus reportes diarios</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={serie} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis
+                    dataKey="fechaLabel"
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={dias <= 14 ? 0 : dias <= 30 ? 2 : 6}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={v =>
+                      metrica === "ventas" ? formatMXN(v) :
+                      metrica === "ticketPromedio" ? `$${v}` :
+                      v.toLocaleString("es-MX")
+                    }
+                    width={55}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  {metrica === "ventas" && promedioVentas > 0 && (
+                    <ReferenceLine
+                      y={promedioVentas}
+                      stroke="#94a3b8"
+                      strokeDasharray="4 4"
+                      label={{ value: "Prom.", position: "right", fontSize: 10, fill: "#94a3b8" }}
+                    />
+                  )}
+                  <Bar
+                    dataKey={metrica}
+                    name={metricaActual.label}
+                    fill={metricaActual.color}
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={40}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Gráfica de línea comparativa ventas vs ticket (modo individual) */}
+      {!modoComparativa && serie.length > 0 && (
         <Card className="border-0 shadow-sm bg-white">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Ventas vs Ticket Promedio</CardTitle>
@@ -340,40 +636,17 @@ export default function Ventas() {
                   width={45}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
-                  iconType="circle"
-                  iconSize={8}
-                />
-                <Line
-                  yAxisId="ventas"
-                  type="monotone"
-                  dataKey="ventas"
-                  name="Ventas"
-                  stroke="#16a34a"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "#16a34a" }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  yAxisId="ticket"
-                  type="monotone"
-                  dataKey="ticketPromedio"
-                  name="Ticket Promedio"
-                  stroke="#7c3aed"
-                  strokeWidth={2}
-                  strokeDasharray="5 3"
-                  dot={{ r: 3, fill: "#7c3aed" }}
-                  activeDot={{ r: 5 }}
-                />
+                <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} iconType="circle" iconSize={8} />
+                <Line yAxisId="ventas" type="monotone" dataKey="ventas" name="Ventas" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} activeDot={{ r: 5 }} />
+                <Line yAxisId="ticket" type="monotone" dataKey="ticketPromedio" name="Ticket Promedio" stroke="#7c3aed" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: "#7c3aed" }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       )}
 
-      {/* Tabla de datos */}
-      {serie.length > 0 && (
+      {/* Tabla de datos (modo individual) */}
+      {!modoComparativa && serie.length > 0 && (
         <Card className="border-0 shadow-sm bg-white">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -405,15 +678,9 @@ export default function Ventas() {
                       <td className="py-2.5 px-3 text-right text-green-700 font-medium">
                         ${d.ventas.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="py-2.5 px-3 text-right text-blue-700">
-                        {d.transacciones.toLocaleString("es-MX")}
-                      </td>
-                      <td className="py-2.5 px-3 text-right text-purple-700">
-                        ${d.ticketPromedio.toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right text-muted-foreground">
-                        {d.reportes}
-                      </td>
+                      <td className="py-2.5 px-3 text-right text-blue-700">{d.transacciones.toLocaleString("es-MX")}</td>
+                      <td className="py-2.5 px-3 text-right text-purple-700">${d.ticketPromedio.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right text-muted-foreground">{d.reportes}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -423,8 +690,8 @@ export default function Ventas() {
         </Card>
       )}
 
-      {/* === COMPARATIVA ENTRE SUCURSALES === */}
-      {!sucursalId && avanceMeta.length > 1 && (
+      {/* === COMPARATIVA ENTRE SUCURSALES (modo individual, mes actual) === */}
+      {!modoComparativa && !sucursalId && avanceMeta.length > 1 && (
         <Card className="border-0 shadow-sm bg-white">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Comparativa entre Sucursales — Mes Actual</CardTitle>
@@ -449,23 +716,16 @@ export default function Ventas() {
                       </div>
                       <div className="flex-1 flex items-center gap-3">
                         <div className="flex-1 h-7 bg-muted rounded-lg overflow-hidden relative">
-                          <div
-                            className={`h-full rounded-lg transition-all ${barColor} opacity-80`}
-                            style={{ width: `${barWidth}%` }}
-                          />
+                          <div className={`h-full rounded-lg transition-all ${barColor} opacity-80`} style={{ width: `${barWidth}%` }} />
                           <span className="absolute inset-0 flex items-center px-3 text-xs font-semibold text-foreground">
                             {formatMXN(a.ventasMes)}
                           </span>
                         </div>
                         {pct !== null && (
-                          <span className={`text-xs font-bold w-12 text-right shrink-0 ${textColor}`}>
-                            {pct.toFixed(0)}%
-                          </span>
+                          <span className={`text-xs font-bold w-12 text-right shrink-0 ${textColor}`}>{pct.toFixed(0)}%</span>
                         )}
                         {a.meta > 0 && (
-                          <span className="text-xs text-muted-foreground w-24 text-right shrink-0">
-                            meta: {formatMXN(a.meta)}
-                          </span>
+                          <span className="text-xs text-muted-foreground w-24 text-right shrink-0">meta: {formatMXN(a.meta)}</span>
                         )}
                       </div>
                     </div>
@@ -474,7 +734,7 @@ export default function Ventas() {
             </div>
             {avanceMeta.every(a => a.meta === 0) && (
               <p className="text-xs text-muted-foreground text-center mt-3">
-                Configura la meta mensual en cada sucursal para ver el avance porcentual
+                Configura la meta mensual en la sección "Metas de Ventas" para ver el avance porcentual
               </p>
             )}
           </CardContent>

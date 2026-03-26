@@ -618,9 +618,25 @@ export const appRouter = router({
             .filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado')
             .map(r => r.sucursalId)
         );
+        // Calcular días desde el último reporte por sucursal
+        const ultimoReportePorSucursal: Record<number, Date> = {};
+        for (const r of todos.filter(r => r.estado === 'enviado')) {
+          const fechaR = new Date(r.fecha);
+          if (!ultimoReportePorSucursal[r.sucursalId] || fechaR > ultimoReportePorSucursal[r.sucursalId]) {
+            ultimoReportePorSucursal[r.sucursalId] = fechaR;
+          }
+        }
+        const hoy = new Date();
         return sucursales
           .filter(s => s.activa && !conReporte.has(s.id))
-          .map(s => ({ sucursalId: s.id, nombre: s.nombre }));
+          .map(s => {
+            const ultimo = ultimoReportePorSucursal[s.id];
+            const diasSinReporte = ultimo
+              ? Math.floor((hoy.getTime() - ultimo.getTime()) / (1000 * 60 * 60 * 24))
+              : null;
+            return { id: s.id, sucursalId: s.id, nombre: s.nombre, diasSinReporte };
+          })
+          .sort((a, b) => (b.diasSinReporte ?? 999) - (a.diasSinReporte ?? 999));
       }),
   }),
 
