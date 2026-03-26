@@ -42,6 +42,7 @@ export default function Home() {
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const { data: evaluaciones = [] } = trpc.evaluaciones.list.useQuery({});
+  const { data: resumenVentas } = trpc.reportesDiarios.resumen.useQuery({ dias: 7 }, { enabled: hasRoleAccess(role, 'manager') });
 
   const evaluacionesCompletadas = evaluaciones.filter(e => e.estado === "completada");
   const borradores = evaluaciones.filter(e => e.estado === "borrador");
@@ -178,6 +179,43 @@ export default function Home() {
           </CardContent>
         </Card>
       </div>
+
+      {/* KPIs de Ventas (solo para manager+) */}
+      {isManager && resumenVentas && resumenVentas.reportesEnviados > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">Ventas Últimos 7 Días</h2>
+            <span className="text-xs text-muted-foreground">{resumenVentas.reportesEnviados} reporte{resumenVentas.reportesEnviados !== 1 ? 's' : ''} enviado{resumenVentas.reportesEnviados !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="border-0 shadow-sm bg-white">
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Ventas Totales</p>
+                <p className="text-2xl font-bold mt-1 text-green-700">
+                  ${resumenVentas.totalVentas.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">MXN acumulado</p>
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-sm bg-white">
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Transacciones</p>
+                <p className="text-2xl font-bold mt-1 text-blue-700">{resumenVentas.totalTx}</p>
+                <p className="text-xs text-muted-foreground mt-1">ventas registradas</p>
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-sm bg-white">
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Ticket Promedio</p>
+                <p className="text-2xl font-bold mt-1 text-purple-700">
+                  ${resumenVentas.avgTicket.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">por transacción</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* Semáforo de tiendas (solo para manager+) */}
       {isManager && sucursales.length > 0 && (

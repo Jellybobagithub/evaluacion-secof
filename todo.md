@@ -210,3 +210,10 @@
 - [x] PDF: resumen por sección con porcentaje y barra visual (ya estaba implementado)
 - [x] PDF: lista completa de puntos fallidos con criterio y observación (mejorado)
 - [x] PDF: sección de áreas de mejora con recomendaciones priorizadas (ya estaba implementado)
+
+## Mejoras v16 (Mar 25)
+- [x] Dashboard HQ: KPIs de ventas del Reporte Diario (ventas totales, transacciones, ticket promedio)
+- [x] Dashboard HQ: semáforo integrado SECOF + ventas por sucursal
+- [x] Notificación al superadmin cuando se envía un Reporte Diario
+- [x] Asignación de sucursales desde panel Usuarios y Roles (ya implementado en AdminUsuarios)
+- [x] Backend: endpoint resumenVentas (7 días, ventas totales, transacciones, ticket promedio)

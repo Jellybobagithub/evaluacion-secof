@@ -375,7 +375,7 @@ export const appRouter = router({
         estado: z.enum(['borrador', 'enviado']).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { createReporteDiario } = await import('./db');
+        const { createReporteDiario, getSucursalById } = await import('./db');
         const result = await createReporteDiario({
           ...input,
           fecha: input.fecha ? new Date(input.fecha) : new Date(),
@@ -385,12 +385,27 @@ export const appRouter = router({
         });
         // @ts-ignore
         const insertId = result[0]?.insertId ?? (result as any).insertId;
+        // Notificar al superadmin cuando se envía (no en borrador)
+        if (input.estado === 'enviado') {
+          try {
+            const { notifyOwner } = await import('./_core/notification');
+            const sucursal = await getSucursalById(input.sucursalId);
+            const fecha = input.fecha ? new Date(input.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+            const ventas = input.ventasTotales ? `$${input.ventasTotales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'No registradas';
+            await notifyOwner({
+              title: `Reporte Diario: ${sucursal?.nombre ?? 'Sucursal'}`,
+              content: `${ctx.user.name ?? 'Un colaborador'} envió el reporte del ${fecha}.\nVentas: ${ventas} · Transacciones: ${input.transacciones ?? 0} · Ticket: ${input.ticketPromedio ? '$' + input.ticketPromedio.toFixed(2) : 'N/A'}${input.incidentes ? '\n⚠️ Incidentes: ' + input.incidentes.substring(0, 120) : ''}`,
+            });
+          } catch { /* no bloquear si falla la notificación */ }
+        }
         return { id: insertId, success: true };
       }),
 
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
+        sucursalId: z.number().optional(),
+        fecha: z.string().optional(),
         ventasTotales: z.number().optional(),
         transacciones: z.number().optional(),
         ticketPromedio: z.number().optional(),
@@ -402,10 +417,26 @@ export const appRouter = router({
         observaciones: z.string().optional(),
         estado: z.enum(['borrador', 'enviado']).optional(),
       }))
-      .mutation(async ({ input }) => {
-        const { updateReporteDiario } = await import('./db');
-        const { id, ...data } = input;
-        await updateReporteDiario(id, data);
+      .mutation(async ({ input, ctx }) => {
+        const { updateReporteDiario, getReporteDiarioById, getSucursalById } = await import('./db');
+        const { id, fecha, ...rest } = input;
+        await updateReporteDiario(id, { ...rest, ...(fecha ? { fecha: new Date(fecha) } : {}) });
+        // Notificar al superadmin cuando se cambia a enviado
+        if (input.estado === 'enviado') {
+          try {
+            const { notifyOwner } = await import('./_core/notification');
+            const reporte = await getReporteDiarioById(id);
+            if (reporte) {
+              const sucursal = await getSucursalById(reporte.sucursalId);
+              const fecha = new Date(reporte.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+              const ventas = reporte.ventasTotales ? `$${reporte.ventasTotales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'No registradas';
+              await notifyOwner({
+                title: `Reporte Diario: ${sucursal?.nombre ?? 'Sucursal'}`,
+                content: `${ctx.user.name ?? 'Un colaborador'} envió el reporte del ${fecha}.\nVentas: ${ventas} · Transacciones: ${reporte.transacciones ?? 0} · Ticket: ${reporte.ticketPromedio ? '$' + Number(reporte.ticketPromedio).toFixed(2) : 'N/A'}${reporte.incidentes ? '\n⚠️ Incidentes: ' + reporte.incidentes.substring(0, 120) : ''}`,
+              });
+            }
+          } catch { /* no bloquear si falla la notificación */ }
+        }
         return { success: true };
       }),
 
@@ -415,6 +446,28 @@ export const appRouter = router({
         const { deleteReporteDiario } = await import('./db');
         await deleteReporteDiario(input.id);
         return { success: true };
+      }),
+
+    resumen: protectedProcedure
+      .input(z.object({ dias: z.number().min(1).max(90).optional() }))
+      .query(async ({ input, ctx }) => {
+        const { getReportesDiarios } = await import('./db');
+        const dias = input.dias ?? 7;
+        const todos = await getReportesDiarios(undefined, undefined, 500);
+        const corte = new Date();
+        corte.setDate(corte.getDate() - dias);
+        const recientes = todos.filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado');
+        const totalVentas = recientes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+        const totalTx = recientes.reduce((s, r) => s + (r.transacciones ?? 0), 0);
+        const avgTicket = totalTx > 0 ? totalVentas / totalTx : 0;
+        const reportesPorSucursal: Record<number, { ventas: number; tx: number; reportes: number }> = {};
+        for (const r of recientes) {
+          if (!reportesPorSucursal[r.sucursalId]) reportesPorSucursal[r.sucursalId] = { ventas: 0, tx: 0, reportes: 0 };
+          reportesPorSucursal[r.sucursalId].ventas += r.ventasTotales ?? 0;
+          reportesPorSucursal[r.sucursalId].tx += r.transacciones ?? 0;
+          reportesPorSucursal[r.sucursalId].reportes += 1;
+        }
+        return { totalVentas, totalTx, avgTicket, reportesEnviados: recientes.length, reportesPorSucursal, dias };
       }),
   }),
 
