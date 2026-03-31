@@ -79,6 +79,7 @@ const ALL_NAV_GROUPS = [
     minRole: "leader",
     path: null,
     items: [
+      { icon: LayoutDashboard, label: "Resumen SECOF", path: "/secof-dashboard", minRole: "leader" },
       { icon: PlusCircle, label: "Nueva Evaluación", path: "/evaluacion/nueva", minRole: "leader" },
       { icon: History, label: "Historial", path: "/historial", minRole: "leader" },
       { icon: BarChart3, label: "Comparativa", path: "/comparativa", minRole: "manager" },

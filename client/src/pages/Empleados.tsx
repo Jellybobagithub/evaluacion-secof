@@ -88,7 +88,8 @@ export default function Empleados() {
     onError: (e) => toast.error(e.message),
   });
 
-  const canEdit = ["owner", "superadmin", "manager", "leader"].includes(user?.role ?? "");
+  // Solo manager/owner/superadmin pueden crear o editar empleados; el líder solo puede ver
+  const canEdit = ["owner", "superadmin", "manager"].includes(user?.role ?? "");
 
   function openCreate() {
     setEditId(null);
@@ -198,7 +199,10 @@ export default function Empleados() {
         <div className="text-center py-16 text-muted-foreground">
           <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">No hay empleados registrados</p>
-          <p className="text-sm mt-1">Agrega el primer empleado con el botón de arriba</p>
+          {canEdit
+            ? <p className="text-sm mt-1">Agrega el primer empleado con el botón de arriba</p>
+            : <p className="text-sm mt-1">Contacta a tu administrador para registrar empleados</p>
+          }
         </div>
       )}
 

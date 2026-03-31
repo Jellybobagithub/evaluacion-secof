@@ -26,6 +26,7 @@ import KpiAnfitriones from "./pages/KpiAnfitriones";
 import KpiLider from "./pages/KpiLider";
 import Horarios from "./pages/Horarios";
 import MiTurno from "./pages/MiTurno";
+import DashboardSecof from "./pages/DashboardSecof";
 import DashboardLayout from "./components/DashboardLayout";
 
 function Router() {
@@ -41,6 +42,11 @@ function Router() {
         </Route>
         <Route path="/sucursales/:id">
           <ProtectedRoute component={SucursalDetalle} minRole="manager" />
+        </Route>
+
+        {/* Dashboard SECOF: leader y superior */}
+        <Route path="/secof-dashboard">
+          <ProtectedRoute component={DashboardSecof} minRole="leader" />
         </Route>
 
         {/* SECOF: leader y superior */}

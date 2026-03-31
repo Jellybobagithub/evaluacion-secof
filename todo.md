@@ -348,3 +348,11 @@
 - [x] MiTurno: sección KPIs del mes (cumplimiento reportes + mermas con semáforo)
 - [x] MiTurno: acceso rápido a KPIs Líder y KPIs Anfitriones
 - [x] MiTurno: indicador de días pendientes de reporte en el mes
+
+## Rediseño Dashboard + Restricciones v26 (Mar 26) ✔
+- [x] Empleados: restringir creación/edición a manager/owner/superadmin (líder solo lectura)
+- [x] Backend: proteger procedimiento empleados.crear con adminProcedure
+- [x] Dashboard SECOF: nueva página /secof-dashboard con resumen de evaluaciones, escala, acceso rápido
+- [x] Dashboard inicial: eliminar sección "Acceso Rápido" y "Escala SECOF"
+- [x] Dashboard inicial: rediseñado con tarjetas críticas de todos los módulos (ventas, SECOF, equipo, reportes)
+- [x] Navegación: "Resumen SECOF" en grupo SECOF del menú lateral
