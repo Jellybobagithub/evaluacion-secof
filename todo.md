@@ -386,3 +386,8 @@
 - [x] Página VentasHistoricas: navegación entre años con flechas
 - [x] Configuración: "Ventas Históricas" en grupo Configuración del menú (manager+)
 - [x] App.tsx: ruta /ventas-historicas con guard minRole="manager"
+
+## Bugs Reporte Diario v28 (Apr 1) ✔
+- [x] Bug: efectivo+tarjeta+Rappi ahora suman automáticamente en campo Ventas Totales (readOnly)
+- [x] Bug: fecha desfasada corregida — toLocalDateString devuelve el string YYYY-MM-DD sin convertir a Date
+- [x] Bug: listado ahora muestra total en verde + desglose Ef/Tar/Rappi en gris

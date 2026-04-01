@@ -22,12 +22,12 @@ import {
  * la cadena como UTC medianoche en vez de medianoche local.
  */
 function toLocalDateString(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  // Si la fecha viene como string ISO sin hora (YYYY-MM-DD), parsear como local
+  // Si ya es string YYYY-MM-DD, devolverlo tal cual (no convertir a Date para evitar UTC)
   if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    const [y, m, day] = date.split("-").map(Number);
-    return new Date(y, m - 1, day).toISOString().slice(0, 10);
+    return date;
   }
+  // Si es Date o string con hora, usar getFullYear/getMonth/getDate (hora local)
+  const d = typeof date === "string" ? new Date(date) : date;
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -293,17 +293,29 @@ export default function ReporteDiario() {
                           <Calendar className="w-3 h-3" />
                           {formatLocalDate(r.fecha)}
                         </span>
-                        {r.ventasTotales != null && r.ventasTotales > 0 && (
-                          <span className="flex items-center gap-1">
-                            <DollarSign className="w-3 h-3" />
-                            ${r.ventasTotales.toLocaleString("es-MX")}
-                          </span>
+                        {(() => {
+                          // Calcular total desde canales si ventasTotales es 0 o null
+                          const ef = r.ventasEfectivo ?? 0;
+                          const tar = r.ventasTarjeta ?? 0;
+                          const rap = r.ventasRappi ?? 0;
+                          const total = (r.ventasTotales && r.ventasTotales > 0)
+                            ? r.ventasTotales
+                            : (ef + tar + rap > 0 ? ef + tar + rap : null);
+                          return total != null && total > 0 ? (
+                            <span className="flex items-center gap-1 font-medium text-green-700">
+                              <DollarSign className="w-3 h-3" />
+                              ${total.toLocaleString("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </span>
+                          ) : null;
+                        })()}
+                        {r.ventasEfectivo != null && r.ventasEfectivo > 0 && (
+                          <span className="text-muted-foreground/70">Ef ${r.ventasEfectivo.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
+                        )}
+                        {r.ventasTarjeta != null && r.ventasTarjeta > 0 && (
+                          <span className="text-muted-foreground/70">Tar ${r.ventasTarjeta.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
                         )}
                         {r.ventasRappi != null && r.ventasRappi > 0 && (
-                          <span className="flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3" />
-                            Rappi ${r.ventasRappi.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
-                          </span>
+                          <span className="text-muted-foreground/70">Rappi ${r.ventasRappi.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>
                         )}
                         {r.apertura && (
                           <span className="flex items-center gap-1">
@@ -404,21 +416,17 @@ export default function ReporteDiario() {
               </h3>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs">Ventas totales ($)</Label>
-                  <Input
-                    type="number"
-                    placeholder="0.00"
-                    value={form.ventasTotales}
-                    onChange={e => setForm(f => ({ ...f, ventasTotales: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
                   <Label className="text-xs">Ventas Efectivo ($)</Label>
                   <Input
                     type="number"
                     placeholder="0.00"
                     value={form.ventasEfectivo}
-                    onChange={e => setForm(f => ({ ...f, ventasEfectivo: e.target.value }))}
+                    onChange={e => {
+                      const ef = parseFloat(e.target.value) || 0;
+                      const tar = parseFloat(form.ventasTarjeta) || 0;
+                      const rap = parseFloat(form.ventasRappi) || 0;
+                      setForm(f => ({ ...f, ventasEfectivo: e.target.value, ventasTotales: String(ef + tar + rap) }));
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -427,7 +435,12 @@ export default function ReporteDiario() {
                     type="number"
                     placeholder="0.00"
                     value={form.ventasTarjeta}
-                    onChange={e => setForm(f => ({ ...f, ventasTarjeta: e.target.value }))}
+                    onChange={e => {
+                      const ef = parseFloat(form.ventasEfectivo) || 0;
+                      const tar = parseFloat(e.target.value) || 0;
+                      const rap = parseFloat(form.ventasRappi) || 0;
+                      setForm(f => ({ ...f, ventasTarjeta: e.target.value, ventasTotales: String(ef + tar + rap) }));
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -436,8 +449,24 @@ export default function ReporteDiario() {
                     type="number"
                     placeholder="0.00"
                     value={form.ventasRappi}
-                    onChange={e => setForm(f => ({ ...f, ventasRappi: e.target.value }))}
+                    onChange={e => {
+                      const ef = parseFloat(form.ventasEfectivo) || 0;
+                      const tar = parseFloat(form.ventasTarjeta) || 0;
+                      const rap = parseFloat(e.target.value) || 0;
+                      setForm(f => ({ ...f, ventasRappi: e.target.value, ventasTotales: String(ef + tar + rap) }));
+                    }}
                   />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Ventas Totales ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={form.ventasTotales}
+                    readOnly
+                    className="bg-muted font-semibold cursor-not-allowed"
+                  />
+                  <p className="text-xs text-muted-foreground">Suma automática de los 3 canales</p>
                 </div>
               </div>
             </div>
