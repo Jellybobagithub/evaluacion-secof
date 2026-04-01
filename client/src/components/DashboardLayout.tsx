@@ -128,9 +128,10 @@ const ALL_NAV_GROUPS = [
     id: "configuracion",
     label: "Configuración",
     icon: Settings,
-    minRole: "superadmin",
+    minRole: "manager",
     path: null,
     items: [
+      { icon: History, label: "Ventas Históricas", path: "/ventas-historicas", minRole: "manager" },
       { icon: ClipboardList, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
     ],
   },

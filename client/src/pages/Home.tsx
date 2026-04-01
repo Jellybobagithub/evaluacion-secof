@@ -294,17 +294,23 @@ export default function Home() {
             </Card>
           )}
 
-          {/* Ticket promedio */}
+          {/* Rappi + Tarjeta */}
           {resumenVentas && resumenVentas.reportesEnviados > 0 && (
             <Card className="border-0 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/ventas")}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Ticket Promedio</p>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Rappi 7 días</p>
                     <p className="text-2xl font-bold mt-1 text-purple-700">
-                      ${resumenVentas.avgTicket.toLocaleString('es-MX', { minimumFractionDigits: 0 })}
+                      ${(resumenVentas.totalRappi ?? 0) >= 1000
+                        ? ((resumenVentas.totalRappi ?? 0) / 1000).toFixed(1) + 'k'
+                        : (resumenVentas.totalRappi ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">{resumenVentas.totalTx.toLocaleString()} transacciones</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ${(resumenVentas.totalTarjeta ?? 0) >= 1000
+                        ? ((resumenVentas.totalTarjeta ?? 0) / 1000).toFixed(1) + 'k'
+                        : (resumenVentas.totalTarjeta ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })} tarjeta
+                    </p>
                   </div>
                   <div className="h-11 w-11 rounded-xl bg-purple-50 flex items-center justify-center">
                     <BarChart3 className="h-5 w-5 text-purple-600" />

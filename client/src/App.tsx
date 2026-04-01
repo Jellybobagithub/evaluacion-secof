@@ -28,6 +28,7 @@ import Horarios from "./pages/Horarios";
 import MiTurno from "./pages/MiTurno";
 import DashboardSecof from "./pages/DashboardSecof";
 import DashboardLayout from "./components/DashboardLayout";
+import VentasHistoricas from "./pages/VentasHistoricas";
 
 function Router() {
   return (
@@ -122,6 +123,11 @@ function Router() {
         {/* Colaboradores: owner, manager, superadmin */}
         <Route path="/admin/usuarios">
           <ProtectedRoute component={AdminUsuarios} minRole="owner" />
+        </Route>
+
+        {/* Ventas Históricas: owner, manager, superadmin */}
+        <Route path="/ventas-historicas">
+          <ProtectedRoute component={VentasHistoricas} minRole="manager" />
         </Route>
 
         {/* Configuración: solo superadmin */}

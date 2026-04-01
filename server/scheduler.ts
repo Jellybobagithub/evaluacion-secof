@@ -30,7 +30,9 @@ async function enviarResumenSemanal() {
       (r) => new Date(r.fecha) >= hace7 && r.estado === "enviado"
     );
     const totalVentas = recientes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
-    const totalTx = recientes.reduce((s, r) => s + (r.transacciones ?? 0), 0);
+    const totalEfectivo = recientes.reduce((s, r) => s + ((r as any).ventasEfectivo ?? 0), 0);
+    const totalTarjeta = recientes.reduce((s, r) => s + ((r as any).ventasTarjeta ?? 0), 0);
+    const totalRappi = recientes.reduce((s, r) => s + ((r as any).ventasRappi ?? 0), 0);
     const activasSuc = sucursales.filter((s) => s.activa);
     const conReporte = new Set(recientes.map((r) => r.sucursalId));
     const sinReporte = activasSuc.filter((s) => !conReporte.has(s.id));
@@ -88,8 +90,9 @@ async function enviarResumenSemanal() {
       ``,
       `💰 VENTAS DE LA SEMANA`,
       `  Total: $${totalVentas.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`,
-      `  Transacciones: ${totalTx.toLocaleString("es-MX")}`,
-      `  Ticket promedio: ${totalTx > 0 ? "$" + (totalVentas / totalTx).toFixed(2) : "N/A"}`,
+      `  Efectivo: $${totalEfectivo.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`,
+      `  Tarjeta: $${totalTarjeta.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`,
+      `  Rappi: $${totalRappi.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`,
       `  Reportes enviados: ${recientes.length}`,
       ``,
       `📋 EVALUACIONES SECOF`,

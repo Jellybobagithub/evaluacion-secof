@@ -239,14 +239,14 @@ export default function MiTurno() {
                 <p className="text-xs text-slate-400">Ventas</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{reporteHoy.transacciones ?? 0}</p>
-                <p className="text-xs text-slate-400">Transacc.</p>
+                <p className="text-2xl font-bold text-white">${(reporteHoy.ventasTarjeta ?? 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}</p>
+                <p className="text-xs text-slate-400">Tarjeta</p>
               </div>
               <div>
                 <p className="text-2xl font-bold text-white">
-                  ${(reporteHoy.ticketPromedio ?? 0).toFixed(0)}
+                  ${(reporteHoy.ventasRappi ?? 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}
                 </p>
-                <p className="text-xs text-slate-400">Ticket</p>
+                <p className="text-xs text-slate-400">Rappi</p>
               </div>
             </div>
             {/* Mermas */}

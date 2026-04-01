@@ -382,9 +382,10 @@ export const appRouter = router({
       .input(z.object({
         sucursalId: z.number(),
         fecha: z.string().optional(),
-        ventasTotales: z.number().optional(),
-        transacciones: z.number().optional(),
-        ticketPromedio: z.number().optional(),
+        ventasEfectivo: z.number().optional(),
+        ventasTarjeta: z.number().optional(),
+        ventasRappi: z.number().optional(),
+        ventasTotales: z.number().optional(), // calculado en frontend
         apertura: z.string().optional(),
         cierre: z.string().optional(),
         personalPresente: z.number().optional(),
@@ -413,9 +414,11 @@ export const appRouter = router({
             const sucursal = await getSucursalById(input.sucursalId);
             const fecha = input.fecha ? new Date(input.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
             const ventas = input.ventasTotales ? `$${input.ventasTotales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'No registradas';
+            const desglose = `Efectivo: $${(input.ventasEfectivo ?? 0).toLocaleString('es-MX')} · Tarjeta: $${(input.ventasTarjeta ?? 0).toLocaleString('es-MX')} · Rappi: $${(input.ventasRappi ?? 0).toLocaleString('es-MX')}`;
             await notifyOwner({
               title: `Reporte Diario: ${sucursal?.nombre ?? 'Sucursal'}`,
-              content: `${ctx.user.name ?? 'Un colaborador'} envió el reporte del ${fecha}.\nVentas: ${ventas} · Transacciones: ${input.transacciones ?? 0} · Ticket: ${input.ticketPromedio ? '$' + input.ticketPromedio.toFixed(2) : 'N/A'}${input.incidentes ? '\n⚠️ Incidentes: ' + input.incidentes.substring(0, 120) : ''}`,
+              content: `${ctx.user.name ?? 'Un colaborador'} envió el reporte del ${fecha}.\nVentas totales: ${ventas}\n${desglose}${input.incidentes ? '\n⚠️ Incidentes: ' + input.incidentes.substring(0, 120) : ''}`,
+              // (legacy field removed)
             });
           } catch { /* no bloquear si falla la notificación */ }
         }
@@ -427,9 +430,10 @@ export const appRouter = router({
         id: z.number(),
         sucursalId: z.number().optional(),
         fecha: z.string().optional(),
+        ventasEfectivo: z.number().optional(),
+        ventasTarjeta: z.number().optional(),
+        ventasRappi: z.number().optional(),
         ventasTotales: z.number().optional(),
-        transacciones: z.number().optional(),
-        ticketPromedio: z.number().optional(),
         apertura: z.string().optional(),
         cierre: z.string().optional(),
         personalPresente: z.number().optional(),
@@ -453,9 +457,11 @@ export const appRouter = router({
               const sucursal = await getSucursalById(reporte.sucursalId);
               const fecha = new Date(reporte.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
               const ventas = reporte.ventasTotales ? `$${reporte.ventasTotales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'No registradas';
+              const desglose = `Efectivo: $${(reporte.ventasEfectivo ?? 0).toLocaleString('es-MX')} · Tarjeta: $${(reporte.ventasTarjeta ?? 0).toLocaleString('es-MX')} · Rappi: $${(reporte.ventasRappi ?? 0).toLocaleString('es-MX')}`;
               await notifyOwner({
                 title: `Reporte Diario: ${sucursal?.nombre ?? 'Sucursal'}`,
-                content: `${ctx.user.name ?? 'Un colaborador'} envió el reporte del ${fecha}.\nVentas: ${ventas} · Transacciones: ${reporte.transacciones ?? 0} · Ticket: ${reporte.ticketPromedio ? '$' + Number(reporte.ticketPromedio).toFixed(2) : 'N/A'}${reporte.incidentes ? '\n⚠️ Incidentes: ' + reporte.incidentes.substring(0, 120) : ''}`,
+                content: `${ctx.user.name ?? 'Un colaborador'} envió el reporte del ${fecha}.\nVentas totales: ${ventas}\n${desglose}${reporte.incidentes ? '\n⚠️ Incidentes: ' + reporte.incidentes.substring(0, 120) : ''}`,
+              // (legacy field removed)
               });
             }
           } catch { /* no bloquear si falla la notificación */ }
@@ -484,12 +490,14 @@ export const appRouter = router({
         corte.setDate(corte.getDate() - dias);
         const recientes = todos.filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado');
         // Agrupar por fecha (YYYY-MM-DD)
-        const porDia: Record<string, { ventas: number; tx: number; reportes: number }> = {};
+        const porDia: Record<string, { ventas: number; tx: number; efectivo: number; tarjeta: number; rappi: number; reportes: number }> = {};
         for (const r of recientes) {
           const dia = new Date(r.fecha).toISOString().split('T')[0];
-          if (!porDia[dia]) porDia[dia] = { ventas: 0, tx: 0, reportes: 0 };
+          if (!porDia[dia]) porDia[dia] = { ventas: 0, tx: 0, efectivo: 0, tarjeta: 0, rappi: 0, reportes: 0 };
           porDia[dia].ventas += r.ventasTotales ?? 0;
-          porDia[dia].tx += r.transacciones ?? 0;
+          porDia[dia].efectivo += r.ventasEfectivo ?? 0;
+          porDia[dia].tarjeta += r.ventasTarjeta ?? 0;
+          porDia[dia].rappi += r.ventasRappi ?? 0;
           porDia[dia].reportes += 1;
         }
         // Construir serie ordenada por fecha
@@ -498,13 +506,16 @@ export const appRouter = router({
           .map(([fecha, d]) => ({
             fecha,
             ventas: d.ventas,
-            transacciones: d.tx,
-            ticketPromedio: d.tx > 0 ? d.ventas / d.tx : 0,
+            efectivo: d.efectivo ?? 0,
+            tarjeta: d.tarjeta ?? 0,
+            rappi: d.rappi ?? 0,
             reportes: d.reportes,
           }));
         const totalVentas = recientes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
-        const totalTx = recientes.reduce((s, r) => s + (r.transacciones ?? 0), 0);
-        return { serie, totalVentas, totalTx, avgTicket: totalTx > 0 ? totalVentas / totalTx : 0, dias };
+        const totalEfectivo = recientes.reduce((s, r) => s + (r.ventasEfectivo ?? 0), 0);
+        const totalTarjeta = recientes.reduce((s, r) => s + (r.ventasTarjeta ?? 0), 0);
+        const totalRappi = recientes.reduce((s, r) => s + (r.ventasRappi ?? 0), 0);
+        return { serie, totalVentas, totalEfectivo, totalTarjeta, totalRappi, dias };
       }),
 
     resumen: protectedProcedure
@@ -517,16 +528,19 @@ export const appRouter = router({
         corte.setDate(corte.getDate() - dias);
         const recientes = todos.filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado');
         const totalVentas = recientes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
-        const totalTx = recientes.reduce((s, r) => s + (r.transacciones ?? 0), 0);
-        const avgTicket = totalTx > 0 ? totalVentas / totalTx : 0;
-        const reportesPorSucursal: Record<number, { ventas: number; tx: number; reportes: number }> = {};
+        const totalEfectivo = recientes.reduce((s, r) => s + (r.ventasEfectivo ?? 0), 0);
+        const totalTarjeta = recientes.reduce((s, r) => s + (r.ventasTarjeta ?? 0), 0);
+        const totalRappi = recientes.reduce((s, r) => s + (r.ventasRappi ?? 0), 0);
+        const reportesPorSucursal: Record<number, { ventas: number; efectivo: number; tarjeta: number; rappi: number; reportes: number }> = {};
         for (const r of recientes) {
-          if (!reportesPorSucursal[r.sucursalId]) reportesPorSucursal[r.sucursalId] = { ventas: 0, tx: 0, reportes: 0 };
+          if (!reportesPorSucursal[r.sucursalId]) reportesPorSucursal[r.sucursalId] = { ventas: 0, efectivo: 0, tarjeta: 0, rappi: 0, reportes: 0 };
           reportesPorSucursal[r.sucursalId].ventas += r.ventasTotales ?? 0;
-          reportesPorSucursal[r.sucursalId].tx += r.transacciones ?? 0;
+          reportesPorSucursal[r.sucursalId].efectivo += r.ventasEfectivo ?? 0;
+          reportesPorSucursal[r.sucursalId].tarjeta += r.ventasTarjeta ?? 0;
+          reportesPorSucursal[r.sucursalId].rappi += r.ventasRappi ?? 0;
           reportesPorSucursal[r.sucursalId].reportes += 1;
         }
-        return { totalVentas, totalTx, avgTicket, reportesEnviados: recientes.length, reportesPorSucursal, dias };
+        return { totalVentas, totalEfectivo, totalTarjeta, totalRappi, reportesEnviados: recientes.length, reportesPorSucursal, dias };
       }),
 
     // Avance vs meta del mes actual por sucursal
@@ -571,7 +585,9 @@ export const appRouter = router({
         const hace7 = new Date(); hace7.setDate(ahora.getDate() - 7);
         const recientes = todos.filter(r => new Date(r.fecha) >= hace7 && r.estado === 'enviado');
         const totalVentas = recientes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
-        const totalTx = recientes.reduce((s, r) => s + (r.transacciones ?? 0), 0);
+        const totalEfectivo7 = recientes.reduce((s, r) => s + (r.ventasEfectivo ?? 0), 0);
+        const totalTarjeta7 = recientes.reduce((s, r) => s + (r.ventasTarjeta ?? 0), 0);
+        const totalRappi7 = recientes.reduce((s, r) => s + (r.ventasRappi ?? 0), 0);
         const activasSuc = sucursales.filter(s => s.activa);
         const conReporte = new Set(recientes.map(r => r.sucursalId));
         const sinReporte = activasSuc.filter(s => !conReporte.has(s.id));
@@ -585,8 +601,9 @@ export const appRouter = router({
           ``,
           `💰 VENTAS`,
           `  Total: $${totalVentas.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
-          `  Transacciones: ${totalTx}`,
-          `  Ticket promedio: ${totalTx > 0 ? '$' + (totalVentas / totalTx).toFixed(2) : 'N/A'}`,
+          `  Efectivo: $${totalEfectivo7.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+          `  Tarjeta: $${totalTarjeta7.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+          `  Rappi: $${totalRappi7.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
           `  Reportes enviados: ${recientes.length}`,
           ``,
           `📋 SECOF`,
@@ -1364,6 +1381,92 @@ export const appRouter = router({
           input.fechaInicio ? new Date(input.fechaInicio) : undefined,
           input.fechaFin ? new Date(input.fechaFin) : undefined
         );
+      }),
+  }),
+
+  // ─── Ventas Históricas (año anterior por tienda/mes) ────────────────────────────────
+  ventasHistoricas: router({
+    list: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number().optional(),
+        anio: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const { ventasHistoricas } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        const conditions: any[] = [];
+        if (input.sucursalId) conditions.push(eq(ventasHistoricas.sucursalId, input.sucursalId));
+        if (input.anio) conditions.push(eq(ventasHistoricas.anio, input.anio));
+        return conditions.length > 0
+          ? db.select().from(ventasHistoricas).where(and(...conditions)).orderBy(ventasHistoricas.mes)
+          : db.select().from(ventasHistoricas).orderBy(ventasHistoricas.anio, ventasHistoricas.mes);
+      }),
+
+    upsert: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        anio: z.number(),
+        mes: z.number().min(1).max(12),
+        ventasEfectivo: z.number().min(0).optional(),
+        ventasTarjeta: z.number().min(0).optional(),
+        ventasRappi: z.number().min(0).optional(),
+        ventasTotales: z.number().min(0).optional(),
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const { ventasHistoricas } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        const efectivo = input.ventasEfectivo ?? 0;
+        const tarjeta = input.ventasTarjeta ?? 0;
+        const rappi = input.ventasRappi ?? 0;
+        const total = input.ventasTotales ?? (efectivo + tarjeta + rappi);
+        const existing = await db.select().from(ventasHistoricas)
+          .where(and(
+            eq(ventasHistoricas.sucursalId, input.sucursalId),
+            eq(ventasHistoricas.anio, input.anio),
+            eq(ventasHistoricas.mes, input.mes)
+          ))
+          .limit(1);
+        if (existing.length > 0) {
+          await db.update(ventasHistoricas)
+            .set({ ventasEfectivo: efectivo, ventasTarjeta: tarjeta, ventasRappi: rappi, ventasTotales: total, notas: input.notas })
+            .where(eq(ventasHistoricas.id, existing[0].id));
+          return { id: existing[0].id, updated: true };
+        } else {
+          const [result] = await db.insert(ventasHistoricas).values({
+            sucursalId: input.sucursalId, anio: input.anio, mes: input.mes,
+            ventasEfectivo: efectivo, ventasTarjeta: tarjeta, ventasRappi: rappi,
+            ventasTotales: total, notas: input.notas,
+          });
+          return { id: (result as any).insertId, updated: false };
+        }
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const { ventasHistoricas } = await import('../drizzle/schema');
+        const { eq } = await import('drizzle-orm');
+        await db.delete(ventasHistoricas).where(eq(ventasHistoricas.id, input.id));
+        return { success: true };
       }),
   }),
 });

@@ -356,3 +356,33 @@
 - [x] Dashboard inicial: eliminar sección "Acceso Rápido" y "Escala SECOF"
 - [x] Dashboard inicial: rediseñado con tarjetas críticas de todos los módulos (ventas, SECOF, equipo, reportes)
 - [x] Navegación: "Resumen SECOF" en grupo SECOF del menú lateral
+
+## Ventas por Canal + Históricas v27 (Abr 1)
+- [ ] Schema: reemplazar ventasTotales/transacciones/ticketPromedio por ventasEfectivo, ventasTarjeta, ventasRappi en reportes_diarios
+- [ ] Schema: nueva tabla ventas_historicas (sucursalId, anio, mes, ventasEfectivo, ventasTarjeta, ventasRappi, ventasTotales)
+- [ ] Migración DB aplicada
+- [ ] Backend: actualizar input de crear/editar reporte diario con nuevos campos
+- [ ] Backend: CRUD ventas_historicas (listar, upsert por sucursal/año/mes)
+- [ ] Backend: resumenVentas actualizado con desglose por canal
+- [ ] Reporte Diario: formulario con 3 campos de canal (efectivo, tarjeta, Rappi) + total automático
+- [ ] Reporte Diario: visualización con desglose por canal y % de cada uno
+- [ ] Página VentasHistoricas: tabla 12 meses × tiendas, editable celda por celda
+- [ ] Página VentasHistoricas: importar/pegar datos en bloque (CSV)
+- [ ] Configuración: agregar "Ventas del Año Anterior" en el grupo Configuración del menú
+- [ ] Dashboard: tarjeta Ventas 7 días con desglose efectivo/tarjeta/Rappi
+- [ ] KPI Ventas vs Meta: usar ventas históricas del año anterior como meta base
+- [ ] Ventas.tsx: gráfica con 3 líneas (efectivo, tarjeta, Rappi)
+
+## Correcciones v27b (Apr 1) ✔
+- [x] Bug: desfase de fecha en Reporte Diario (UTC vs zona horaria local México) — helpers formatLocalDate/toLocalDateString
+- [x] Bug: error TS en scheduler.ts (referencia a transacciones reemplazada por efectivo/tarjeta/Rappi)
+
+## Ventas Históricas v27c (Apr 1) ✔
+- [x] Backend: router ventasHistoricas (list, upsert, delete) en routers.ts
+- [x] Página VentasHistoricas: tabla 12 meses × tiendas, editable celda por celda
+- [x] Página VentasHistoricas: modal con 3 campos (efectivo, tarjeta, Rappi) + total automático
+- [x] Página VentasHistoricas: tarjetas de resumen anual (total, promedio mensual, tiendas con datos)
+- [x] Página VentasHistoricas: exportar a CSV con todos los canales
+- [x] Página VentasHistoricas: navegación entre años con flechas
+- [x] Configuración: "Ventas Históricas" en grupo Configuración del menú (manager+)
+- [x] App.tsx: ruta /ventas-historicas con guard minRole="manager"

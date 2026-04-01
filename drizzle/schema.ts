@@ -241,9 +241,11 @@ export const reportesDiarios = mysqlTable("reportes_diarios", {
   usuarioId: int("usuarioId").notNull(),
   usuarioNombre: varchar("usuarioNombre", { length: 255 }),
   fecha: timestamp("fecha").defaultNow().notNull(),
-  ventasTotales: float("ventasTotales").default(0),
-  transacciones: int("transacciones").default(0),
-  ticketPromedio: float("ticketPromedio").default(0),
+  // Ventas desglosadas por canal
+  ventasEfectivo: float("ventasEfectivo").default(0),
+  ventasTarjeta: float("ventasTarjeta").default(0),
+  ventasRappi: float("ventasRappi").default(0),
+  ventasTotales: float("ventasTotales").default(0), // calculado: efectivo + tarjeta + rappi
   apertura: varchar("apertura", { length: 10 }),
   cierre: varchar("cierre", { length: 10 }),
   personalPresente: int("personalPresente").default(0),
@@ -302,3 +304,21 @@ export const bajasEmpleados = mysqlTable("bajas_empleados", {
 
 export type BajaEmpleado = typeof bajasEmpleados.$inferSelect;
 export type InsertBajaEmpleado = typeof bajasEmpleados.$inferInsert;
+
+// Ventas Históricas del Año Anterior (base para KPIs y metas)
+export const ventasHistoricas = mysqlTable("ventas_historicas", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  anio: int("anio").notNull(),
+  mes: int("mes").notNull(), // 1-12
+  ventasEfectivo: float("ventasEfectivo").default(0),
+  ventasTarjeta: float("ventasTarjeta").default(0),
+  ventasRappi: float("ventasRappi").default(0),
+  ventasTotales: float("ventasTotales").default(0), // calculado o ingresado manualmente
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VentaHistorica = typeof ventasHistoricas.$inferSelect;
+export type InsertVentaHistorica = typeof ventasHistoricas.$inferInsert;

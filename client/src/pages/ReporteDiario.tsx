@@ -16,6 +16,39 @@ import {
   DollarSign, AlertTriangle, FileText, Send, ChevronRight, Calendar,
 } from "lucide-react";
 
+/**
+ * Convierte una fecha a string YYYY-MM-DD usando la zona horaria LOCAL del navegador.
+ * Evita el desfase de un día que ocurre cuando new Date("YYYY-MM-DD") interpreta
+ * la cadena como UTC medianoche en vez de medianoche local.
+ */
+function toLocalDateString(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  // Si la fecha viene como string ISO sin hora (YYYY-MM-DD), parsear como local
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, day] = date.split("-").map(Number);
+    return new Date(y, m - 1, day).toISOString().slice(0, 10);
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Formatea una fecha para mostrar al usuario, respetando la zona horaria local.
+ * Evita el desfase de un día causado por new Date("YYYY-MM-DD") en UTC.
+ */
+function formatLocalDate(date: Date | string, options?: Intl.DateTimeFormatOptions): string {
+  let d: Date;
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, day] = date.split("-").map(Number);
+    d = new Date(y, m - 1, day);
+  } else {
+    d = typeof date === "string" ? new Date(date) : date;
+  }
+  return d.toLocaleDateString("es-MX", options ?? { day: "2-digit", month: "short", year: "numeric" });
+}
+
 type Reporte = {
   id: number;
   sucursalId: number;
@@ -23,24 +56,28 @@ type Reporte = {
   usuarioNombre: string | null;
   fecha: Date;
   ventasTotales: number | null;
-  transacciones: number | null;
-  ticketPromedio: number | null;
+  ventasEfectivo: number | null;
+  ventasTarjeta: number | null;
+  ventasRappi: number | null;
   apertura: string | null;
   cierre: string | null;
   personalPresente: number | null;
   incidentes: string | null;
   novedades: string | null;
   observaciones: string | null;
+  mermasMonto: number | null;
+  mermasDetalle: string | null;
   estado: "borrador" | "enviado";
   createdAt: Date;
 };
 
 const EMPTY_FORM = {
   sucursalId: "",
-  fecha: new Date().toISOString().slice(0, 10),
+  fecha: toLocalDateString(new Date()),
   ventasTotales: "",
-  transacciones: "",
-  ticketPromedio: "",
+  ventasEfectivo: "",
+  ventasTarjeta: "",
+  ventasRappi: "",
   apertura: "",
   cierre: "",
   personalPresente: "",
@@ -109,10 +146,11 @@ export default function ReporteDiario() {
     setEditingId(r.id);
     setForm({
       sucursalId: String(r.sucursalId),
-      fecha: new Date(r.fecha).toISOString().slice(0, 10),
+      fecha: toLocalDateString(r.fecha),
       ventasTotales: r.ventasTotales != null ? String(r.ventasTotales) : "",
-      transacciones: r.transacciones != null ? String(r.transacciones) : "",
-      ticketPromedio: r.ticketPromedio != null ? String(r.ticketPromedio) : "",
+      ventasEfectivo: r.ventasEfectivo != null ? String(r.ventasEfectivo) : "",
+      ventasTarjeta: r.ventasTarjeta != null ? String(r.ventasTarjeta) : "",
+      ventasRappi: r.ventasRappi != null ? String(r.ventasRappi) : "",
       apertura: r.apertura ?? "",
       cierre: r.cierre ?? "",
       personalPresente: r.personalPresente != null ? String(r.personalPresente) : "",
@@ -131,8 +169,9 @@ export default function ReporteDiario() {
       sucursalId: parseInt(form.sucursalId),
       fecha: form.fecha || undefined,
       ventasTotales: form.ventasTotales ? parseFloat(form.ventasTotales) : undefined,
-      transacciones: form.transacciones ? parseInt(form.transacciones) : undefined,
-      ticketPromedio: form.ticketPromedio ? parseFloat(form.ticketPromedio) : undefined,
+      ventasEfectivo: form.ventasEfectivo ? parseFloat(form.ventasEfectivo) : undefined,
+      ventasTarjeta: form.ventasTarjeta ? parseFloat(form.ventasTarjeta) : undefined,
+      ventasRappi: form.ventasRappi ? parseFloat(form.ventasRappi) : undefined,
       apertura: form.apertura || undefined,
       cierre: form.cierre || undefined,
       personalPresente: form.personalPresente ? parseInt(form.personalPresente) : undefined,
@@ -156,11 +195,9 @@ export default function ReporteDiario() {
   const kpis = useMemo(() => {
     const enviados = reportesList.filter(r => r.estado === "enviado");
     const totalVentas = enviados.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
-    const totalTx = enviados.reduce((s, r) => s + (r.transacciones ?? 0), 0);
-    const avgTicket = enviados.length > 0
-      ? enviados.reduce((s, r) => s + (r.ticketPromedio ?? 0), 0) / enviados.length
-      : 0;
-    return { enviados: enviados.length, totalVentas, totalTx, avgTicket };
+    const totalEfectivo = enviados.reduce((s, r) => s + (r.ventasEfectivo ?? 0), 0);
+    const totalRappi = enviados.reduce((s, r) => s + (r.ventasRappi ?? 0), 0);
+    return { enviados: enviados.length, totalVentas, totalEfectivo, totalRappi };
   }, [reportesList]);
 
   return (
@@ -188,8 +225,8 @@ export default function ReporteDiario() {
           {[
             { label: "Reportes enviados", value: kpis.enviados, icon: Send, color: "text-green-600" },
             { label: "Ventas totales", value: `$${kpis.totalVentas.toLocaleString("es-MX", { minimumFractionDigits: 0 })}`, icon: DollarSign, color: "text-blue-600" },
-            { label: "Transacciones", value: kpis.totalTx, icon: TrendingUp, color: "text-purple-600" },
-            { label: "Ticket promedio", value: `$${kpis.avgTicket.toFixed(0)}`, icon: Users, color: "text-amber-600" },
+            { label: "Efectivo", value: `$${kpis.totalEfectivo.toLocaleString("es-MX", { minimumFractionDigits: 0 })}`, icon: TrendingUp, color: "text-purple-600" },
+            { label: "Rappi", value: `$${kpis.totalRappi.toLocaleString("es-MX", { minimumFractionDigits: 0 })}`, icon: Users, color: "text-amber-600" },
           ].map(k => (
             <Card key={k.label} className="border shadow-sm">
               <CardContent className="p-4">
@@ -254,7 +291,7 @@ export default function ReporteDiario() {
                       <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          {new Date(r.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+                          {formatLocalDate(r.fecha)}
                         </span>
                         {r.ventasTotales != null && r.ventasTotales > 0 && (
                           <span className="flex items-center gap-1">
@@ -262,10 +299,10 @@ export default function ReporteDiario() {
                             ${r.ventasTotales.toLocaleString("es-MX")}
                           </span>
                         )}
-                        {r.transacciones != null && r.transacciones > 0 && (
+                        {r.ventasRappi != null && r.ventasRappi > 0 && (
                           <span className="flex items-center gap-1">
                             <TrendingUp className="w-3 h-3" />
-                            {r.transacciones} tx
+                            Rappi ${r.ventasRappi.toLocaleString('es-MX', { maximumFractionDigits: 0 })}
                           </span>
                         )}
                         {r.apertura && (
@@ -376,21 +413,30 @@ export default function ReporteDiario() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Transacciones</Label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={form.transacciones}
-                    onChange={e => setForm(f => ({ ...f, transacciones: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Ticket promedio ($)</Label>
+                  <Label className="text-xs">Ventas Efectivo ($)</Label>
                   <Input
                     type="number"
                     placeholder="0.00"
-                    value={form.ticketPromedio}
-                    onChange={e => setForm(f => ({ ...f, ticketPromedio: e.target.value }))}
+                    value={form.ventasEfectivo}
+                    onChange={e => setForm(f => ({ ...f, ventasEfectivo: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Ventas Tarjeta ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={form.ventasTarjeta}
+                    onChange={e => setForm(f => ({ ...f, ventasTarjeta: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Ventas Rappi ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={form.ventasRappi}
+                    onChange={e => setForm(f => ({ ...f, ventasRappi: e.target.value }))}
                   />
                 </div>
               </div>
@@ -535,7 +581,7 @@ export default function ReporteDiario() {
                 <div>
                   <p className="font-semibold">{sucursalNombre(viewingReporte.sucursalId)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(viewingReporte.fecha).toLocaleDateString("es-MX", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                    {formatLocalDate(viewingReporte.fecha, { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
                   </p>
                 </div>
                 <Badge variant={viewingReporte.estado === "enviado" ? "default" : "secondary"}>
@@ -547,8 +593,9 @@ export default function ReporteDiario() {
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { label: "Ventas", value: viewingReporte.ventasTotales != null ? `$${viewingReporte.ventasTotales.toLocaleString("es-MX")}` : "—" },
-                  { label: "Transacciones", value: viewingReporte.transacciones ?? "—" },
-                  { label: "Ticket prom.", value: viewingReporte.ticketPromedio != null ? `$${viewingReporte.ticketPromedio.toFixed(0)}` : "—" },
+                  { label: "Efectivo", value: viewingReporte.ventasEfectivo != null ? `$${viewingReporte.ventasEfectivo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : "—" },
+                  { label: "Tarjeta", value: viewingReporte.ventasTarjeta != null ? `$${viewingReporte.ventasTarjeta.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : "—" },
+                  { label: "Rappi", value: viewingReporte.ventasRappi != null ? `$${viewingReporte.ventasRappi.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : "—" },
                 ].map(k => (
                   <div key={k.label} className="bg-muted/40 rounded-lg p-3 text-center">
                     <p className="text-xs text-muted-foreground">{k.label}</p>

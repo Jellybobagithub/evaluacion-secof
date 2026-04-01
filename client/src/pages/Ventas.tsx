@@ -65,7 +65,7 @@ export default function Ventas() {
   const { user } = useAuth();
   const [dias, setDias] = useState(30);
   const [sucursalId, setSucursalId] = useState<number | undefined>(undefined);
-  const [metrica, setMetrica] = useState<"ventas" | "transacciones" | "ticketPromedio">("ventas");
+  const [metrica, setMetrica] = useState<"ventas" | "efectivo" | "tarjeta" | "rappi">("ventas");
   // Multi-sucursal comparativa
   const [sucursalesSeleccionadas, setSucursalesSeleccionadas] = useState<number[]>([]);
   const [modoComparativa, setModoComparativa] = useState(false);
@@ -120,7 +120,9 @@ export default function Ventas() {
         const punto = h?.serie?.find(d => d.fecha === fecha);
         const nombre = sucursales.find(s => s.id === sId)?.nombre ?? `Tienda ${sId}`;
         row[`ventas_${nombre}`] = punto?.ventas ?? 0;
-        row[`tx_${nombre}`] = punto?.transacciones ?? 0;
+        row[`efectivo_${nombre}`] = punto?.efectivo ?? 0;
+        row[`tarjeta_${nombre}`] = punto?.tarjeta ?? 0;
+        row[`rappi_${nombre}`] = punto?.rappi ?? 0;
       });
       return row;
     });
@@ -190,8 +192,9 @@ export default function Ventas() {
         "Fecha",
         "Día de la semana",
         "Ventas (MXN)",
-        "Transacciones",
-        "Ticket Promedio (MXN)",
+        "Efectivo (MXN)",
+        "Tarjeta (MXN)",
+        "Rappi (MXN)",
         "Reportes del día",
         "Sucursal",
         "Período (días)",
@@ -204,8 +207,9 @@ export default function Ventas() {
           d.fecha,
           fecha.toLocaleDateString("es-MX", { weekday: "long" }),
           d.ventas.toFixed(2),
-          d.transacciones,
-          d.ticketPromedio.toFixed(2),
+          d.efectivo.toFixed(2),
+          d.tarjeta.toFixed(2),
+          d.rappi.toFixed(2),
           d.reportes,
           sucursalNombre,
           dias,
@@ -225,9 +229,10 @@ export default function Ventas() {
   };
 
   const metricas = [
-    { key: "ventas" as const, label: "Ventas", color: "#16a34a", icon: DollarSign },
-    { key: "transacciones" as const, label: "Transacciones", color: "#2563eb", icon: ShoppingCart },
-    { key: "ticketPromedio" as const, label: "Ticket Promedio", color: "#7c3aed", icon: TrendingUp },
+    { key: "ventas" as const, label: "Total", color: "#16a34a", icon: DollarSign },
+    { key: "efectivo" as const, label: "Efectivo", color: "#2563eb", icon: ShoppingCart },
+    { key: "tarjeta" as const, label: "Tarjeta", color: "#7c3aed", icon: TrendingUp },
+    { key: "rappi" as const, label: "Rappi", color: "#ea580c", icon: BarChart3 },
   ];
   const metricaActual = metricas.find(m => m.key === metrica)!;
 
@@ -363,9 +368,9 @@ export default function Ventas() {
                   <ShoppingCart className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Transacciones</p>
-                  <p className="text-xl font-bold text-blue-700">{historico.totalTx.toLocaleString("es-MX")}</p>
-                  <p className="text-xs text-muted-foreground">ventas registradas</p>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Efectivo</p>
+                  <p className="text-xl font-bold text-blue-700">{historico.totalEfectivo ? `$${historico.totalEfectivo.toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "$0.00"}</p>
+                  <p className="text-xs text-muted-foreground">canal efectivo</p>
                 </div>
               </div>
             </CardContent>
@@ -377,8 +382,8 @@ export default function Ventas() {
                   <TrendingUp className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Ticket Promedio</p>
-                  <p className="text-xl font-bold text-purple-700">${historico.avgTicket.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Rappi</p>
+                  <p className="text-xl font-bold text-purple-700">{historico.totalRappi ? `$${historico.totalRappi.toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "$0.00"}</p>
                   <p className="text-xs text-muted-foreground">
                     {tendencia === "up" && <span className="text-green-600">↑ Tendencia al alza</span>}
                     {tendencia === "down" && <span className="text-red-600">↓ Tendencia a la baja</span>}
@@ -402,14 +407,16 @@ export default function Ventas() {
               </CardTitle>
               <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
                 {[
-                  { key: "ventas", label: "Ventas" },
-                  { key: "tx", label: "Transacciones" },
+                  { key: "ventas", label: "Total" },
+                  { key: "efectivo", label: "Efectivo" },
+                  { key: "tarjeta", label: "Tarjeta" },
+                  { key: "rappi", label: "Rappi" },
                 ].map(m => (
                   <button
                     key={m.key}
-                    onClick={() => setMetrica(m.key === "tx" ? "transacciones" : "ventas")}
+                    onClick={() => setMetrica(m.key as any)}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      (m.key === "ventas" && metrica === "ventas") || (m.key === "tx" && metrica === "transacciones")
+                      metrica === m.key
                         ? "bg-white shadow-sm text-foreground"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
@@ -490,12 +497,12 @@ export default function Ventas() {
                       <p className="font-bold text-green-700">{h ? formatMXN(h.totalVentas) : "—"}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Transacciones</p>
-                      <p className="font-bold text-blue-700">{h ? h.totalTx.toLocaleString("es-MX") : "—"}</p>
+                      <p className="text-muted-foreground">Efectivo</p>
+                      <p className="font-bold text-blue-700">{h ? formatMXN(h.totalEfectivo ?? 0) : "—"}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Ticket prom.</p>
-                      <p className="font-bold text-purple-700">{h ? `$${h.avgTicket.toFixed(2)}` : "—"}</p>
+                      <p className="text-muted-foreground">Rappi</p>
+                      <p className="font-bold text-purple-700">{h ? formatMXN(h.totalRappi ?? 0) : "—"}</p>
                     </div>
                     {meta && meta.meta > 0 && (
                       <div>
@@ -571,8 +578,7 @@ export default function Ventas() {
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={v =>
-                      metrica === "ventas" ? formatMXN(v) :
-                      metrica === "ticketPromedio" ? `$${v}` :
+                      metrica === "ventas" || metrica === "efectivo" || metrica === "tarjeta" || metrica === "rappi" ? formatMXN(v) :
                       v.toLocaleString("es-MX")
                     }
                     width={55}
@@ -638,7 +644,7 @@ export default function Ventas() {
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} iconType="circle" iconSize={8} />
                 <Line yAxisId="ventas" type="monotone" dataKey="ventas" name="Ventas" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} activeDot={{ r: 5 }} />
-                <Line yAxisId="ticket" type="monotone" dataKey="ticketPromedio" name="Ticket Promedio" stroke="#7c3aed" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: "#7c3aed" }} activeDot={{ r: 5 }} />
+                <Line yAxisId="ticket" type="monotone" dataKey="rappi" name="Rappi" stroke="#ea580c" strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: "#ea580c" }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -664,8 +670,9 @@ export default function Ventas() {
                   <tr className="border-b border-gray-100">
                     <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Fecha</th>
                     <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Ventas</th>
-                    <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Transacciones</th>
-                    <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Ticket Prom.</th>
+                    <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Efectivo</th>
+                    <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Tarjeta</th>
+                    <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Rappi</th>
                     <th className="text-right py-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Reportes</th>
                   </tr>
                 </thead>
@@ -678,8 +685,9 @@ export default function Ventas() {
                       <td className="py-2.5 px-3 text-right text-green-700 font-medium">
                         ${d.ventas.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="py-2.5 px-3 text-right text-blue-700">{d.transacciones.toLocaleString("es-MX")}</td>
-                      <td className="py-2.5 px-3 text-right text-purple-700">${d.ticketPromedio.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right text-blue-700">${d.efectivo.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2.5 px-3 text-right text-purple-700">${d.tarjeta.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2.5 px-3 text-right text-orange-600">${d.rappi.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</td>
                       <td className="py-2.5 px-3 text-right text-muted-foreground">{d.reportes}</td>
                     </tr>
                   ))}
