@@ -1313,13 +1313,14 @@ export const appRouter = router({
 
         // Ventas del mes
         const { getDb: _db2 } = await import('./db');
-        const { reportesDiarios } = await import('../drizzle/schema');
+        const { reportesDiarios, ventasHistoricas } = await import('../drizzle/schema');
         const db2 = await _db2();
-        let ventas = { total: 0, meta: 0, porcentaje: 0 };
+        let ventas = { total: 0, meta: 0, porcentaje: 0, sinMeta: false, metaFuente: 'historica' as 'historica' | 'manual' };
         if (db2) {
           // Usar strings YYYY-MM-DD para comparar con columna varchar
-          const fiStr = typeof fechaInicio === 'string' ? fechaInicio : `${(fechaInicio as Date).getFullYear()}-${String((fechaInicio as Date).getMonth()+1).padStart(2,'0')}-${String((fechaInicio as Date).getDate()).padStart(2,'0')}`;
-          const ffStr = typeof fechaFin === 'string' ? fechaFin : `${(fechaFin as Date).getFullYear()}-${String((fechaFin as Date).getMonth()+1).padStart(2,'0')}-${String((fechaFin as Date).getDate()).padStart(2,'0')}`;
+          const fiStr = `${year}-${String(month).padStart(2,'0')}-01`;
+          const diasMes = new Date(year, month, 0).getDate();
+          const ffStr = `${year}-${String(month).padStart(2,'0')}-${String(diasMes).padStart(2,'0')}`;
           const reps = await db2.select().from(reportesDiarios)
             .where(and(
               eq(reportesDiarios.sucursalId, input.sucursalId),
@@ -1328,13 +1329,25 @@ export const appRouter = router({
               eq(reportesDiarios.estado, 'enviado')
             ));
           const totalVentas = reps.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
-          const { sucursales } = await import('../drizzle/schema');
-          const suc = await db2.select().from(sucursales).where(eq(sucursales.id, input.sucursalId)).limit(1);
-          const meta = suc[0]?.metaVentasMensual ?? 0;
+
+          // Buscar meta desde ventas históricas del año anterior (mismo mes)
+          const histAnio = year - 1;
+          const histRows = await db2.select().from(ventasHistoricas)
+            .where(and(
+              eq(ventasHistoricas.sucursalId, input.sucursalId),
+              eq(ventasHistoricas.anio, histAnio),
+              eq(ventasHistoricas.mes, month)
+            ))
+            .limit(1);
+          const metaHistorica = histRows[0]?.ventasTotales ?? 0;
+          const sinMeta = metaHistorica === 0;
+
           ventas = {
             total: Math.round(totalVentas * 100) / 100,
-            meta,
-            porcentaje: meta > 0 ? Math.round((totalVentas / meta) * 100) : 0
+            meta: metaHistorica,
+            porcentaje: metaHistorica > 0 ? Math.round((totalVentas / metaHistorica) * 100) : 0,
+            sinMeta,
+            metaFuente: 'historica',
           };
         }
 

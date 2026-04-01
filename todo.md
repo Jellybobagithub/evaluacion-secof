@@ -408,3 +408,10 @@
 - [x] Modal de registro/edición de gastos operativos por mes
 - [x] Semáforo automático por KPI (verde/amarillo/rojo)
 - [x] Navegación: "KPIs Admin (Nivel 3)" en grupo Equipo del menú lateral (manager+)
+
+## KPI Líder Nivel 2 - Ventas vs Meta desde Históricas v31 (Apr 1)
+- [x] Backend: endpoint kpiLider.ventasVsMeta usa ventas_historicas del año anterior como meta
+- [x] Backend: si no hay registro histórico del mes, retornar flag sinMeta=true
+- [x] Frontend KpiLider: mostrar meta desde ventas históricas año anterior
+- [x] Frontend KpiLider: si sinMeta=true, mostrar input para ingresar meta manualmente y guardar en ventas_historicas
+- [x] Eliminar "Metas de Ventas" del menú lateral (consolidado en Ventas Históricas bajo Configuración)

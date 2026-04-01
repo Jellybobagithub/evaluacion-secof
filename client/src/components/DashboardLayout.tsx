@@ -95,7 +95,6 @@ const ALL_NAV_GROUPS = [
     items: [
       { icon: FileText, label: "Reporte Diario", path: "/reporte-diario", minRole: "leader" },
       { icon: TrendingUp, label: "Evolución de Ventas", path: "/ventas", minRole: "manager" },
-      { icon: Target, label: "Metas de Ventas", path: "/metas-ventas", minRole: "owner" },
     ],
   },
   {

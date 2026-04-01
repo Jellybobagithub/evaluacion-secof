@@ -5,11 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   TrendingUp, FileText, Package, Users, Star,
-  CheckCircle2, XCircle, AlertTriangle, ChevronRight
+  CheckCircle2, XCircle, AlertTriangle, ChevronRight, Info, Pencil
 } from "lucide-react";
 import { Link } from "wouter";
+import { toast } from "sonner";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell
@@ -92,6 +97,10 @@ export default function KpiLider() {
   const { user } = useAuth();
   const [mes, setMes] = useState(getMesActual());
   const [sucursalId, setSucursalId] = useState<number | null>(null);
+  const [showMetaModal, setShowMetaModal] = useState(false);
+  const [metaManualEfectivo, setMetaManualEfectivo] = useState("");
+  const [metaManualTarjeta, setMetaManualTarjeta] = useState("");
+  const [metaManualRappi, setMetaManualRappi] = useState("");
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const activeSucursalId = sucursalId ?? sucursales[0]?.id ?? null;
@@ -124,6 +133,39 @@ export default function KpiLider() {
     { sucursalId: activeSucursalId ?? 0, fechaInicio: mesRango.trimInicio, fechaFin: mesRango.trimFin },
     { enabled: !!activeSucursalId }
   );
+
+  const utils = trpc.useUtils();
+  const upsertMeta = trpc.ventasHistoricas.upsert.useMutation({
+    onSuccess: () => {
+      toast.success("Meta del mes guardada correctamente");
+      utils.kpiLider.resumenNivel2.invalidate();
+      setShowMetaModal(false);
+      setMetaManualEfectivo("");
+      setMetaManualTarjeta("");
+      setMetaManualRappi("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function handleGuardarMeta() {
+    if (!activeSucursalId) return;
+    const [y, m] = mes.split("-").map(Number);
+    const efectivo = parseFloat(metaManualEfectivo) || 0;
+    const tarjeta = parseFloat(metaManualTarjeta) || 0;
+    const rappi = parseFloat(metaManualRappi) || 0;
+    const total = efectivo + tarjeta + rappi;
+    if (total <= 0) { toast.error("Ingresa al menos un monto mayor a 0"); return; }
+    // Guardar en ventas_historicas del año anterior al mes seleccionado
+    upsertMeta.mutate({
+      sucursalId: activeSucursalId,
+      anio: y - 1,
+      mes: m,
+      ventasEfectivo: efectivo,
+      ventasTarjeta: tarjeta,
+      ventasRappi: rappi,
+      ventasTotales: total,
+    });
+  }
 
   // Datos para el radar de KPIs
   const radarData = useMemo(() => {
@@ -269,34 +311,64 @@ export default function KpiLider() {
               </Card>
 
               {/* Ventas vs Meta */}
-              <Card className={`border ${resumen?.ventas ? semaforo(resumen.ventas.porcentaje, 100).bg : ""}`}>
+              <Card className={`border ${
+                resumen?.ventas && !resumen.ventas.sinMeta
+                  ? semaforo(resumen.ventas.porcentaje, 100).bg
+                  : "border-amber-200 bg-amber-50"
+              }`}>
                 <CardContent className="pt-4 pb-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="w-5 h-5 text-blue-600" />
                       <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ventas vs Meta</span>
                     </div>
-                    {resumen?.ventas && resumen.ventas.meta > 0 && (
-                      <Badge variant="outline" className={`text-xs ${semaforo(resumen.ventas.porcentaje, 100).bg} ${semaforo(resumen.ventas.porcentaje, 100).color}`}>
-                        {semaforo(resumen.ventas.porcentaje, 100).label}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {resumen?.ventas && !resumen.ventas.sinMeta && (
+                        <Badge variant="outline" className={`text-xs ${semaforo(resumen.ventas.porcentaje, 100).bg} ${semaforo(resumen.ventas.porcentaje, 100).color}`}>
+                          {semaforo(resumen.ventas.porcentaje, 100).label}
+                        </Badge>
+                      )}
+                      <button
+                        onClick={() => setShowMetaModal(true)}
+                        className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                        title="Registrar meta del año anterior"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  {resumen?.ventas ? (
+                  {resumen?.ventas?.sinMeta ? (
+                    <div className="py-2">
+                      <div className="flex items-start gap-2 text-amber-700 bg-amber-50 rounded p-2 mb-2">
+                        <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                        <p className="text-xs">
+                          No hay registro de ventas del año anterior para <strong>{mes.slice(5, 7)}/{parseInt(mes.slice(0, 4)) - 1}</strong>.
+                          Ingresa el dato para calcular el KPI.
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setShowMetaModal(true)}>
+                        + Registrar ventas {mes.slice(5, 7)}/{parseInt(mes.slice(0, 4)) - 1}
+                      </Button>
+                      {resumen.ventas.total > 0 && (
+                        <p className="text-xs text-slate-500 mt-2">Ventas actuales: ${resumen.ventas.total.toLocaleString("es-MX")}</p>
+                      )}
+                    </div>
+                  ) : resumen?.ventas ? (
                     <>
-                      <p className={`text-3xl font-bold ${resumen.ventas.meta > 0 ? semaforo(resumen.ventas.porcentaje, 100).color : "text-slate-800"}`}>
-                        {resumen.ventas.meta > 0 ? `${resumen.ventas.porcentaje}%` : `$${resumen.ventas.total.toLocaleString("es-MX")}`}
+                      <p className={`text-3xl font-bold ${semaforo(resumen.ventas.porcentaje, 100).color}`}>
+                        {resumen.ventas.porcentaje}%
                       </p>
                       <p className="text-xs text-slate-500 mt-0.5">
                         ${resumen.ventas.total.toLocaleString("es-MX")} / ${resumen.ventas.meta.toLocaleString("es-MX")}
                       </p>
-                      {resumen.ventas.meta > 0 && (
-                        <div className="mt-2 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${semaforo(resumen.ventas.porcentaje, 100).color === "text-green-600" ? "bg-green-500" : semaforo(resumen.ventas.porcentaje, 100).color === "text-amber-600" ? "bg-amber-500" : "bg-red-500"}`}
-                            style={{ width: `${Math.min(100, resumen.ventas.porcentaje)}%` }} />
-                        </div>
-                      )}
-                      <p className="text-xs text-slate-400 mt-1">Meta mensual</p>
+                      <div className="mt-2 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${
+                          semaforo(resumen.ventas.porcentaje, 100).color === "text-green-600" ? "bg-green-500"
+                          : semaforo(resumen.ventas.porcentaje, 100).color === "text-amber-600" ? "bg-amber-500"
+                          : "bg-red-500"
+                        }`} style={{ width: `${Math.min(100, resumen.ventas.porcentaje)}%` }} />
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">vs mismo mes año anterior</p>
                     </>
                   ) : (
                     <div className="py-4 text-center text-slate-400 text-sm">Sin reportes este mes</div>
@@ -542,6 +614,65 @@ export default function KpiLider() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Modal: Registrar meta del año anterior */}
+      <Dialog open={showMetaModal} onOpenChange={setShowMetaModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Registrar ventas del año anterior</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1 text-sm text-slate-500 mb-2">
+            <p>
+              Ingresa las ventas de <strong>{mes.slice(5, 7)}/{parseInt(mes.slice(0, 4)) - 1}</strong> para la sucursal seleccionada.
+              Estos datos se usarán como meta de comparación.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Ventas Efectivo ($)</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0.00"
+                value={metaManualEfectivo}
+                onChange={e => setMetaManualEfectivo(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Ventas Tarjeta ($)</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0.00"
+                value={metaManualTarjeta}
+                onChange={e => setMetaManualTarjeta(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Ventas Rappi ($)</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="0.00"
+                value={metaManualRappi}
+                onChange={e => setMetaManualRappi(e.target.value)}
+              />
+            </div>
+            <div className="bg-slate-50 rounded p-2 text-sm">
+              <span className="text-slate-500">Total: </span>
+              <strong className="text-slate-800">
+                ${((parseFloat(metaManualEfectivo) || 0) + (parseFloat(metaManualTarjeta) || 0) + (parseFloat(metaManualRappi) || 0)).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+              </strong>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowMetaModal(false)}>Cancelar</Button>
+            <Button onClick={handleGuardarMeta} disabled={upsertMeta.isPending}>
+              {upsertMeta.isPending ? "Guardando..." : "Guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
