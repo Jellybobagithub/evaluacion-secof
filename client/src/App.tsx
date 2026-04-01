@@ -24,6 +24,7 @@ import Asistencia from "./pages/Asistencia";
 import AsistenciaQR from "./pages/AsistenciaQR";
 import KpiAnfitriones from "./pages/KpiAnfitriones";
 import KpiLider from "./pages/KpiLider";
+import KpiAdmin from "./pages/KpiAdmin";
 import Horarios from "./pages/Horarios";
 import MiTurno from "./pages/MiTurno";
 import DashboardSecof from "./pages/DashboardSecof";
@@ -108,6 +109,11 @@ function Router() {
         {/* KPIs Líder Nivel 2: leader y superior */}
         <Route path="/kpi-lider">
           <ProtectedRoute component={KpiLider} minRole="leader" />
+        </Route>
+
+        {/* KPIs Admin Nivel 3: manager, owner, superadmin */}
+        <Route path="/kpi-admin">
+          <ProtectedRoute component={KpiAdmin} minRole="manager" />
         </Route>
 
         {/* Horarios Semanales: leader y superior */}

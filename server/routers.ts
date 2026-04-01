@@ -1482,5 +1482,130 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ─── KPI Nivel 3: Administrador ──────────────────────────────────────────────
+  kpiAdmin: router({
+    // Crecimiento mes vs mes (ventas actuales vs año anterior)
+    crecimiento: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        anio: z.number().optional(),
+        mes: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const ahora = new Date();
+        const anio = input.anio ?? ahora.getFullYear();
+        const mes = input.mes ?? (ahora.getMonth() + 1);
+        const { getKpiCrecimiento } = await import('./db');
+        return getKpiCrecimiento(input.sucursalId, anio, mes);
+      }),
+
+    // Rentabilidad (margen bruto y neto)
+    rentabilidad: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        anio: z.number().optional(),
+        mes: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const ahora = new Date();
+        const anio = input.anio ?? ahora.getFullYear();
+        const mes = input.mes ?? (ahora.getMonth() + 1);
+        const { getKpiRentabilidad } = await import('./db');
+        return getKpiRentabilidad(input.sucursalId, anio, mes);
+      }),
+
+    // Eficiencia operativa (gastos como % de ventas)
+    eficiencia: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        anio: z.number().optional(),
+        mes: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const ahora = new Date();
+        const anio = input.anio ?? ahora.getFullYear();
+        const mes = input.mes ?? (ahora.getMonth() + 1);
+        const { getKpiEficiencia } = await import('./db');
+        return getKpiEficiencia(input.sucursalId, anio, mes);
+      }),
+  }),
+
+  // ─── Gastos Operativos ────────────────────────────────────────────────────────
+  gastosOperativos: router({
+    list: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        anio: z.number(),
+        mes: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getGastosOperativos } = await import('./db');
+        return getGastosOperativos(input.sucursalId, input.anio, input.mes);
+      }),
+
+    upsert: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        anio: z.number(),
+        mes: z.number(),
+        renta: z.number().optional(),
+        nomina: z.number().optional(),
+        insumos: z.number().optional(),
+        servicios: z.number().optional(),
+        mantenimiento: z.number().optional(),
+        marketing: z.number().optional(),
+        otros: z.number().optional(),
+        costoProducto: z.number().optional(),
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getDb } = await import('./db');
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const { gastosOperativos } = await import('../drizzle/schema');
+        const { eq, and } = await import('drizzle-orm');
+        const renta = input.renta ?? 0;
+        const nomina = input.nomina ?? 0;
+        const insumos = input.insumos ?? 0;
+        const servicios = input.servicios ?? 0;
+        const mantenimiento = input.mantenimiento ?? 0;
+        const marketing = input.marketing ?? 0;
+        const otros = input.otros ?? 0;
+        const totalGastos = renta + nomina + insumos + servicios + mantenimiento + marketing + otros;
+        const existing = await db.select().from(gastosOperativos)
+          .where(and(
+            eq(gastosOperativos.sucursalId, input.sucursalId),
+            eq(gastosOperativos.anio, input.anio),
+            eq(gastosOperativos.mes, input.mes)
+          )).limit(1);
+        const data = { renta, nomina, insumos, servicios, mantenimiento, marketing, otros, totalGastos,
+          costoProducto: input.costoProducto ?? 0, notas: input.notas };
+        if (existing.length > 0) {
+          await db.update(gastosOperativos).set(data).where(eq(gastosOperativos.id, existing[0].id));
+          return { id: existing[0].id, updated: true };
+        } else {
+          const [result] = await db.insert(gastosOperativos).values({
+            sucursalId: input.sucursalId, anio: input.anio, mes: input.mes, ...data,
+          });
+          return { id: (result as any).insertId, updated: false };
+        }
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

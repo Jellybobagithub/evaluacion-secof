@@ -323,3 +323,27 @@ export const ventasHistoricas = mysqlTable("ventas_historicas", {
 
 export type VentaHistorica = typeof ventasHistoricas.$inferSelect;
 export type InsertVentaHistorica = typeof ventasHistoricas.$inferInsert;
+
+// Gastos Operativos Mensuales (para KPI Nivel 3: Rentabilidad y Eficiencia)
+export const gastosOperativos = mysqlTable("gastos_operativos", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  anio: int("anio").notNull(),
+  mes: int("mes").notNull(), // 1-12
+  // Categorías de gasto
+  renta: float("renta").default(0),
+  nomina: float("nomina").default(0),
+  insumos: float("insumos").default(0),
+  servicios: float("servicios").default(0), // luz, agua, internet
+  mantenimiento: float("mantenimiento").default(0),
+  marketing: float("marketing").default(0),
+  otros: float("otros").default(0),
+  totalGastos: float("totalGastos").default(0), // suma de todos
+  costoProducto: float("costoProducto").default(0), // costo de mercancía vendida
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GastoOperativo = typeof gastosOperativos.$inferSelect;
+export type InsertGastoOperativo = typeof gastosOperativos.$inferInsert;

@@ -393,4 +393,18 @@
 - [x] Bug: listado ahora muestra total en verde + desglose Ef/Tar/Rappi en gris
 
 ## Bug Fecha Persistente v29 (Apr 1)
-- [ ] Bug: día 31 se muestra como 30 — desfase UTC en backend/DB (no solo frontend)
+- [x] Bug: día 31 se muestra como 30 — desfase UTC en backend/DB (no solo frontend)
+
+## KPI Nivel 3 - Administrador v30 (Apr 1)
+- [x] Schema: tabla gastos_operativos (renta, nomina, insumos, servicios, mantenimiento, marketing, otros, costoProducto)
+- [x] Migración DB aplicada (gastos_operativos)
+- [x] Backend: funciones getKpiCrecimiento, getKpiRentabilidad, getKpiEficiencia en db.ts
+- [x] Backend: router kpiAdmin (crecimiento, rentabilidad, eficiencia) en routers.ts
+- [x] Backend: router gastosOperativos (list, upsert) en routers.ts
+- [x] Página KpiAdmin: pestañas Crecimiento / Rentabilidad / Eficiencia
+- [x] KpiAdmin - Crecimiento: KPI % vs año anterior, gráfica de barras 6 meses, tabla detallada
+- [x] KpiAdmin - Rentabilidad: margen bruto, margen neto, utilidad neta, desglose waterfall
+- [x] KpiAdmin - Eficiencia: ratio gastos/ventas, gráfica horizontal por categoría, tabla desglose
+- [x] Modal de registro/edición de gastos operativos por mes
+- [x] Semáforo automático por KPI (verde/amarillo/rojo)
+- [x] Navegación: "KPIs Admin (Nivel 3)" en grupo Equipo del menú lateral (manager+)

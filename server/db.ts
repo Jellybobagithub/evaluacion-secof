@@ -725,3 +725,121 @@ export async function getDescuadresCaja(sucursalId: number, fechaInicio: Date | 
       usuarioNombre: r.usuarioNombre,
     }));
 }
+
+// ─── KPI Nivel 3: Crecimiento Mes vs Mes ─────────────────────────────────────
+export async function getKpiCrecimiento(sucursalId: number, anio: number, mes: number) {
+  const db = await getDb();
+  if (!db) return { ventasActual: 0, ventasAnterior: 0, crecimiento: 0, tendencia: [] as any[] };
+  const { ventasHistoricas, reportesDiarios: rd } = await import('../drizzle/schema');
+  const { eq, and, gte, lte } = await import('drizzle-orm');
+
+  // Ventas del mes actual (desde reportes diarios)
+  const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
+  const diasMes = new Date(anio, mes, 0).getDate();
+  const ff = `${anio}-${String(mes).padStart(2, '0')}-${String(diasMes).padStart(2, '0')}`;
+  const reportesMes = await db.select().from(rd)
+    .where(and(eq(rd.sucursalId, sucursalId), gte(rd.fecha, fi), lte(rd.fecha, ff), eq(rd.estado, 'enviado')));
+  const ventasActual = reportesMes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+
+  // Ventas del mismo mes del año anterior (desde ventas históricas)
+  const histAnio = anio - 1;
+  const hist = await db.select().from(ventasHistoricas)
+    .where(and(eq(ventasHistoricas.sucursalId, sucursalId), eq(ventasHistoricas.anio, histAnio), eq(ventasHistoricas.mes, mes)))
+    .limit(1);
+  const ventasAnterior = hist[0]?.ventasTotales ?? 0;
+  const crecimiento = ventasAnterior > 0 ? Math.round(((ventasActual - ventasAnterior) / ventasAnterior) * 1000) / 10 : 0;
+
+  // Tendencia de 6 meses
+  const tendencia = [];
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  for (let i = 5; i >= 0; i--) {
+    let m = mes - i; let y = anio;
+    if (m <= 0) { m += 12; y -= 1; }
+    const mStr = String(m).padStart(2, '0');
+    const fii = `${y}-${mStr}-01`;
+    const diasM = new Date(y, m, 0).getDate();
+    const ffi = `${y}-${mStr}-${String(diasM).padStart(2, '0')}`;
+    const reps = await db.select().from(rd)
+      .where(and(eq(rd.sucursalId, sucursalId), gte(rd.fecha, fii), lte(rd.fecha, ffi), eq(rd.estado, 'enviado')));
+    const vActual = reps.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+    const histM = await db.select().from(ventasHistoricas)
+      .where(and(eq(ventasHistoricas.sucursalId, sucursalId), eq(ventasHistoricas.anio, y - 1), eq(ventasHistoricas.mes, m))).limit(1);
+    const vAnterior = histM[0]?.ventasTotales ?? 0;
+    tendencia.push({
+      mes: `${meses[m-1]} ${y}`, actual: Math.round(vActual), anterior: Math.round(vAnterior),
+      crecimiento: vAnterior > 0 ? Math.round(((vActual - vAnterior) / vAnterior) * 1000) / 10 : 0,
+    });
+  }
+  return { ventasActual: Math.round(ventasActual*100)/100, ventasAnterior: Math.round(ventasAnterior*100)/100, crecimiento, tendencia };
+}
+
+// ─── KPI Nivel 3: Rentabilidad ────────────────────────────────────────────────
+export async function getKpiRentabilidad(sucursalId: number, anio: number, mes: number) {
+  const db = await getDb();
+  if (!db) return { ventas: 0, costoProducto: 0, gastosTotales: 0, utilidadNeta: 0, margenBruto: 0, margenNeto: 0, desglose: {}, tieneGastos: false };
+  const { gastosOperativos, reportesDiarios: rd } = await import('../drizzle/schema');
+  const { eq, and, gte, lte } = await import('drizzle-orm');
+  const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
+  const diasMes = new Date(anio, mes, 0).getDate();
+  const ff = `${anio}-${String(mes).padStart(2, '0')}-${String(diasMes).padStart(2, '0')}`;
+  const reportesMes = await db.select().from(rd)
+    .where(and(eq(rd.sucursalId, sucursalId), gte(rd.fecha, fi), lte(rd.fecha, ff), eq(rd.estado, 'enviado')));
+  const ventas = reportesMes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+  const gastos = await db.select().from(gastosOperativos)
+    .where(and(eq(gastosOperativos.sucursalId, sucursalId), eq(gastosOperativos.anio, anio), eq(gastosOperativos.mes, mes))).limit(1);
+  const g = gastos[0];
+  const costoProducto = g?.costoProducto ?? 0;
+  const renta = g?.renta ?? 0; const nomina = g?.nomina ?? 0; const insumos = g?.insumos ?? 0;
+  const servicios = g?.servicios ?? 0; const mantenimiento = g?.mantenimiento ?? 0;
+  const marketing = g?.marketing ?? 0; const otros = g?.otros ?? 0;
+  const gastosTotales = g?.totalGastos ?? (renta + nomina + insumos + servicios + mantenimiento + marketing + otros);
+  const margenBruto = ventas > 0 ? Math.round(((ventas - costoProducto) / ventas) * 1000) / 10 : 0;
+  const utilidadNeta = ventas - costoProducto - gastosTotales;
+  const margenNeto = ventas > 0 ? Math.round((utilidadNeta / ventas) * 1000) / 10 : 0;
+  return {
+    ventas: Math.round(ventas*100)/100, costoProducto: Math.round(costoProducto*100)/100,
+    gastosTotales: Math.round(gastosTotales*100)/100, utilidadNeta: Math.round(utilidadNeta*100)/100,
+    margenBruto, margenNeto, tieneGastos: !!g,
+    desglose: { renta, nomina, insumos, servicios, mantenimiento, marketing, otros },
+  };
+}
+
+// ─── KPI Nivel 3: Eficiencia Operativa ───────────────────────────────────────
+export async function getKpiEficiencia(sucursalId: number, anio: number, mes: number) {
+  const db = await getDb();
+  if (!db) return { ventas: 0, gastosTotales: 0, ratioEficiencia: 0, tieneGastos: false, desglosePct: {}, desgloseMonto: {} };
+  const { gastosOperativos, reportesDiarios: rd } = await import('../drizzle/schema');
+  const { eq, and, gte, lte } = await import('drizzle-orm');
+  const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
+  const diasMes = new Date(anio, mes, 0).getDate();
+  const ff = `${anio}-${String(mes).padStart(2, '0')}-${String(diasMes).padStart(2, '0')}`;
+  const reportesMes = await db.select().from(rd)
+    .where(and(eq(rd.sucursalId, sucursalId), gte(rd.fecha, fi), lte(rd.fecha, ff), eq(rd.estado, 'enviado')));
+  const ventas = reportesMes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+  const gastos = await db.select().from(gastosOperativos)
+    .where(and(eq(gastosOperativos.sucursalId, sucursalId), eq(gastosOperativos.anio, anio), eq(gastosOperativos.mes, mes))).limit(1);
+  const g = gastos[0];
+  const renta = g?.renta ?? 0; const nomina = g?.nomina ?? 0; const insumos = g?.insumos ?? 0;
+  const servicios = g?.servicios ?? 0; const mantenimiento = g?.mantenimiento ?? 0;
+  const marketing = g?.marketing ?? 0; const otros = g?.otros ?? 0;
+  const gastosTotales = g?.totalGastos ?? (renta + nomina + insumos + servicios + mantenimiento + marketing + otros);
+  const pct = (v: number) => ventas > 0 ? Math.round((v / ventas) * 1000) / 10 : 0;
+  return {
+    ventas: Math.round(ventas*100)/100, gastosTotales: Math.round(gastosTotales*100)/100,
+    ratioEficiencia: ventas > 0 ? Math.round((gastosTotales / ventas) * 1000) / 10 : 0,
+    tieneGastos: !!g,
+    desglosePct: { renta: pct(renta), nomina: pct(nomina), insumos: pct(insumos), servicios: pct(servicios), mantenimiento: pct(mantenimiento), marketing: pct(marketing), otros: pct(otros) },
+    desgloseMonto: { renta, nomina, insumos, servicios, mantenimiento, marketing, otros },
+  };
+}
+
+// ─── CRUD Gastos Operativos ───────────────────────────────────────────────────
+export async function getGastosOperativos(sucursalId: number, anio: number, mes?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { gastosOperativos } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  const conditions: any[] = [eq(gastosOperativos.sucursalId, sucursalId), eq(gastosOperativos.anio, anio)];
+  if (mes) conditions.push(eq(gastosOperativos.mes, mes));
+  return db.select().from(gastosOperativos).where(and(...conditions)).orderBy(gastosOperativos.mes);
+}
