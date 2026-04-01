@@ -54,7 +54,7 @@ type Reporte = {
   sucursalId: number;
   usuarioId: number;
   usuarioNombre: string | null;
-  fecha: Date;
+  fecha: string;
   ventasTotales: number | null;
   ventasEfectivo: number | null;
   ventasTarjeta: number | null;

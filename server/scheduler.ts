@@ -141,7 +141,7 @@ async function alertaReportesTardios() {
 
     const hoy = new Date().toISOString().slice(0, 10);
     const reportesHoy = todos.filter((r) => {
-      const fechaStr = r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10);
+      const fechaStr = String(r.fecha).slice(0, 10);
       return fechaStr === hoy && r.estado === "enviado";
     });
     const conReporteHoy = new Set(reportesHoy.map((r) => r.sucursalId));
@@ -176,7 +176,7 @@ async function alertaMermasYDescuadres() {
 
     const hoy = new Date().toISOString().slice(0, 10);
     const reportesHoy = todos.filter((r) => {
-      const fechaStr = r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10);
+      const fechaStr = String(r.fecha).slice(0, 10);
       return fechaStr === hoy && r.estado === "enviado";
     });
 

@@ -1,0 +1,1 @@
+ALTER TABLE `reportes_diarios` MODIFY COLUMN `fecha` varchar(10) NOT NULL;

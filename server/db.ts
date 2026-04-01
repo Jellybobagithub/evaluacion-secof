@@ -593,27 +593,38 @@ export async function getKpiRotacion(sucursalId: number, fechaInicio: Date, fech
 
 // ─── Cumplimiento de Reportes ────────────────────────────────────────────────
 
-export async function getCumplimientoReportes(sucursalId: number, fechaInicio: Date, fechaFin: Date) {
+// Convierte Date a string YYYY-MM-DD local (sin desfase UTC)
+function toDateStr(d: Date | string): string {
+  if (typeof d === 'string') return d.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+export async function getCumplimientoReportes(sucursalId: number, fechaInicio: Date | string, fechaFin: Date | string) {
   const db = await getDb();
   if (!db) return { enviados: 0, esperados: 0, porcentaje: 0, diasSinReporte: [] as string[] };
+  const fi = toDateStr(fechaInicio);
+  const ff = toDateStr(fechaFin);
   const reportes = await db.select().from(reportesDiarios)
     .where(and(
       eq(reportesDiarios.sucursalId, sucursalId),
-      gte(reportesDiarios.fecha, fechaInicio),
-      lte(reportesDiarios.fecha, fechaFin),
+      gte(reportesDiarios.fecha, fi),
+      lte(reportesDiarios.fecha, ff),
       eq(reportesDiarios.estado, 'enviado')
     ));
   // Calcular días laborables en el rango (lunes a sábado)
   const diasLaborables: string[] = [];
-  const cursor = new Date(fechaInicio);
-  while (cursor <= fechaFin) {
-    const dow = cursor.getDay(); // 0=dom, 6=sab
-    if (dow !== 0) { // excluir domingos
-      diasLaborables.push(cursor.toISOString().slice(0, 10));
+  const [sy, sm, sd] = fi.split('-').map(Number);
+  const [ey, em, ed] = ff.split('-').map(Number);
+  const cursor = new Date(sy, sm - 1, sd);
+  const end = new Date(ey, em - 1, ed);
+  while (cursor <= end) {
+    const dow = cursor.getDay();
+    if (dow !== 0) {
+      diasLaborables.push(toDateStr(cursor));
     }
     cursor.setDate(cursor.getDate() + 1);
   }
-  const diasConReporte = new Set(reportes.map(r => new Date(r.fecha).toISOString().slice(0, 10)));
+  const diasConReporte = new Set(reportes.map(r => r.fecha as string));
   const diasSinReporte = diasLaborables.filter(d => !diasConReporte.has(d));
   const enviados = reportes.length;
   const esperados = diasLaborables.length;
@@ -623,14 +634,16 @@ export async function getCumplimientoReportes(sucursalId: number, fechaInicio: D
 
 // ─── KPI Mermas ──────────────────────────────────────────────────────────────
 
-export async function getKpiMermas(sucursalId: number, fechaInicio: Date, fechaFin: Date) {
+export async function getKpiMermas(sucursalId: number, fechaInicio: Date | string, fechaFin: Date | string) {
   const db = await getDb();
   if (!db) return { totalMermas: 0, totalVentas: 0, porcentaje: 0, diasConAlerta: 0 };
+  const fi = toDateStr(fechaInicio);
+  const ff = toDateStr(fechaFin);
   const reportes = await db.select().from(reportesDiarios)
     .where(and(
       eq(reportesDiarios.sucursalId, sucursalId),
-      gte(reportesDiarios.fecha, fechaInicio),
-      lte(reportesDiarios.fecha, fechaFin),
+      gte(reportesDiarios.fecha, fi),
+      lte(reportesDiarios.fecha, ff),
       eq(reportesDiarios.estado, 'enviado')
     ));
   const totalMermas = reportes.reduce((s, r) => s + (r.mermasMonto ?? 0), 0);
@@ -688,14 +701,16 @@ export async function getKpiPuntualidad(sucursalId: number, fechaInicio: number,
 
 // ─── Descuadres de Caja ──────────────────────────────────────────────────────
 
-export async function getDescuadresCaja(sucursalId: number, fechaInicio: Date, fechaFin: Date) {
+export async function getDescuadresCaja(sucursalId: number, fechaInicio: Date | string, fechaFin: Date | string) {
   const db = await getDb();
   if (!db) return [];
+  const fi = toDateStr(fechaInicio);
+  const ff = toDateStr(fechaFin);
   const reportes = await db.select().from(reportesDiarios)
     .where(and(
       eq(reportesDiarios.sucursalId, sucursalId),
-      gte(reportesDiarios.fecha, fechaInicio),
-      lte(reportesDiarios.fecha, fechaFin)
+      gte(reportesDiarios.fecha, fi),
+      lte(reportesDiarios.fecha, ff)
     )).orderBy(desc(reportesDiarios.fecha));
   return reportes
     .filter(r => r.diferenciaCaja !== null && r.diferenciaCaja !== 0)

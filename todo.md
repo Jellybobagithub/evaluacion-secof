@@ -391,3 +391,6 @@
 - [x] Bug: efectivo+tarjeta+Rappi ahora suman automáticamente en campo Ventas Totales (readOnly)
 - [x] Bug: fecha desfasada corregida — toLocalDateString devuelve el string YYYY-MM-DD sin convertir a Date
 - [x] Bug: listado ahora muestra total en verde + desglose Ef/Tar/Rappi en gris
+
+## Bug Fecha Persistente v29 (Apr 1)
+- [ ] Bug: día 31 se muestra como 30 — desfase UTC en backend/DB (no solo frontend)

@@ -398,9 +398,12 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const { createReporteDiario, getSucursalById } = await import('./db');
+        // Guardar fecha como string YYYY-MM-DD (no convertir a Date para evitar desfase UTC)
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
         const result = await createReporteDiario({
           ...input,
-          fecha: input.fecha ? new Date(input.fecha) : new Date(),
+          fecha: input.fecha ?? todayStr,
           usuarioId: ctx.user.id,
           usuarioNombre: ctx.user.name ?? 'Usuario',
           estado: input.estado ?? 'borrador',
@@ -412,7 +415,10 @@ export const appRouter = router({
           try {
             const { notifyOwner } = await import('./_core/notification');
             const sucursal = await getSucursalById(input.sucursalId);
-            const fecha = input.fecha ? new Date(input.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+            // Formatear fecha desde string YYYY-MM-DD sin convertir a Date
+            const [fy, fm, fd] = (input.fecha ?? todayStr).split('-').map(Number);
+            const fechaDate = new Date(fy, fm - 1, fd);
+            const fecha = fechaDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
             const ventas = input.ventasTotales ? `$${input.ventasTotales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'No registradas';
             const desglose = `Efectivo: $${(input.ventasEfectivo ?? 0).toLocaleString('es-MX')} · Tarjeta: $${(input.ventasTarjeta ?? 0).toLocaleString('es-MX')} · Rappi: $${(input.ventasRappi ?? 0).toLocaleString('es-MX')}`;
             await notifyOwner({
@@ -447,7 +453,8 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const { updateReporteDiario, getReporteDiarioById, getSucursalById } = await import('./db');
         const { id, fecha, ...rest } = input;
-        await updateReporteDiario(id, { ...rest, ...(fecha ? { fecha: new Date(fecha) } : {}) });
+        // Guardar fecha como string YYYY-MM-DD (no convertir a Date para evitar desfase UTC)
+        await updateReporteDiario(id, { ...rest, ...(fecha ? { fecha } : {}) });
         // Notificar al superadmin cuando se cambia a enviado
         if (input.estado === 'enviado') {
           try {
@@ -455,7 +462,10 @@ export const appRouter = router({
             const reporte = await getReporteDiarioById(id);
             if (reporte) {
               const sucursal = await getSucursalById(reporte.sucursalId);
-              const fecha = new Date(reporte.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+              // Formatear fecha desde string YYYY-MM-DD sin convertir a Date
+              const [ry, rm, rd] = (reporte.fecha as string).split('-').map(Number);
+              const fechaDate2 = new Date(ry, rm - 1, rd);
+              const fecha = fechaDate2.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
               const ventas = reporte.ventasTotales ? `$${reporte.ventasTotales.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : 'No registradas';
               const desglose = `Efectivo: $${(reporte.ventasEfectivo ?? 0).toLocaleString('es-MX')} · Tarjeta: $${(reporte.ventasTarjeta ?? 0).toLocaleString('es-MX')} · Rappi: $${(reporte.ventasRappi ?? 0).toLocaleString('es-MX')}`;
               await notifyOwner({
@@ -1307,11 +1317,14 @@ export const appRouter = router({
         const db2 = await _db2();
         let ventas = { total: 0, meta: 0, porcentaje: 0 };
         if (db2) {
+          // Usar strings YYYY-MM-DD para comparar con columna varchar
+          const fiStr = typeof fechaInicio === 'string' ? fechaInicio : `${(fechaInicio as Date).getFullYear()}-${String((fechaInicio as Date).getMonth()+1).padStart(2,'0')}-${String((fechaInicio as Date).getDate()).padStart(2,'0')}`;
+          const ffStr = typeof fechaFin === 'string' ? fechaFin : `${(fechaFin as Date).getFullYear()}-${String((fechaFin as Date).getMonth()+1).padStart(2,'0')}-${String((fechaFin as Date).getDate()).padStart(2,'0')}`;
           const reps = await db2.select().from(reportesDiarios)
             .where(and(
               eq(reportesDiarios.sucursalId, input.sucursalId),
-              gte(reportesDiarios.fecha, fechaInicio),
-              lte(reportesDiarios.fecha, fechaFin),
+              gte(reportesDiarios.fecha, fiStr),
+              lte(reportesDiarios.fecha, ffStr),
               eq(reportesDiarios.estado, 'enviado')
             ));
           const totalVentas = reps.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);

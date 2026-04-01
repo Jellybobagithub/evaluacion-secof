@@ -240,7 +240,8 @@ export const reportesDiarios = mysqlTable("reportes_diarios", {
   sucursalId: int("sucursalId").notNull(),
   usuarioId: int("usuarioId").notNull(),
   usuarioNombre: varchar("usuarioNombre", { length: 255 }),
-  fecha: timestamp("fecha").defaultNow().notNull(),
+  // varchar YYYY-MM-DD para evitar desfase UTC en zonas horarias negativas (México UTC-6)
+  fecha: varchar("fecha", { length: 10 }).notNull(),
   // Ventas desglosadas por canal
   ventasEfectivo: float("ventasEfectivo").default(0),
   ventasTarjeta: float("ventasTarjeta").default(0),
