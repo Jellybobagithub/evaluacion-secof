@@ -1226,7 +1226,20 @@ export const appRouter = router({
         const mesStr = input.mes ?? new Date().toISOString().slice(0, 7);
         const [year, month] = mesStr.split('-').map(Number);
         const fechaInicio = new Date(year, month - 1, 1);
-        const fechaFin = new Date(year, month, 0, 23, 59, 59);
+        // Para el mes actual: usar ayer como fecha fin (no contar días futuros)
+        // Para meses pasados: usar el último día del mes
+        const hoyBackend = new Date();
+        const mesActualBackend = `${hoyBackend.getFullYear()}-${String(hoyBackend.getMonth() + 1).padStart(2, '0')}`;
+        let fechaFin: Date;
+        if (mesStr === mesActualBackend) {
+          // Ayer a las 23:59:59
+          const ayer = new Date(hoyBackend);
+          ayer.setDate(hoyBackend.getDate() - 1);
+          ayer.setHours(23, 59, 59, 999);
+          fechaFin = ayer;
+        } else {
+          fechaFin = new Date(year, month, 0, 23, 59, 59);
+        }
         const trimInicio = new Date(year, Math.floor((month - 1) / 3) * 3, 1);
         const trimFin = new Date(year, Math.floor((month - 1) / 3) * 3 + 3, 0, 23, 59, 59);
 

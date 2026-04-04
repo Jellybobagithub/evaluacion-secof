@@ -363,6 +363,11 @@ export const actividadesCatalogo = mysqlTable("actividades_catalogo", {
   categoria: mysqlEnum("categoria", ["D", "S", "B", "M"]).notNull(), // Diaria, Semanal, Bodega, Mensual
   orden: int("orden").default(0), // para ordenar dentro de la categoría
   activa: boolean("activa").default(true).notNull(),
+  // Área que puede realizar esta actividad
+  // 'comodin' = solo comodín (actividades pesadas o que requieren tiempo libre)
+  // 'leve' = caja, barra o comodín (actividades rápidas en tiempos muertos)
+  // 'todas' = cualquier área puede hacerla
+  areaCompatible: varchar("area_compatible", { length: 20 }).default("todas").notNull(),
 });
 export type ActividadCatalogo = typeof actividadesCatalogo.$inferSelect;
 export type InsertActividadCatalogo = typeof actividadesCatalogo.$inferInsert;

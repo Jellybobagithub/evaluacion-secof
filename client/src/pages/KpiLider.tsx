@@ -109,7 +109,15 @@ export default function KpiLider() {
   const mesRango = useMemo(() => {
     const [y, m] = mes.split("-").map(Number);
     const inicio = `${y}-${String(m).padStart(2, "0")}-01`;
-    const fin = new Date(y, m, 0).toISOString().slice(0, 10);
+    const ultimoDiaMes = new Date(y, m, 0).toISOString().slice(0, 10);
+    // Para el mes actual: usar ayer como fecha fin (no contar días futuros)
+    // Para meses pasados: usar el último día del mes
+    const hoy = new Date();
+    const ayer = new Date(hoy);
+    ayer.setDate(hoy.getDate() - 1);
+    const ayerStr = `${ayer.getFullYear()}-${String(ayer.getMonth() + 1).padStart(2, "0")}-${String(ayer.getDate()).padStart(2, "0")}`;
+    const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+    const fin = mes === mesActual ? ayerStr : ultimoDiaMes;
     const trimInicio = new Date(y, Math.floor((m - 1) / 3) * 3, 1).toISOString().slice(0, 10);
     const trimFin = new Date(y, Math.floor((m - 1) / 3) * 3 + 3, 0).toISOString().slice(0, 10);
     return { inicio, fin, trimInicio, trimFin };

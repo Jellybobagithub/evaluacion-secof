@@ -498,3 +498,14 @@
 
 ## Mejoras v43 (Apr 4)
 - [x] Comparativa: selector de rango de fechas personalizado (fecha inicio + fecha fin) en lugar de solo período fijo
+
+## Mejoras v44 (Apr 4) - Actividades por Área + Reportes
+- [x] Catálogo actividades: agregar campo areaCompatible (caja/barra/comodin/lider/todas) a actividades_catalogo
+- [x] Migración DB: columna area_compatible en actividades_catalogo
+- [x] Seed: asignar área compatible a cada actividad D1-D13, S1-S20, B1-B4, M1-M3
+- [x] Generador automático: asignar actividades según área del turno (Caja=leves, Barra=leves, Comodín=todas, Líder=supervisión)
+- [x] Generador automático: distribuir actividades S/B/M por día de la semana (no todas al mismo turno)
+- [x] Generador automático: con 2 turnos, repartir actividades del comodín entre matutino y vespertino
+- [x] Generador automático: con 3 turnos (fin de semana), el comodín lleva las actividades S/B/M
+- [x] Nota en UI: actividades se realizan antes de las 5pm y después de las 7:30pm (hora pico 5-7pm)
+- [x] KPIs Líder: corregir conteo de reportes para solo contar días pasados (hasta ayer), no días futuros del mes

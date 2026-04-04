@@ -1,0 +1,1 @@
+ALTER TABLE `actividades_catalogo` ADD `area_compatible` varchar(20) DEFAULT 'todas' NOT NULL;

@@ -517,14 +517,21 @@ export const horariosRouter = router({
         actividadesCompletadasSB = completadas.map(a => a.clave);
       }
 
-      // Obtener catálogo completo
+      // Obtener catálogo completo con campo areaCompatible
       const catalogo = await db.select().from(actividadesCatalogo)
         .where(eq(actividadesCatalogo.activa, true));
-      const actividadesD = catalogo.filter(a => a.categoria === "D").map(a => a.clave);
-      const actividadesSB = catalogo
-        .filter(a => ["S", "B"].includes(a.categoria) && !actividadesCompletadasSB.includes(a.clave))
-        .map(a => a.clave);
+
+      // Separar actividades por tipo y área
+      // 'leve'    = caja, barra y comodín pueden hacer (tiempos muertos, rápidas)
+      // 'comodin' = solo comodín o líder (requieren más tiempo libre)
+      const actividadesDLeve    = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'leve').map(a => a.clave);
+      const actividadesDComodin = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'comodin').map(a => a.clave);
+      const actividadesSBPendientes = catalogo
+        .filter(a => ["S", "B"].includes(a.categoria) && !actividadesCompletadasSB.includes(a.clave));
       const actividadesM = catalogo.filter(a => a.categoria === "M").map(a => a.clave);
+
+      // Nota de hora pico que se agrega a todos los turnos
+      const NOTA_HORA_PICO = "Las actividades se realizan ANTES de las 5:00pm y DESPUÉS de las 7:30pm. Hora pico 5:00-7:00pm: atención al cliente prioritaria.";
 
       // Calcular rango de fechas de la semana
       const rango = getWeekRange(input.anio, input.semana);
@@ -536,14 +543,16 @@ export const horariosRouter = router({
       }
 
       // Configuración de turnos por día
-      // Lunes-Viernes: matutino + vespertino; Sábado-Domingo: matutino + intermedio
+      // Lunes-Viernes: matutino (Caja) + vespertino (Barra)
+      // Sábado-Domingo: matutino (Caja) + intermedio (Barra) + comodín si hay 3 empleados
       const TURNOS_SEMANA = [
-        { turno: "matutino" as const, horaInicio: "09:00", horaFin: "15:00" },
-        { turno: "vespertino" as const, horaInicio: "15:00", horaFin: "21:00" },
+        { turno: "matutino" as const, horaInicio: "09:00", horaFin: "15:00", area: "Caja" },
+        { turno: "vespertino" as const, horaInicio: "15:00", horaFin: "21:00", area: "Barra" },
       ];
       const TURNOS_FIN_SEMANA = [
-        { turno: "matutino" as const, horaInicio: "09:00", horaFin: "15:00" },
-        { turno: "intermedio" as const, horaInicio: "13:00", horaFin: "21:00" },
+        { turno: "matutino" as const, horaInicio: "09:00", horaFin: "15:00", area: "Caja" },
+        { turno: "intermedio" as const, horaInicio: "13:00", horaFin: "21:00", area: "Barra" },
+        { turno: "intermedio" as const, horaInicio: "12:00", horaFin: "20:00", area: "Comodín" },
       ];
 
       // Ordenar empleados por menos horas (para asignar más a quien tiene menos)
@@ -552,54 +561,76 @@ export const horariosRouter = router({
       );
 
       let turnosCreados = 0;
-      let empIdx = 0;
-      const actividadesSBPorDia = Math.ceil(actividadesSB.length / Math.max(fechas.length, 1));
+
+      // Distribuir actividades S/B equitativamente entre los 7 días
+      // Solo el comodín (o el primer turno si no hay comodín) recibe S/B/M
+      const totalDias = fechas.length;
+      const sbPorDia = Math.ceil(actividadesSBPendientes.length / Math.max(totalDias, 1));
       let sbOffset = 0;
-      // Actividades M: solo el primer día de la semana
       const asignarM = actividadesM.length > 0;
 
       for (let dIdx = 0; dIdx < fechas.length; dIdx++) {
         const fecha = fechas[dIdx];
-        // día de semana JS: 0=dom, 1=lun, ..., 6=sáb
-        const diaSemana = new Date(fecha + "T12:00:00Z").getUTCDay();
+        const diaSemana = new Date(fecha + "T12:00:00Z").getUTCDay(); // 0=dom, 1=lun, ..., 6=sáb
         const esFinde = diaSemana === 0 || diaSemana === 6;
         const turnosDia = esFinde ? TURNOS_FIN_SEMANA : TURNOS_SEMANA;
 
-        // Empleados disponibles este día (respetando tipoContrato y descanso fulltime)
+        // Empleados disponibles hoy
         const empsDisponiblesHoy = empOrdenados.filter(emp => {
           const dias = getDiasDisponibles(emp);
           if (!dias.includes(diaSemana)) return false;
-          // Si es fulltime y tiene descanso asignado hoy, saltarlo
           if (emp.tipoContrato === "fulltime" && descansoAsignado[emp.id] === diaSemana) return false;
           return true;
         });
-
         if (empsDisponiblesHoy.length === 0) continue;
 
-        // Asignar un turno por cada empleado disponible hoy.
-        // Si hay más empleados que slots de turno predefinidos, se rota la configuración de turno.
-        // Re-ordenar por menos horas antes de asignar este día
+        // Ordenar por menos horas
         empsDisponiblesHoy.sort((a, b) => (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0));
 
-        // Número de turnos = cantidad de empleados disponibles (1 turno por empleado)
-        const numTurnosHoy = empsDisponiblesHoy.length;
+        const numTurnosHoy = Math.min(empsDisponiblesHoy.length, turnosDia.length);
+
+        // Actividades S/B para este día (se asignan al comodín o al primer turno)
+        const sbHoy = actividadesSBPendientes.slice(sbOffset, sbOffset + sbPorDia).map(a => a.clave);
+        sbOffset += sbHoy.length;
+        const mHoy = (dIdx === 0 && asignarM) ? actividadesM : [];
 
         for (let tIdx = 0; tIdx < numTurnosHoy; tIdx++) {
-          const turnoConfig = turnosDia[tIdx % turnosDia.length];
-          // Cada empleado disponible recibe su propio turno
+          const turnoConfig = turnosDia[tIdx];
           const emp = empsDisponiblesHoy[tIdx];
+          const esLider = emp.rol === "lider";
 
-          // Calcular actividades para este turno
-          const actsTurno: string[] = [...actividadesD];
+          // Determinar área real del turno
+          // El líder puede estar en cualquier área, se asigna según posición
+          const areaReal = esLider ? turnoConfig.area : turnoConfig.area;
+          const esComodin = areaReal === "Comodín" || esLider;
+          const esCajaOBarra = areaReal === "Caja" || areaReal === "Barra";
 
-          // Distribuir S/B equitativamente entre los días
-          const sbSlice = actividadesSB.slice(sbOffset, sbOffset + actividadesSBPorDia);
-          actsTurno.push(...sbSlice);
-          sbOffset += sbSlice.length;
+          // Con 2 turnos (entre semana), el comodín no existe:
+          // repartir actividades D-comodin entre los 2 turnos (mitad cada uno)
+          const hayComodinHoy = esFinde && empsDisponiblesHoy.length >= 3;
 
-          // Actividades M solo el primer turno del lunes
-          if (dIdx === 0 && turnoConfig.turno === "matutino" && asignarM) {
-            actsTurno.push(...actividadesM);
+          let actsTurno: string[] = [];
+
+          if (esComodin && hayComodinHoy) {
+            // COMODÍN (fin de semana con 3 personas):
+            // Todas las D-leve + D-comodin + S/B de hoy + M si aplica
+            actsTurno = [...actividadesDLeve, ...actividadesDComodin, ...sbHoy, ...mHoy];
+          } else if (!hayComodinHoy && tIdx === 0) {
+            // PRIMER TURNO sin comodín (entre semana o finde con 2 personas):
+            // D-leve + mitad de D-comodin + mitad de S/B de hoy
+            const mitadComodin = actividadesDComodin.slice(0, Math.ceil(actividadesDComodin.length / 2));
+            const mitadSB = sbHoy.slice(0, Math.ceil(sbHoy.length / 2));
+            actsTurno = [...actividadesDLeve, ...mitadComodin, ...mitadSB, ...mHoy];
+          } else if (!hayComodinHoy && tIdx === 1) {
+            // SEGUNDO TURNO sin comodín (entre semana o finde con 2 personas):
+            // D-leve + otra mitad de D-comodin + otra mitad de S/B de hoy
+            const mitadComodin = actividadesDComodin.slice(Math.ceil(actividadesDComodin.length / 2));
+            const mitadSB = sbHoy.slice(Math.ceil(sbHoy.length / 2));
+            actsTurno = [...actividadesDLeve, ...mitadComodin, ...mitadSB];
+          } else {
+            // CAJA o BARRA con comodín presente:
+            // Solo actividades leves (tiempos muertos entre clientes)
+            actsTurno = [...actividadesDLeve];
           }
 
           // Crear el turno
@@ -613,8 +644,8 @@ export const horariosRouter = router({
             turno: turnoConfig.turno,
             horaInicio: turnoConfig.horaInicio,
             horaFin: turnoConfig.horaFin,
-            puesto: emp.rol === "lider" ? "Líder" : "Barista",
-            rolPrincipal: turnoConfig.turno === "matutino" ? "Caja" : "Bebidas",
+            puesto: esLider ? "Líder" : areaReal,
+            rolPrincipal: areaReal,
             createdBy: ctx.user.id,
           });
           const turnoId = (result as any).insertId as number;
@@ -627,7 +658,7 @@ export const horariosRouter = router({
           }
           turnosCreados++;
 
-          // Actualizar horas del empleado para balanceo global
+          // Actualizar horas del empleado
           const [hi, mi] = turnoConfig.horaInicio.split(":").map(Number);
           const [hf, mf] = turnoConfig.horaFin.split(":").map(Number);
           horasPorEmpleado[emp.id] = (horasPorEmpleado[emp.id] ?? 0) + (hf * 60 + mf - hi * 60 - mi) / 60;
@@ -637,7 +668,7 @@ export const horariosRouter = router({
         empOrdenados.sort((a, b) => (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0));
       }
 
-      return { ok: true, turnosCreados, mensaje: `Horario generado: ${turnosCreados} turnos creados con actividades asignadas.` };
+      return { ok: true, turnosCreados, mensaje: `Horario generado: ${turnosCreados} turnos creados. Actividades distribuidas por área (Caja/Barra=leves, Comodín=todas). Hora pico 5-7pm: actividades antes de las 5pm y después de las 7:30pm.` };
     }),
 
   /** Sugerencia de distribución equitativa para la próxima semana */
