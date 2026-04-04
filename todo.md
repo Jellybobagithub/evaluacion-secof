@@ -415,3 +415,25 @@
 - [x] Frontend KpiLider: mostrar meta desde ventas históricas año anterior
 - [x] Frontend KpiLider: si sinMeta=true, mostrar input para ingresar meta manualmente y guardar en ventas_historicas
 - [x] Eliminar "Metas de Ventas" del menú lateral (consolidado en Ventas Históricas bajo Configuración)
+
+## Módulo Horarios v32 (Apr 4) - Rediseño completo
+- [x] Schema: tabla actividades_catalogo (clave, descripcion, categoria: D/S/B/M)
+- [x] Schema: tabla turnos_semana (sucursalId, empleadoId, fecha, puesto, turno, horaInicio, horaFin, rolPrincipal, comentarios, semana, anio)
+- [x] Schema: tabla turno_actividades (turnoId, actividadClave, completada, completadaAt, pendienteDeturnoId)
+- [x] Seed: catálogo completo de actividades D1-D13, S1-S20, B1-B4, M1-M3
+- [x] Backend: CRUD turnos_semana (crear, editar, eliminar turno)
+- [x] Backend: asignar/quitar actividades a un turno
+- [x] Backend: sugerencia de distribución equitativa (horas/días por empleado últimas 4 semanas)
+- [x] Backend: sugerencia de actividades S/B/M pendientes de la semana (rotación automática)
+- [x] Backend: al cerrar turno, marcar actividades no completadas como pendientes y reasignar al siguiente turno del empleado
+- [x] Backend: query horario semanal por sucursal+semana
+- [x] Backend: query Mi Turno (turno del día del empleado logueado + actividades)
+- [x] Página Horarios: vista semanal por día con tarjetas de turno por empleado
+- [x] Página Horarios: modal agregar/editar turno con selector de empleado, puesto, turno, horario, rol principal
+- [x] Página Horarios: panel de actividades asignadas al turno (multi-select con claves D/S/B/M por pestaña)
+- [x] Página Horarios: sugerencia de distribución equitativa visible en banner
+- [x] Página Horarios: indicador visual de actividades pendientes del turno anterior (naranja)
+- [x] Mi Turno: sección "Mi turno de hoy" con checklist de actividades asignadas
+- [x] Mi Turno: palomeo individual por actividad con timestamp
+- [x] Mi Turno: botón "Cerrar turno" que arrastra pendientes al siguiente turno
+- [x] Mi Turno: mostrar actividades pendientes de turno anterior (resaltadas en naranja)

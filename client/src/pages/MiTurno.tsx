@@ -8,8 +8,9 @@ import { useLocation } from "wouter";
 import {
   ClipboardCheck, ClipboardList, Users, TrendingUp,
   AlertTriangle, CheckCircle2, ChevronRight, Star,
-  Calendar, Clock, FileText, BarChart2
+  Calendar, Clock, FileText, BarChart2, Sparkles, XCircle
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getSemanaISO(date = new Date()) {
@@ -90,6 +91,37 @@ export default function MiTurno() {
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId }
   );
+
+  // Turno del día asignado al empleado logueado
+  // Buscar el empleado que corresponde al usuario actual
+  const empleadoActual = useMemo(() => {
+    if (!user) return null;
+    // Buscar por nombre (aproximado) o el primero si solo hay uno
+    return empleados.find((e: any) =>
+      e.nombre?.toLowerCase().includes(user.name?.split(' ')[0]?.toLowerCase() ?? '') ||
+      empleados.length === 1
+    ) ?? empleados[0] ?? null;
+  }, [empleados, user]);
+
+  const { data: miTurnoData, refetch: refetchTurno } = trpc.horarios.miTurnoHoy.useQuery(
+    { sucursalId: sucursalId ?? 0, empleadoId: empleadoActual?.id ?? 0, fecha: hoy },
+    { enabled: !!sucursalId && !!empleadoActual?.id }
+  );
+
+  const toggleActividad = trpc.horarios.toggleActividad.useMutation({
+    onSuccess: () => refetchTurno(),
+    onError: (e) => console.error(e.message),
+  });
+
+  const cerrarTurno = trpc.horarios.cerrarTurno.useMutation({
+    onSuccess: (data) => {
+      refetchTurno();
+      if (data.pendientesArrastradas > 0) {
+        alert(`Turno cerrado. ${data.pendientesArrastradas} actividad(es) pendiente(s) se asignaron a tu próximo turno.`);
+      }
+    },
+    onError: (e) => alert('Error al cerrar turno: ' + e.message),
+  });
 
   // Calcular KPI de la semana
   const kpiSemana = useMemo(() => {
@@ -261,6 +293,103 @@ export default function MiTurno() {
                   {reporteHoy.ventasTotales && ` (${((reporteHoy as any).mermasMonto / reporteHoy.ventasTotales * 100).toFixed(1)}%)`}
                 </span>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Turno asignado del día con checklist de actividades */}
+      {miTurnoData && (
+        <div className="px-4 pb-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Mi turno de hoy</p>
+          <div className="bg-white/10 rounded-2xl p-4 border border-white/10">
+            {/* Info del turno */}
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-teal-400" />
+                  <span className="text-sm font-semibold text-white capitalize">{miTurnoData.turno.turno}</span>
+                  {miTurnoData.turno.cerrado && (
+                    <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">Cerrado</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {miTurnoData.turno.horaInicio}–{miTurnoData.turno.horaFin}
+                  {miTurnoData.turno.puesto && ` · ${miTurnoData.turno.puesto}`}
+                  {miTurnoData.turno.rolPrincipal && ` · ${miTurnoData.turno.rolPrincipal}`}
+                </p>
+              </div>
+              {!miTurnoData.turno.cerrado && miTurnoData.actividades.length > 0 && (
+                <Button
+                  size="sm"
+                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-7 px-3"
+                  onClick={() => {
+                    if (confirm('¿Cerrar el turno? Las actividades no completadas se asignarán a tu próximo turno.')) {
+                      cerrarTurno.mutate({ turnoId: miTurnoData.turno.id });
+                    }
+                  }}
+                  disabled={cerrarTurno.isPending}
+                >
+                  {cerrarTurno.isPending ? 'Cerrando...' : 'Cerrar turno'}
+                </Button>
+              )}
+            </div>
+
+            {/* Checklist de actividades */}
+            {miTurnoData.actividades.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-slate-400">
+                    {miTurnoData.actividades.filter((a: any) => a.completada).length}/{miTurnoData.actividades.length} completadas
+                  </span>
+                  <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-teal-400 rounded-full transition-all"
+                      style={{ width: `${(miTurnoData.actividades.filter((a: any) => a.completada).length / miTurnoData.actividades.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {miTurnoData.actividades.map((act: any) => (
+                    <div
+                      key={act.id}
+                      className={`flex items-start gap-3 p-2 rounded-xl cursor-pointer transition-all ${
+                        act.completada ? 'bg-green-500/10' :
+                        act.esPendiente ? 'bg-orange-500/10 border border-orange-500/20' :
+                        'hover:bg-white/5'
+                      }`}
+                      onClick={() => {
+                        if (!miTurnoData.turno.cerrado) {
+                          toggleActividad.mutate({ turnoActividadId: act.id, completada: !act.completada });
+                        }
+                      }}
+                    >
+                      <Checkbox
+                        checked={act.completada}
+                        className="mt-0.5 shrink-0 border-white/30"
+                        onCheckedChange={() => {
+                          if (!miTurnoData.turno.cerrado) {
+                            toggleActividad.mutate({ turnoActividadId: act.id, completada: !act.completada });
+                          }
+                        }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs font-bold font-mono ${
+                            act.completada ? 'text-green-400' :
+                            act.esPendiente ? 'text-orange-400' : 'text-teal-400'
+                          }`}>{act.actividadClave}</span>
+                          {act.esPendiente && (
+                            <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1 rounded">pendiente</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 text-center py-2">Sin actividades asignadas para este turno</p>
             )}
           </div>
         </div>

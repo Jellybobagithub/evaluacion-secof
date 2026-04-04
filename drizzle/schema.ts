@@ -347,3 +347,53 @@ export const gastosOperativos = mysqlTable("gastos_operativos", {
 
 export type GastoOperativo = typeof gastosOperativos.$inferSelect;
 export type InsertGastoOperativo = typeof gastosOperativos.$inferInsert;
+
+// Catálogo de Actividades de Limpieza (D1-D13, S1-S20, B1-B4, M1-M3)
+export const actividadesCatalogo = mysqlTable("actividades_catalogo", {
+  id: int("id").autoincrement().primaryKey(),
+  clave: varchar("clave", { length: 10 }).notNull().unique(), // D1, S3, B2, M1...
+  descripcion: text("descripcion").notNull(),
+  categoria: mysqlEnum("categoria", ["D", "S", "B", "M"]).notNull(), // Diaria, Semanal, Bodega, Mensual
+  orden: int("orden").default(0), // para ordenar dentro de la categoría
+  activa: boolean("activa").default(true).notNull(),
+});
+export type ActividadCatalogo = typeof actividadesCatalogo.$inferSelect;
+export type InsertActividadCatalogo = typeof actividadesCatalogo.$inferInsert;
+
+// Turnos del Horario Semanal (un registro por empleado por día)
+export const turnosSemana = mysqlTable("turnos_semana", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  empleadoId: int("empleadoId").notNull(),
+  fecha: varchar("fecha", { length: 10 }).notNull(), // "2026-04-07" (YYYY-MM-DD)
+  semana: int("semana").notNull(), // número de semana ISO (1-53)
+  anio: int("anio").notNull(),
+  puesto: varchar("puesto", { length: 100 }), // "Caja", "Barista", "Caja y barista", etc.
+  turno: mysqlEnum("turno", ["matutino", "intermedio", "vespertino", "anfitrion"]).notNull(),
+  horaInicio: varchar("horaInicio", { length: 5 }).notNull(), // "10:00"
+  horaFin: varchar("horaFin", { length: 5 }).notNull(),       // "18:00"
+  rolPrincipal: varchar("rolPrincipal", { length: 50 }), // "Caja", "Bebidas", "Botella", "Fika"
+  comentarios: text("comentarios"),
+  cerrado: boolean("cerrado").default(false).notNull(), // true = empleado confirmó fin de turno
+  cerradoAt: timestamp("cerradoAt"),
+  createdBy: int("createdBy"), // userId del líder que creó el turno
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TurnoSemana = typeof turnosSemana.$inferSelect;
+export type InsertTurnoSemana = typeof turnosSemana.$inferInsert;
+
+// Actividades asignadas a un turno específico
+export const turnoActividades = mysqlTable("turno_actividades", {
+  id: int("id").autoincrement().primaryKey(),
+  turnoId: int("turnoId").notNull(),
+  actividadClave: varchar("actividadClave", { length: 10 }).notNull(), // "D1", "S3"...
+  completada: boolean("completada").default(false).notNull(),
+  completadaAt: timestamp("completadaAt"),
+  completadaPorId: int("completadaPorId"), // userId del empleado
+  esPendiente: boolean("esPendiente").default(false).notNull(), // true = arrastrada de turno anterior
+  turnoOrigenId: int("turnoOrigenId"), // turnoId donde quedó pendiente originalmente
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type TurnoActividad = typeof turnoActividades.$inferSelect;
+export type InsertTurnoActividad = typeof turnoActividades.$inferInsert;

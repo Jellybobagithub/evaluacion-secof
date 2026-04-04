@@ -14,6 +14,7 @@ import {
   getSucursalesAsignadas, getEvaluacionesByUser,
 } from "./db";
 import { calcularPuntuacion } from "../shared/evaluacionData";
+import { horariosRouter } from "./routers/horarios";
 import { storagePut } from "./storage";
 
 export const appRouter = router({
@@ -1093,87 +1094,8 @@ export const appRouter = router({
       }),
   }),
 
-  // --- Horarios Semanales ---
-  horarios: router({
-    list: protectedProcedure
-      .input(z.object({ sucursalId: z.number(), semana: z.string() }))
-      .query(async ({ input }) => {
-        const { getDb } = await import('./db');
-        const { horariosSemanales } = await import('../drizzle/schema');
-        const { eq, and } = await import('drizzle-orm');
-        const db = await getDb();
-        if (!db) return [];
-        return db.select().from(horariosSemanales)
-          .where(and(eq(horariosSemanales.sucursalId, input.sucursalId), eq(horariosSemanales.semana, input.semana)));
-      }),
-
-    upsert: protectedProcedure
-      .input(z.object({
-        sucursalId: z.number(),
-        empleadoId: z.number(),
-        semana: z.string(),
-        lunes: z.string().nullable().optional(),
-        martes: z.string().nullable().optional(),
-        miercoles: z.string().nullable().optional(),
-        jueves: z.string().nullable().optional(),
-        viernes: z.string().nullable().optional(),
-        sabado: z.string().nullable().optional(),
-        domingo: z.string().nullable().optional(),
-        notas: z.string().optional(),
-      }))
-      .mutation(async ({ input, ctx }) => {
-        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
-          throw new TRPCError({ code: 'FORBIDDEN' });
-        }
-        const { getDb } = await import('./db');
-        const { horariosSemanales } = await import('../drizzle/schema');
-        const { eq, and } = await import('drizzle-orm');
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB no disponible' });
-        // Buscar si ya existe
-        const existing = await db.select().from(horariosSemanales)
-          .where(and(
-            eq(horariosSemanales.sucursalId, input.sucursalId),
-            eq(horariosSemanales.empleadoId, input.empleadoId),
-            eq(horariosSemanales.semana, input.semana)
-          ));
-        if (existing.length > 0) {
-          await db.update(horariosSemanales)
-            .set({ lunes: input.lunes ?? null, martes: input.martes ?? null, miercoles: input.miercoles ?? null, jueves: input.jueves ?? null, viernes: input.viernes ?? null, sabado: input.sabado ?? null, domingo: input.domingo ?? null, notas: input.notas })
-            .where(eq(horariosSemanales.id, existing[0].id));
-        } else {
-          await db.insert(horariosSemanales).values({ ...input });
-        }
-        return { success: true };
-      }),
-
-    copyFromPrevious: protectedProcedure
-      .input(z.object({ sucursalId: z.number(), semana: z.string() }))
-      .mutation(async ({ input, ctx }) => {
-        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
-          throw new TRPCError({ code: 'FORBIDDEN' });
-        }
-        const { getDb } = await import('./db');
-        const { horariosSemanales } = await import('../drizzle/schema');
-        const { eq, and } = await import('drizzle-orm');
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB no disponible' });
-        // Calcular semana anterior
-        const [year, wStr] = input.semana.split('-W');
-        const w = Number(wStr);
-        const prevSemana = w > 1 ? `${year}-W${String(w - 1).padStart(2, '0')}` : `${Number(year) - 1}-W52`;
-        const prevRows = await db.select().from(horariosSemanales)
-          .where(and(eq(horariosSemanales.sucursalId, input.sucursalId), eq(horariosSemanales.semana, prevSemana)));
-        for (const row of prevRows) {
-          const exists = await db.select().from(horariosSemanales)
-            .where(and(eq(horariosSemanales.sucursalId, input.sucursalId), eq(horariosSemanales.empleadoId, row.empleadoId), eq(horariosSemanales.semana, input.semana)));
-          if (exists.length === 0) {
-            await db.insert(horariosSemanales).values({ sucursalId: input.sucursalId, empleadoId: row.empleadoId, semana: input.semana, lunes: row.lunes, martes: row.martes, miercoles: row.miercoles, jueves: row.jueves, viernes: row.viernes, sabado: row.sabado, domingo: row.domingo });
-          }
-        }
-        return { success: true, copiados: prevRows.length };
-      }),
-  }),
+  // --- Horarios Semanales (nuevo módulo con turnos + actividades) ---
+  horarios: horariosRouter,
 
   // ─── KPI Nivel 2 (Líder) ─────────────────────────────────────────────────────
   kpiLider: router({
