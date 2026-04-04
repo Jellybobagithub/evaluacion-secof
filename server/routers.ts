@@ -15,10 +15,14 @@ import {
 } from "./db";
 import { calcularPuntuacion } from "../shared/evaluacionData";
 import { horariosRouter } from "./routers/horarios";
+import { preparacionesRouter } from "./routers/preparaciones";
+import { observacionRouter } from "./routers/observacion";
 import { storagePut } from "./storage";
 
 export const appRouter = router({
   system: systemRouter,
+  preparaciones: preparacionesRouter,
+  observacion: observacionRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

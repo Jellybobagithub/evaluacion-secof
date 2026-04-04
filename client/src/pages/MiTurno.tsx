@@ -11,6 +11,7 @@ import {
   Calendar, Clock, FileText, BarChart2, Sparkles, XCircle
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import Preparaciones from "@/components/Preparaciones";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getSemanaISO(date = new Date()) {
@@ -43,7 +44,16 @@ export default function MiTurno() {
   });
 
   const semana = getSemanaISO();
-  const hoy = new Date().toISOString().slice(0, 10);
+  // Bug fix: toISOString() usa UTC y puede dar el día incorrecto en México (UTC-6).
+  // Por ejemplo, a las 7pm del domingo en México, UTC ya es lunes.
+  // Usar getFullYear/getMonth/getDate para obtener la fecha local del dispositivo.
+  const hoy = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })();
 
   // Obtener sucursales del usuario
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
@@ -180,7 +190,11 @@ export default function MiTurno() {
   };
 
   // KPI Nivel 2: cumplimiento de reportes del mes
-  const mes = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  // Mes local (evitar desfase UTC)
+  const mes = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
   const mesInicio = useMemo(() => {
     const [y, m] = mes.split('-').map(Number);
     return `${y}-${String(m).padStart(2, '0')}-01`;
@@ -521,6 +535,17 @@ export default function MiTurno() {
         </div>
       )}
 
+      {/* Preparaciones del turno */}
+      {sucursalId && (
+        <div className="px-4 pb-4">
+          <Preparaciones
+            sucursalId={sucursalId}
+            turnoId={miTurnoData?.turno?.id}
+            empleadoId={empleadoActual?.id}
+            modo="turno"
+          />
+        </div>
+      )}
       {/* Acciones rápidas */}
       <div className="px-4 pb-4">
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Tareas del día</p>

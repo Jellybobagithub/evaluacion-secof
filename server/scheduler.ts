@@ -220,7 +220,53 @@ async function alertaMermasYDescuadres() {
   }
 }
 
-// ─── Helpers de tiempo ────────────────────────────────────────────────────────
+// ─── Alerta de Preparaciones por Vencer ───────────────────────────────────────────────────────────
+async function alertaPreparacionesPorVencer() {
+  try {
+    const { getDb } = await import("./db");
+    const db = await getDb();
+    if (!db) return;
+    const { preparaciones } = await import("../drizzle/schema");
+    const { eq, and, gt, lt } = await import("drizzle-orm");
+    const ahora = new Date();
+    // Buscar preparaciones activas que vencen en los próximos 50 minutos (margen para la alerta)
+    const en50min = new Date(ahora.getTime() + 50 * 60 * 1000);
+    const preps = await db.select().from(preparaciones)
+      .where(and(
+        eq(preparaciones.estado, "activa"),
+        gt(preparaciones.venceAt, ahora),
+        lt(preparaciones.venceAt, en50min)
+      ));
+    if (preps.length === 0) {
+      console.log(`[Scheduler] Alertas preparaciones: ninguna por vencer en los próximos 50 min`);
+      return;
+    }
+    const { RECETAS_CONFIG } = await import("./routers/preparaciones");
+    // Agrupar por sucursal
+    const porSucursal: Record<number, typeof preps> = {};
+    for (const p of preps) {
+      if (!porSucursal[p.sucursalId]) porSucursal[p.sucursalId] = [];
+      porSucursal[p.sucursalId].push(p);
+    }
+    for (const [sucursalId, items] of Object.entries(porSucursal)) {
+      const lineas = items.map(p => {
+        const cfg = RECETAS_CONFIG[p.receta as keyof typeof RECETAS_CONFIG];
+        const minutos = Math.floor((new Date(p.venceAt).getTime() - ahora.getTime()) / 60000);
+        const nombre = cfg?.nombre ?? p.receta;
+        return `• ${nombre} (${p.cantidad}) — vence en ${minutos} min`;
+      }).join("\n");
+      await notifyOwner({
+        title: `⏰ Preparaciones por vencer — Sucursal ${sucursalId}`,
+        content: `Las siguientes preparaciones están por vencer pronto:\n\n${lineas}\n\nRevisa el módulo de Preparaciones en Mi Turno para tomar acción.`,
+      });
+    }
+    console.log(`[Scheduler] Alertas preparaciones enviadas: ${preps.length} preparaciones`);
+  } catch (err) {
+    console.error("[Scheduler] Error en alertaPreparacionesPorVencer:", err);
+  }
+}
+
+// ─── Helpers de tiempo ────────────────────────────────────────────────────────────────────────────
 function msHastaProximoLunes8am(): number {
   const ahora = new Date();
   const resultado = new Date(ahora);
@@ -273,4 +319,10 @@ export function initScheduler() {
     alertaMermasYDescuadres();
     setInterval(alertaMermasYDescuadres, 24 * 60 * 60 * 1000);
   }, msMermas);
+
+  // 4. Alerta preparaciones por vencer: cada 30 minutos (para detectar vencimientos inminentes)
+  console.log(`[Scheduler] Alerta preparaciones programada cada 30 minutos`);
+  setInterval(alertaPreparacionesPorVencer, 30 * 60 * 1000);
+  // Ejecutar también al arrancar (para detectar preparaciones que ya estén por vencer)
+  setTimeout(alertaPreparacionesPorVencer, 5000);
 }

@@ -405,3 +405,42 @@ export const turnoActividades = mysqlTable("turno_actividades", {
 });
 export type TurnoActividad = typeof turnoActividades.$inferSelect;
 export type InsertTurnoActividad = typeof turnoActividades.$inferInsert;
+
+// ─── Preparaciones de Recetas por Turno ──────────────────────────────────────
+export const preparaciones = mysqlTable("preparaciones", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  turnoId: int("turnoId"),
+  empleadoId: int("empleadoId"),
+  registradoPorId: int("registradoPorId"),
+  receta: mysqlEnum("receta", ["tapioca","base_snowtea","jarabe_longan","sustituto_azucar"]).notNull(),
+  cantidad: varchar("cantidad", { length: 20 }).notNull(),
+  unidad: varchar("unidad", { length: 30 }).notNull(),
+  preparadaAt: timestamp("preparadaAt").notNull(),
+  venceAt: timestamp("venceAt").notNull(),
+  estado: mysqlEnum("estado_prep", ["activa","vencida","consumida"]).default("activa").notNull(),
+  incidenciaTipo: mysqlEnum("incidencia_tipo", ["sin_preparacion","vencida_en_uso","fuera_de_tiempo","desperdicio"]),
+  incidenciaAt: timestamp("incidenciaAt"),
+  incidenciaNota: text("incidenciaNota"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Preparacion = typeof preparaciones.$inferSelect;
+export type InsertPreparacion = typeof preparaciones.$inferInsert;
+
+// ─── Actividades Bajo Observación (Sistema de Credibilidad) ──────────────────
+export const actividadesObservacion = mysqlTable("actividades_observacion", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  actividadClave: varchar("actividadClave", { length: 10 }).notNull(),
+  activadaPorId: int("activadaPorId").notNull(),
+  activadaAt: timestamp("activadaAt").defaultNow().notNull(),
+  motivoActivacion: text("motivoActivacion"),
+  activa: boolean("activa").default(true).notNull(),
+  resueltaPorId: int("resueltaPorId"),
+  resueltaAt: timestamp("resueltaAt"),
+  notaResolucion: text("notaResolucion"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ActividadObservacion = typeof actividadesObservacion.$inferSelect;
+export type InsertActividadObservacion = typeof actividadesObservacion.$inferInsert;

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import ObservacionPanel from "@/components/ObservacionPanel";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell
@@ -251,6 +252,11 @@ export default function KpiLider() {
           />
         </div>
       </div>
+
+      {/* Panel de Actividades bajo Observación */}
+      {activeSucursalId && (
+        <ObservacionPanel sucursalId={activeSucursalId} />
+      )}
 
       {!activeSucursalId ? (
         <div className="text-center py-16 text-slate-500">

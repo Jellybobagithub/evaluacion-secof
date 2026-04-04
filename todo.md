@@ -466,7 +466,7 @@
 - [x] Bug: generador automático solo asignaba 1 empleado en sáb/dom — corregido: cada turno del día toma el siguiente empleado disponible en orden de menos horas
 
 ## Bug Fix v38 (Apr 4)
-- [ ] Bug: domingo muestra "2 turnos" en contador pero no renderiza las tarjetas de turno en Horarios
+- [x] Bug: domingo muestra "2 turnos" en contador pero no renderiza las tarjetas de turno en Horarios
 
 ## Limpieza + PDF Horario v40 (Apr 4)
 - [x] Eliminar Checklist Actividades del menú lateral y rutas (redundante con Horarios + Mi Turno)
@@ -474,3 +474,24 @@
 
 ## Bug Fix v41 (Apr 4)
 - [x] Bug: referencias a /checklist en Home.tsx y MiTurno.tsx causan 404 — redirigidas a /horarios
+
+## Módulo Preparaciones + Credibilidad v42 (Apr 4)
+- [x] Schema: tabla preparaciones (id, sucursalId, turnoId, empleadoId, receta, cantidad, unidad, preparadaAt, venceAt, estado, incidenciaTipo, incidenciaAt, incidenciaNota)
+- [x] Schema: tabla actividades_observacion (id, sucursalId, actividadClave, activadaPor, activadaAt, resueltaPor, resueltaAt, activa, notas)
+- [x] Migración DB aplicada
+- [x] Backend: CRUD preparaciones (crear, listar por turno/sucursal/fecha, marcar incidencia)
+- [x] Backend: endpoint preparaciones.activas → lista con minutos restantes y semáforo
+- [x] Backend: endpoint preparaciones.historialIncidencias → filtro por sucursal/fecha/tipo
+- [x] Backend: lógica alerta tapioca (40 min antes, solo si hay ≥90 min antes del cierre)
+- [x] Backend: lógica alerta Base Snowtea (12h antes de vencer)
+- [x] Backend: scheduler — revisar cada 30 min preparaciones activas y notificar al dueño
+- [x] Backend: CRUD actividades_observacion (activar, resolver, listar por sucursal)
+- [x] Backend: al completar actividad bajo observación → forzar evidencia fotográfica
+- [x] Frontend: sección "Preparaciones" en Mi Turno — formulario nueva preparación
+- [x] Frontend: tarjetas de preparaciones activas con countdown y semáforo de tiempo
+- [x] Frontend: banner/alerta en Mi Turno cuando preparación está por vencer
+- [x] Frontend: modal de incidencia (sin preparación / vencida / fuera de tiempo) con nota
+- [x] Frontend: página Preparaciones para líder/manager con historial + incidencias críticas
+- [x] Frontend: panel "Actividades bajo observación" en KpiLider para líder/manager/dueño
+- [x] Frontend: badge visual en actividades bajo observación en Mi Turno (ojo naranja)
+- [x] Frontend: bloquear completar actividad bajo observación sin foto
