@@ -576,9 +576,14 @@ export const horariosRouter = router({
 
         if (empsDisponiblesHoy.length === 0) continue;
 
-        for (const turnoConfig of turnosDia) {
-          const emp = empsDisponiblesHoy[empIdx % empsDisponiblesHoy.length];
-          empIdx++;
+        // Asignar un empleado diferente por turno del día
+        // Re-ordenar por menos horas antes de asignar este día
+        empsDisponiblesHoy.sort((a, b) => (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0));
+
+        for (let tIdx = 0; tIdx < turnosDia.length; tIdx++) {
+          const turnoConfig = turnosDia[tIdx];
+          // Cada turno del día toma el siguiente empleado disponible (rotación dentro del día)
+          const emp = empsDisponiblesHoy[tIdx % empsDisponiblesHoy.length];
 
           // Calcular actividades para este turno
           const actsTurno: string[] = [...actividadesD];
@@ -618,14 +623,14 @@ export const horariosRouter = router({
           }
           turnosCreados++;
 
-          // Actualizar horas del empleado para siguiente iteración
+          // Actualizar horas del empleado para balanceo global
           const [hi, mi] = turnoConfig.horaInicio.split(":").map(Number);
           const [hf, mf] = turnoConfig.horaFin.split(":").map(Number);
           horasPorEmpleado[emp.id] = (horasPorEmpleado[emp.id] ?? 0) + (hf * 60 + mf - hi * 60 - mi) / 60;
-          // Re-ordenar para siguiente asignación
-          empOrdenados.sort((a, b) => (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0));
-          empIdx = 0;
         }
+
+        // Re-ordenar globalmente para el siguiente día
+        empOrdenados.sort((a, b) => (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0));
       }
 
       return { ok: true, turnosCreados, mensaje: `Horario generado: ${turnosCreados} turnos creados con actividades asignadas.` };

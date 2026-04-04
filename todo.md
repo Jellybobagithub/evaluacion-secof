@@ -461,3 +461,6 @@
 
 ## Bug Fix v36 (Apr 4)
 - [x] Bug: value=null en inputs de Horarios.tsx — sanitizados en openEdit() y en el useState inicial del TurnoModal
+
+## Bug Fix v37 (Apr 4)
+- [x] Bug: generador automático solo asignaba 1 empleado en sáb/dom — corregido: cada turno del día toma el siguiente empleado disponible en orden de menos horas
