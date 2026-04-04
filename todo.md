@@ -467,3 +467,7 @@
 
 ## Bug Fix v38 (Apr 4)
 - [ ] Bug: domingo muestra "2 turnos" en contador pero no renderiza las tarjetas de turno en Horarios
+
+## Limpieza + PDF Horario v40 (Apr 4)
+- [x] Eliminar Checklist Actividades del menú lateral y rutas (redundante con Horarios + Mi Turno)
+- [x] Exportar horario semanal a PDF desde la página Horarios (botón Exportar PDF → ventana de impresión con tabla por día/turno/empleado/actividades)

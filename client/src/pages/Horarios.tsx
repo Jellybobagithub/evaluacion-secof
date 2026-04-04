@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Pencil, Trash2,
-  Sparkles, AlertTriangle, CheckCircle2, Clock, Users
+  Sparkles, AlertTriangle, CheckCircle2, Clock, Users, FileDown
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,6 +68,77 @@ const CAT_LABELS: Record<string, { label: string; color: string }> = {
   B: { label: "Bodega",   color: "bg-amber-100 text-amber-700" },
   M: { label: "Mensual",  color: "bg-rose-100 text-rose-700" },
 };
+
+// ─── Exportar PDF ────────────────────────────────────────────────────────────
+
+function exportarHorarioPDF({
+  diasFecha,
+  turnosPorFecha,
+  actividadesPorTurno,
+  empleadosMap,
+  semana,
+  anio,
+  sucursalNombre,
+}: {
+  diasFecha: { fecha: string; dia: string; label: string }[];
+  turnosPorFecha: Record<string, any[]>;
+  actividadesPorTurno: Record<number, any[]>;
+  empleadosMap: Record<number, string>;
+  semana: number;
+  anio: number;
+  sucursalNombre: string;
+}) {
+  const TURNO_COLORS: Record<string, string> = {
+    matutino: "#3b82f6",
+    intermedio: "#14b8a6",
+    vespertino: "#a855f7",
+    anfitrion: "#f59e0b",
+  };
+
+  const rows = diasFecha.map(({ fecha, dia }) => {
+    const turnos = turnosPorFecha[fecha] ?? [];
+    if (turnos.length === 0) {
+      return `<tr><td style="padding:8px 12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;">${dia}</td><td colspan="5" style="padding:8px 12px;color:#94a3b8;font-style:italic;border-bottom:1px solid #e2e8f0;">Sin turnos</td></tr>`;
+    }
+    return turnos.map((t: any, idx: number) => {
+      const acts = (actividadesPorTurno[t.id] ?? []).map((a: any) => a.actividadClave).join(" ");
+      const color = TURNO_COLORS[t.turno] ?? "#64748b";
+      return `<tr>
+        ${idx === 0 ? `<td rowspan="${turnos.length}" style="padding:8px 12px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;vertical-align:top;">${dia}<br><span style="font-size:10px;font-weight:400;color:#94a3b8;">${fecha}</span></td>` : ""}
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;"><span style="color:${color};font-weight:600;font-size:12px;">${t.turno?.charAt(0).toUpperCase() + t.turno?.slice(1)}</span></td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-weight:500;">${empleadosMap[t.empleadoId] ?? "-"}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px;">${t.horaInicio ?? "-"} – ${t.horaFin ?? "-"}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px;">${t.puesto ?? "-"} · ${t.rolPrincipal ?? "-"}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:11px;">${acts || "—"}</td>
+      </tr>`;
+    }).join("");
+  }).join("");
+
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  <title>Horario Semana ${semana} – ${sucursalNombre}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #1e293b; margin: 0; padding: 20px; }
+    h1 { font-size: 18px; margin: 0 0 4px; } h2 { font-size: 13px; font-weight: 400; color: #64748b; margin: 0 0 16px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #0f766e; color: white; padding: 10px 12px; text-align: left; font-size: 12px; }
+    @media print { body { padding: 10px; } }
+  </style>
+</head><body>
+  <h1>Horario Semanal — ${sucursalNombre}</h1>
+  <h2>Semana ${semana} · ${anio}</h2>
+  <table>
+    <thead><tr>
+      <th>Día</th><th>Turno</th><th>Empleado</th><th>Horario</th><th>Puesto / Rol</th><th>Actividades</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p style="margin-top:24px;font-size:10px;color:#94a3b8;">Generado por Snowtea HQ · ${new Date().toLocaleDateString("es-MX")}</p>
+  <script>window.onload=()=>{window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open("", "_blank");
+  if (win) { win.document.write(html); win.document.close(); }
+}
 
 // ─── Modal de turno ───────────────────────────────────────────────────────────
 
@@ -480,6 +551,23 @@ export default function Horarios() {
               </SelectContent>
             </Select>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1 text-slate-700 border-slate-300 hover:bg-slate-50"
+            onClick={() => exportarHorarioPDF({
+              diasFecha,
+              turnosPorFecha,
+              actividadesPorTurno,
+              empleadosMap,
+              semana,
+              anio,
+              sucursalNombre: sucursales.find(s => s.id === activeSucursalId)?.nombre ?? "Sucursal",
+            })}
+          >
+            <FileDown className="w-4 h-4" />
+            Exportar PDF
+          </Button>
           {canEdit && (
             <div className="flex items-center gap-2">
               <Button

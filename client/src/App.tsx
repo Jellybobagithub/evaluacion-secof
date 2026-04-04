@@ -19,7 +19,6 @@ import ReporteDiario from "./pages/ReporteDiario";
 import Ventas from "./pages/Ventas";
 import MetasVentas from "./pages/MetasVentas";
 import Empleados from "./pages/Empleados";
-import Checklist from "./pages/Checklist";
 import Asistencia from "./pages/Asistencia";
 import AsistenciaQR from "./pages/AsistenciaQR";
 import KpiAnfitriones from "./pages/KpiAnfitriones";
@@ -86,11 +85,6 @@ function Router() {
         {/* Empleados: leader y superior */}
         <Route path="/empleados">
           <ProtectedRoute component={Empleados} minRole="leader" />
-        </Route>
-
-        {/* Checklist de actividades: leader y superior */}
-        <Route path="/checklist">
-          <ProtectedRoute component={Checklist} minRole="leader" />
         </Route>
 
         {/* Asistencia: leader y superior */}
