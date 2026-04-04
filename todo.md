@@ -471,3 +471,6 @@
 ## Limpieza + PDF Horario v40 (Apr 4)
 - [x] Eliminar Checklist Actividades del menú lateral y rutas (redundante con Horarios + Mi Turno)
 - [x] Exportar horario semanal a PDF desde la página Horarios (botón Exportar PDF → ventana de impresión con tabla por día/turno/empleado/actividades)
+
+## Bug Fix v41 (Apr 4)
+- [x] Bug: referencias a /checklist en Home.tsx y MiTurno.tsx causan 404 — redirigidas a /horarios

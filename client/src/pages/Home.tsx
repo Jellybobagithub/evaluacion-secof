@@ -577,16 +577,16 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* Checklist */}
-          <Card className="border-0 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/checklist")}>
+          {/* Horarios (reemplaza Checklist) */}
+          <Card className="border-0 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/horarios")}>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
                   <ClipboardList className="h-5 w-5 text-orange-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">Checklist de Actividades</p>
-                  <p className="text-xs text-muted-foreground">Limpieza · Operativo · Turno</p>
+                  <p className="text-sm font-semibold">Horarios y Actividades</p>
+                  <p className="text-xs text-muted-foreground">Turnos · Limpieza · Checklist</p>
                 </div>
                 <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 shrink-0">
                   Ver <ChevronRight className="h-3 w-3" />

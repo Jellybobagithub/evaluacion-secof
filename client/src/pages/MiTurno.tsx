@@ -211,12 +211,12 @@ export default function MiTurno() {
     },
     {
       icon: ClipboardList,
-      label: "Checklist del día",
-      sublabel: checklistCompletados > 0 ? `${checklistCompletados} completados` : "Pendiente",
-      color: checklistCompletados > 0 ? "text-green-600" : "text-blue-600",
-      bg: checklistCompletados > 0 ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200",
-      path: "/checklist",
-      done: checklistCompletados > 0,
+      label: "Horarios y Actividades",
+      sublabel: "Ver turno y checklist del día",
+      color: "text-blue-600",
+      bg: "bg-blue-50 border-blue-200",
+      path: "/horarios",
+      done: false,
     },
     {
       icon: Users,
