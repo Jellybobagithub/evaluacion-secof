@@ -464,3 +464,6 @@
 
 ## Bug Fix v37 (Apr 4)
 - [x] Bug: generador automático solo asignaba 1 empleado en sáb/dom — corregido: cada turno del día toma el siguiente empleado disponible en orden de menos horas
+
+## Bug Fix v38 (Apr 4)
+- [ ] Bug: domingo muestra "2 turnos" en contador pero no renderiza las tarjetas de turno en Horarios

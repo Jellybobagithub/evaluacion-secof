@@ -576,14 +576,18 @@ export const horariosRouter = router({
 
         if (empsDisponiblesHoy.length === 0) continue;
 
-        // Asignar un empleado diferente por turno del día
+        // Asignar un turno por cada empleado disponible hoy.
+        // Si hay más empleados que slots de turno predefinidos, se rota la configuración de turno.
         // Re-ordenar por menos horas antes de asignar este día
         empsDisponiblesHoy.sort((a, b) => (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0));
 
-        for (let tIdx = 0; tIdx < turnosDia.length; tIdx++) {
-          const turnoConfig = turnosDia[tIdx];
-          // Cada turno del día toma el siguiente empleado disponible (rotación dentro del día)
-          const emp = empsDisponiblesHoy[tIdx % empsDisponiblesHoy.length];
+        // Número de turnos = cantidad de empleados disponibles (1 turno por empleado)
+        const numTurnosHoy = empsDisponiblesHoy.length;
+
+        for (let tIdx = 0; tIdx < numTurnosHoy; tIdx++) {
+          const turnoConfig = turnosDia[tIdx % turnosDia.length];
+          // Cada empleado disponible recibe su propio turno
+          const emp = empsDisponiblesHoy[tIdx];
 
           // Calcular actividades para este turno
           const actsTurno: string[] = [...actividadesD];
