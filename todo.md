@@ -529,3 +529,14 @@
 - [x] Fix: Cambiar minRole de /asistencia a "host" en App.tsx y DashboardLayout
 - [x] Fix: Redirigir automáticamente al host a /mi-turno desde Home.tsx
 - [x] Fix: Grupo Equipo en menú visible para host (Mi Turno + Asistencia)
+
+## Mejoras v47 (Apr 4) - Acceso directo Preparaciones en menú
+- [x] Página /preparaciones: historial de preparaciones + registro rápido (accesible para host y superior)
+- [x] Menú lateral: ítem "Preparaciones" en grupo Equipo con minRole="host"
+- [x] App.tsx: ruta /preparaciones con minRole="host"
+
+## Bug v48 (Apr 4) - Menú Anfitrión y acceso Horarios
+- [x] Bug: Menú lateral del Anfitrión solo muestra "Inicio" (era problema de sucursal no asignada, no de código)
+- [x] Bug: Horarios dice "Acceso restringido" (correcto, Horarios es solo para líder)
+- [x] Fix: Agregar ruta /preparaciones con minRole="host" en App.tsx
+- [x] Fix: Agregar ítem Preparaciones en grupo Equipo del menú con minRole="host"

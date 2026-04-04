@@ -26,6 +26,7 @@ import KpiLider from "./pages/KpiLider";
 import KpiAdmin from "./pages/KpiAdmin";
 import Horarios from "./pages/Horarios";
 import MiTurno from "./pages/MiTurno";
+import PreparacionesPage from "./pages/PreparacionesPage";
 import DashboardSecof from "./pages/DashboardSecof";
 import DashboardLayout from "./components/DashboardLayout";
 import VentasHistoricas from "./pages/VentasHistoricas";
@@ -118,6 +119,11 @@ function Router() {
         {/* Mi Turno: anfitrón y superior */}
         <Route path="/mi-turno">
           <ProtectedRoute component={MiTurno} minRole="host" />
+        </Route>
+
+        {/* Preparaciones: anfitrón y superior */}
+        <Route path="/preparaciones">
+          <ProtectedRoute component={PreparacionesPage} minRole="host" />
         </Route>
 
         {/* Colaboradores: owner, manager, superadmin */}

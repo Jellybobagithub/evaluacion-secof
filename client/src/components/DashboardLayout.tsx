@@ -42,6 +42,7 @@ import {
   DollarSign,
   Calendar,
   Smartphone,
+  FlaskConical,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -105,6 +106,7 @@ const ALL_NAV_GROUPS = [
     path: null,
     items: [
       { icon: Smartphone, label: "Mi Turno", path: "/mi-turno", minRole: "host" },
+      { icon: FlaskConical, label: "Preparaciones", path: "/preparaciones", minRole: "host" },
       { icon: Users, label: "Empleados", path: "/empleados", minRole: "leader" },
       { icon: Calendar, label: "Horarios", path: "/horarios", minRole: "leader" },
       { icon: ClipboardCheck, label: "Asistencia", path: "/asistencia", minRole: "host" },
