@@ -113,6 +113,9 @@ export default function MiTurno() {
     onError: (e) => console.error(e.message),
   });
 
+  // Estado para expandir descripción de actividad
+  const [actividadExpandida, setActividadExpandida] = useState<number | null>(null);
+
   const cerrarTurno = trpc.horarios.cerrarTurno.useMutation({
     onSuccess: (data) => {
       refetchTurno();
@@ -349,43 +352,92 @@ export default function MiTurno() {
                     />
                   </div>
                 </div>
-                <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                  {miTurnoData.actividades.map((act: any) => (
-                    <div
-                      key={act.id}
-                      className={`flex items-start gap-3 p-2 rounded-xl cursor-pointer transition-all ${
-                        act.completada ? 'bg-green-500/10' :
-                        act.esPendiente ? 'bg-orange-500/10 border border-orange-500/20' :
-                        'hover:bg-white/5'
-                      }`}
-                      onClick={() => {
-                        if (!miTurnoData.turno.cerrado) {
-                          toggleActividad.mutate({ turnoActividadId: act.id, completada: !act.completada });
-                        }
-                      }}
-                    >
-                      <Checkbox
-                        checked={act.completada}
-                        className="mt-0.5 shrink-0 border-white/30"
-                        onCheckedChange={() => {
-                          if (!miTurnoData.turno.cerrado) {
-                            toggleActividad.mutate({ turnoActividadId: act.id, completada: !act.completada });
-                          }
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-xs font-bold font-mono ${
-                            act.completada ? 'text-green-400' :
-                            act.esPendiente ? 'text-orange-400' : 'text-teal-400'
-                          }`}>{act.actividadClave}</span>
-                          {act.esPendiente && (
-                            <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1 rounded">pendiente</span>
-                          )}
+                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-0.5">
+                  {miTurnoData.actividades.map((act: any) => {
+                    const isExpanded = actividadExpandida === act.id;
+                    const CATEGORIA_LABEL: Record<string, string> = {
+                      D: 'Diaria', S: 'Semanal isla', B: 'Bodega', M: 'Mensual'
+                    };
+                    const catLabel = CATEGORIA_LABEL[act.categoria ?? 'D'] ?? act.categoria;
+                    return (
+                      <div
+                        key={act.id}
+                        className={`rounded-xl transition-all ${
+                          act.completada ? 'bg-green-500/10' :
+                          act.esPendiente ? 'bg-orange-500/10 border border-orange-500/20' :
+                          'bg-white/5'
+                        }`}
+                      >
+                        {/* Fila principal */}
+                        <div className="flex items-center gap-3 p-2">
+                          <Checkbox
+                            checked={act.completada}
+                            className="shrink-0 border-white/30"
+                            onCheckedChange={() => {
+                              if (!miTurnoData.turno.cerrado) {
+                                toggleActividad.mutate({ turnoActividadId: act.id, completada: !act.completada });
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div
+                            className="flex-1 min-w-0 cursor-pointer"
+                            onClick={() => setActividadExpandida(isExpanded ? null : act.id)}
+                          >
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-xs font-bold font-mono ${
+                                act.completada ? 'text-green-400 line-through' :
+                                act.esPendiente ? 'text-orange-400' : 'text-teal-400'
+                              }`}>{act.actividadClave}</span>
+                              <span className={`text-xs truncate ${
+                                act.completada ? 'text-slate-500 line-through' : 'text-slate-300'
+                              }`}>{act.descripcion}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {act.esPendiente && (
+                              <span className="text-[10px] text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-full border border-orange-500/20">pendiente</span>
+                            )}
+                            <button
+                              onClick={() => setActividadExpandida(isExpanded ? null : act.id)}
+                              className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors"
+                              title="Ver descripción"
+                            >
+                              <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                isExpanded ? 'rotate-90' : ''
+                              }`} />
+                            </button>
+                          </div>
                         </div>
+                        {/* Descripción expandida */}
+                        {isExpanded && (
+                          <div className="px-3 pb-3 pt-0">
+                            <div className={`rounded-lg p-3 ${
+                              act.completada ? 'bg-green-500/10 border border-green-500/15' :
+                              act.esPendiente ? 'bg-orange-500/10 border border-orange-500/20' :
+                              'bg-white/5 border border-white/10'
+                            }`}>
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                  act.categoria === 'D' ? 'bg-blue-500/20 text-blue-300' :
+                                  act.categoria === 'S' ? 'bg-purple-500/20 text-purple-300' :
+                                  act.categoria === 'B' ? 'bg-amber-500/20 text-amber-300' :
+                                  'bg-rose-500/20 text-rose-300'
+                                }`}>{catLabel}</span>
+                                <span className="text-[10px] text-slate-500 font-mono">{act.actividadClave}</span>
+                              </div>
+                              <p className="text-xs text-slate-200 leading-relaxed">{act.descripcion}</p>
+                              {act.completadaAt && (
+                                <p className="text-[10px] text-green-400 mt-2">
+                                  ✓ Completada a las {new Date(act.completadaAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (

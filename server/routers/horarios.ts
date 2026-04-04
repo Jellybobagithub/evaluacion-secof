@@ -324,7 +324,21 @@ export const horariosRouter = router({
         .where(eq(turnoActividades.turnoId, turno.id))
         .orderBy(turnoActividades.esPendiente, turnoActividades.actividadClave);
 
-      return { turno, actividades };
+      // Enriquecer con descripción del catálogo
+      const { actividadesCatalogo } = await import("../../drizzle/schema");
+      const catalogo = await db.select().from(actividadesCatalogo);
+      const catalogoMap: Record<string, { descripcion: string; categoria: string }> = {};
+      for (const c of catalogo) {
+        catalogoMap[c.clave] = { descripcion: c.descripcion, categoria: c.categoria };
+      }
+
+      const actividadesEnriquecidas = actividades.map(a => ({
+        ...a,
+        descripcion: catalogoMap[a.actividadClave]?.descripcion ?? a.actividadClave,
+        categoria: catalogoMap[a.actividadClave]?.categoria ?? 'D',
+      }));
+
+      return { turno, actividades: actividadesEnriquecidas };
     }),
 
   /** Sugerencia de distribución equitativa para la próxima semana */

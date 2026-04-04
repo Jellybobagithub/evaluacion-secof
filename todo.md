@@ -437,3 +437,7 @@
 - [x] Mi Turno: palomeo individual por actividad con timestamp
 - [x] Mi Turno: botón "Cerrar turno" que arrastra pendientes al siguiente turno
 - [x] Mi Turno: mostrar actividades pendientes de turno anterior (resaltadas en naranja)
+
+## Descripción emergente actividades checklist v33 (Apr 4)
+- [x] Mi Turno: mostrar descripción completa de cada actividad al expandir/hover en el checklist
+- [x] Backend: incluir descripción del catálogo en la query miTurnoHoy
