@@ -1,0 +1,1 @@
+ALTER TABLE `turno_actividades` ADD `evidenciaUrl` text;

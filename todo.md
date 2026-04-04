@@ -441,3 +441,10 @@
 ## Descripción emergente actividades checklist v33 (Apr 4)
 - [x] Mi Turno: mostrar descripción completa de cada actividad al expandir/hover en el checklist
 - [x] Backend: incluir descripción del catálogo en la query miTurnoHoy
+
+## 4 Mejoras v34 (Apr 4)
+- [x] Horarios: generación automática completa del horario semanal (turnos + actividades) con distribución equitativa al abrir semana sin datos
+- [x] Horarios: botón "Regenerar horario" para regenerar/sobreescribir en cualquier momento
+- [x] Horarios: resumen de cumplimiento por tarjeta de turno (X/Y actividades completadas) ya existía
+- [x] Notificación al owner/manager cuando empleado cierra turno con actividades pendientes (claves incluidas)
+- [x] Mi Turno: foto de evidencia al expandir actividades S/B/M (subida a S3, visible en el panel expandido)

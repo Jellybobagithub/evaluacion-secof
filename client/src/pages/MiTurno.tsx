@@ -113,8 +113,39 @@ export default function MiTurno() {
     onError: (e) => console.error(e.message),
   });
 
-  // Estado para expandir descripción de actividad
+  // Estado para expandir descripción de actividad y subir evidencia
   const [actividadExpandida, setActividadExpandida] = useState<number | null>(null);
+  const [subiendoEvidencia, setSubiendoEvidencia] = useState<number | null>(null);
+
+  const subirEvidencia = trpc.horarios.subirEvidencia.useMutation({
+    onSuccess: () => { refetchTurno(); setSubiendoEvidencia(null); },
+    onError: (e) => { alert('Error al subir foto: ' + e.message); setSubiendoEvidencia(null); },
+  });
+
+  const subirFotoMutation = trpc.horarios.subirEvidenciaBase64.useMutation({
+    onSuccess: () => { refetchTurno(); setSubiendoEvidencia(null); },
+    onError: (err: any) => { alert('Error al subir foto: ' + err.message); setSubiendoEvidencia(null); },
+  });
+
+  async function handleFotoEvidencia(turnoActividadId: number) {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.capture = 'environment';
+    fileInput.onchange = async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { alert('La foto no puede superar 5 MB'); return; }
+      setSubiendoEvidencia(turnoActividadId);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        subirFotoMutation.mutate({ dataUrl, mimeType: file.type, turnoActividadId: turnoActividadId });
+      };
+      reader.readAsDataURL(file);
+    };
+    fileInput.click();
+  }
 
   const cerrarTurno = trpc.horarios.cerrarTurno.useMutation({
     onSuccess: (data) => {
@@ -431,6 +462,49 @@ export default function MiTurno() {
                                 <p className="text-[10px] text-green-400 mt-2">
                                   ✓ Completada a las {new Date(act.completadaAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
                                 </p>
+                              )}
+                              {/* Foto de evidencia (solo para S, B, M) */}
+                              {['S', 'B', 'M'].includes(act.categoria) && !miTurnoData.turno.cerrado && (
+                                <div className="mt-2.5 pt-2 border-t border-white/10">
+                                  {act.evidenciaUrl ? (
+                                    <div className="space-y-1.5">
+                                      <img
+                                        src={act.evidenciaUrl}
+                                        alt="Evidencia"
+                                        className="w-full max-h-32 object-cover rounded-lg border border-white/10"
+                                      />
+                                      <button
+                                        onClick={() => handleFotoEvidencia(act.id)}
+                                        disabled={subiendoEvidencia === act.id}
+                                        className="text-[10px] text-slate-400 hover:text-slate-200 underline"
+                                      >
+                                        {subiendoEvidencia === act.id ? 'Subiendo...' : 'Cambiar foto'}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleFotoEvidencia(act.id)}
+                                      disabled={subiendoEvidencia === act.id}
+                                      className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed text-xs transition-colors ${
+                                        subiendoEvidencia === act.id
+                                          ? 'border-white/20 text-slate-500 cursor-not-allowed'
+                                          : 'border-teal-500/40 text-teal-400 hover:bg-teal-500/10'
+                                      }`}
+                                    >
+                                      📷 {subiendoEvidencia === act.id ? 'Subiendo foto...' : 'Agregar foto de evidencia'}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                              {/* Ver evidencia si turno cerrado */}
+                              {act.evidenciaUrl && miTurnoData.turno.cerrado && (
+                                <div className="mt-2">
+                                  <img
+                                    src={act.evidenciaUrl}
+                                    alt="Evidencia"
+                                    className="w-full max-h-28 object-cover rounded-lg border border-white/10"
+                                  />
+                                </div>
                               )}
                             </div>
                           </div>

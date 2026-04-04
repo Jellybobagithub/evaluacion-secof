@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -350,6 +350,34 @@ export default function Horarios() {
   );
 
   const utils = trpc.useUtils();
+  const [generando, setGenerando] = useState(false);
+
+  const generarAuto = trpc.horarios.generarHorarioAutomatico.useMutation({
+    onSuccess: (data) => {
+      if (data.turnosCreados > 0) {
+        toast.success(`Horario generado: ${data.turnosCreados} turnos con actividades asignadas`);
+        utils.horarios.getSemana.invalidate();
+        utils.horarios.sugerirDistribucion.invalidate();
+      } else {
+        toast.info(data.mensaje ?? "Sin cambios");
+      }
+      setGenerando(false);
+    },
+    onError: (e) => { toast.error(e.message); setGenerando(false); },
+  });
+
+  // Auto-generar si la semana está vacía y hay empleados
+  const semanaVacia = (semanaData?.turnos?.length ?? 0) === 0;
+  const hayEmpleados = empleados.length > 0;
+  const autoGenerado = useRef<string>("");
+  const semanaKey = `${anio}-${semana}-${activeSucursalId}`;
+  useEffect(() => {
+    if (semanaVacia && hayEmpleados && activeSucursalId && autoGenerado.current !== semanaKey && !generando) {
+      autoGenerado.current = semanaKey;
+      setGenerando(true);
+      generarAuto.mutate({ sucursalId: activeSucursalId, anio, semana, sobreescribir: false });
+    }
+  }, [semanaVacia, hayEmpleados, activeSucursalId, semanaKey]);
 
   const eliminar = trpc.horarios.eliminarTurno.useMutation({
     onSuccess: () => { toast.success("Turno eliminado"); utils.horarios.getSemana.invalidate(); },
@@ -431,9 +459,26 @@ export default function Horarios() {
             </Select>
           )}
           {canEdit && (
-            <Button onClick={() => openNew()} className="bg-teal-600 hover:bg-teal-700 text-white gap-1">
-              <Plus className="w-4 h-4" /> Agregar turno
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={generando}
+                onClick={() => {
+                  if (activeSucursalId) {
+                    setGenerando(true);
+                    generarAuto.mutate({ sucursalId: activeSucursalId, anio, semana, sobreescribir: true });
+                  }
+                }}
+                className="gap-1 text-teal-700 border-teal-300 hover:bg-teal-50"
+              >
+                <Sparkles className="w-4 h-4" />
+                {generando ? "Generando..." : "Regenerar horario"}
+              </Button>
+              <Button onClick={() => openNew()} className="bg-teal-600 hover:bg-teal-700 text-white gap-1">
+                <Plus className="w-4 h-4" /> Agregar turno
+              </Button>
+            </div>
           )}
         </div>
       </div>

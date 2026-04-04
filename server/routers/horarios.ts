@@ -292,6 +292,18 @@ export const horariosRouter = router({
         );
       }
 
+      // Notificar al líder/manager si hay pendientes
+      if (pendientes.length > 0) {
+        try {
+          const { notifyOwner } = await import("../_core/notification");
+          const clavesStr = pendientes.map(p => p.actividadClave).join(", ");
+          await notifyOwner({
+            title: `⚠️ Turno cerrado con ${pendientes.length} actividad(es) pendiente(s)`,
+            content: `El empleado cerró su turno del ${turno.fecha} (${turno.turno}) con las siguientes actividades sin completar: ${clavesStr}. Estas han sido asignadas a su próximo turno.`,
+          });
+        } catch (_) { /* notificación no crítica */ }
+      }
+
       return { ok: true, pendientesArrastradas: pendientes.length };
     }),
 
@@ -339,6 +351,234 @@ export const horariosRouter = router({
       }));
 
       return { turno, actividades: actividadesEnriquecidas };
+    }),
+
+  /** Subir foto de evidencia para una actividad (URL directa) */
+  subirEvidencia: protectedProcedure
+    .input(z.object({
+      turnoActividadId: z.number(),
+      evidenciaUrl: z.string().url(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { turnoActividades } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(turnoActividades)
+        .set({ evidenciaUrl: input.evidenciaUrl })
+        .where(eq(turnoActividades.id, input.turnoActividadId));
+      return { ok: true };
+    }),
+
+  /** Subir foto de evidencia en base64 y guardar en S3 */
+  subirEvidenciaBase64: protectedProcedure
+    .input(z.object({
+      turnoActividadId: z.number(),
+      dataUrl: z.string().min(10), // "data:image/jpeg;base64,..."
+      mimeType: z.string().default("image/jpeg"),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { storagePut } = await import("../storage");
+      const base64 = input.dataUrl.replace(/^data:[^;]+;base64,/, "");
+      const buffer = Buffer.from(base64, "base64");
+      const ext = input.mimeType === "image/png" ? "png" : "jpg";
+      const key = `evidencias-turno/${input.turnoActividadId}-${Date.now()}.${ext}`;
+      const { url } = await storagePut(key, buffer, input.mimeType);
+      const { turnoActividades } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(turnoActividades)
+        .set({ evidenciaUrl: url })
+        .where(eq(turnoActividades.id, input.turnoActividadId));
+      return { ok: true, url };
+    }),
+
+  /** Generar horario automático completo para una semana */
+  generarHorarioAutomatico: protectedProcedure
+    .input(z.object({
+      sucursalId: z.number(),
+      anio: z.number(),
+      semana: z.number(),
+      sobreescribir: z.boolean().default(false), // si true, borra y regenera
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!["owner", "superadmin", "manager", "leader"].includes(ctx.user.role)) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { turnosSemana, turnoActividades, empleados, actividadesCatalogo } = await import("../../drizzle/schema");
+      const { eq, and, gte, lte, inArray } = await import("drizzle-orm");
+
+      // Si sobreescribir, eliminar turnos existentes de la semana
+      if (input.sobreescribir) {
+        const turnosExistentes = await db.select({ id: turnosSemana.id })
+          .from(turnosSemana)
+          .where(and(
+            eq(turnosSemana.sucursalId, input.sucursalId),
+            eq(turnosSemana.anio, input.anio),
+            eq(turnosSemana.semana, input.semana),
+          ));
+        if (turnosExistentes.length > 0) {
+          const ids = turnosExistentes.map(t => t.id);
+          await db.delete(turnoActividades).where(inArray(turnoActividades.turnoId, ids));
+          await db.delete(turnosSemana).where(inArray(turnosSemana.id, ids));
+        }
+      } else {
+        // Verificar si ya hay turnos
+        const existentes = await db.select({ id: turnosSemana.id })
+          .from(turnosSemana)
+          .where(and(
+            eq(turnosSemana.sucursalId, input.sucursalId),
+            eq(turnosSemana.anio, input.anio),
+            eq(turnosSemana.semana, input.semana),
+          ));
+        if (existentes.length > 0) {
+          return { ok: true, turnosCreados: 0, mensaje: "Ya existe horario para esta semana. Usa sobreescribir=true para regenerar." };
+        }
+      }
+
+      // Obtener empleados activos
+      const emps = await db.select().from(empleados)
+        .where(and(eq(empleados.sucursalId, input.sucursalId), eq(empleados.activo, true)));
+      if (emps.length === 0) return { ok: false, turnosCreados: 0, mensaje: "No hay empleados activos en esta sucursal." };
+
+      // Calcular horas trabajadas en las últimas 4 semanas para distribución equitativa
+      const semanaInicio = input.semana - 4;
+      const horasPorEmpleado: Record<number, number> = {};
+      for (const e of emps) horasPorEmpleado[e.id] = 0;
+
+      const turnosRecientes = await db.select().from(turnosSemana)
+        .where(and(
+          eq(turnosSemana.sucursalId, input.sucursalId),
+          eq(turnosSemana.anio, input.anio),
+          gte(turnosSemana.semana, semanaInicio),
+          lte(turnosSemana.semana, input.semana - 1),
+        ));
+
+      for (const t of turnosRecientes) {
+        if (horasPorEmpleado[t.empleadoId] === undefined) horasPorEmpleado[t.empleadoId] = 0;
+        const [hi, mi] = t.horaInicio.split(":").map(Number);
+        const [hf, mf] = t.horaFin.split(":").map(Number);
+        horasPorEmpleado[t.empleadoId] += (hf * 60 + mf - hi * 60 - mi) / 60;
+      }
+
+      // Obtener actividades pendientes S/B de semanas anteriores
+      const turnosRecientesIds = turnosRecientes.map(t => t.id);
+      let actividadesCompletadasSB: string[] = [];
+      if (turnosRecientesIds.length > 0) {
+        const completadas = await db.select({ clave: turnoActividades.actividadClave })
+          .from(turnoActividades)
+          .where(and(
+            inArray(turnoActividades.turnoId, turnosRecientesIds),
+            eq(turnoActividades.completada, true),
+          ));
+        actividadesCompletadasSB = completadas.map(a => a.clave);
+      }
+
+      // Obtener catálogo completo
+      const catalogo = await db.select().from(actividadesCatalogo)
+        .where(eq(actividadesCatalogo.activa, true));
+      const actividadesD = catalogo.filter(a => a.categoria === "D").map(a => a.clave);
+      const actividadesSB = catalogo
+        .filter(a => ["S", "B"].includes(a.categoria) && !actividadesCompletadasSB.includes(a.clave))
+        .map(a => a.clave);
+      const actividadesM = catalogo.filter(a => a.categoria === "M").map(a => a.clave);
+
+      // Calcular rango de fechas de la semana
+      const rango = getWeekRange(input.anio, input.semana);
+      const fechas: string[] = [];
+      const d = new Date(rango.inicio + "T00:00:00Z");
+      for (let i = 0; i < 7; i++) {
+        fechas.push(d.toISOString().slice(0, 10));
+        d.setUTCDate(d.getUTCDate() + 1);
+      }
+
+      // Configuración de turnos por día
+      // Lunes-Viernes: matutino + vespertino; Sábado-Domingo: matutino + intermedio
+      const TURNOS_SEMANA = [
+        { turno: "matutino" as const, horaInicio: "09:00", horaFin: "15:00" },
+        { turno: "vespertino" as const, horaInicio: "15:00", horaFin: "21:00" },
+      ];
+      const TURNOS_FIN_SEMANA = [
+        { turno: "matutino" as const, horaInicio: "09:00", horaFin: "15:00" },
+        { turno: "intermedio" as const, horaInicio: "13:00", horaFin: "21:00" },
+      ];
+
+      // Ordenar empleados por menos horas (para asignar más a quien tiene menos)
+      const empOrdenados = [...emps].sort((a, b) =>
+        (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0)
+      );
+
+      let turnosCreados = 0;
+      let empIdx = 0;
+      const actividadesSBPorDia = Math.ceil(actividadesSB.length / Math.max(fechas.length, 1));
+      let sbOffset = 0;
+      // Actividades M: solo el primer día de la semana
+      const asignarM = actividadesM.length > 0;
+
+      for (let dIdx = 0; dIdx < fechas.length; dIdx++) {
+        const fecha = fechas[dIdx];
+        const esFinde = dIdx >= 5; // sábado=5, domingo=6
+        const turnosDia = esFinde ? TURNOS_FIN_SEMANA : TURNOS_SEMANA;
+
+        for (const turnoConfig of turnosDia) {
+          const emp = empOrdenados[empIdx % empOrdenados.length];
+          empIdx++;
+
+          // Calcular actividades para este turno
+          const actsTurno: string[] = [...actividadesD];
+
+          // Distribuir S/B equitativamente entre los días
+          const sbSlice = actividadesSB.slice(sbOffset, sbOffset + actividadesSBPorDia);
+          actsTurno.push(...sbSlice);
+          sbOffset += sbSlice.length;
+
+          // Actividades M solo el primer turno del lunes
+          if (dIdx === 0 && turnoConfig.turno === "matutino" && asignarM) {
+            actsTurno.push(...actividadesM);
+          }
+
+          // Crear el turno
+          const { semana: semanaNum, anio: anioNum } = getISOWeek(fecha);
+          const [result] = await db.insert(turnosSemana).values({
+            sucursalId: input.sucursalId,
+            empleadoId: emp.id,
+            fecha,
+            semana: semanaNum,
+            anio: anioNum,
+            turno: turnoConfig.turno,
+            horaInicio: turnoConfig.horaInicio,
+            horaFin: turnoConfig.horaFin,
+            puesto: emp.rol === "lider" ? "Líder" : "Barista",
+            rolPrincipal: turnoConfig.turno === "matutino" ? "Caja" : "Bebidas",
+            createdBy: ctx.user.id,
+          });
+          const turnoId = (result as any).insertId as number;
+
+          // Insertar actividades
+          if (actsTurno.length > 0) {
+            await db.insert(turnoActividades).values(
+              actsTurno.map(clave => ({ turnoId, actividadClave: clave, esPendiente: false }))
+            );
+          }
+          turnosCreados++;
+
+          // Actualizar horas del empleado para siguiente iteración
+          const [hi, mi] = turnoConfig.horaInicio.split(":").map(Number);
+          const [hf, mf] = turnoConfig.horaFin.split(":").map(Number);
+          horasPorEmpleado[emp.id] = (horasPorEmpleado[emp.id] ?? 0) + (hf * 60 + mf - hi * 60 - mi) / 60;
+          // Re-ordenar para siguiente asignación
+          empOrdenados.sort((a, b) => (horasPorEmpleado[a.id] ?? 0) - (horasPorEmpleado[b.id] ?? 0));
+          empIdx = 0;
+        }
+      }
+
+      return { ok: true, turnosCreados, mensaje: `Horario generado: ${turnosCreados} turnos creados con actividades asignadas.` };
     }),
 
   /** Sugerencia de distribución equitativa para la próxima semana */

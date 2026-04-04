@@ -393,6 +393,7 @@ export const turnoActividades = mysqlTable("turno_actividades", {
   completadaPorId: int("completadaPorId"), // userId del empleado
   esPendiente: boolean("esPendiente").default(false).notNull(), // true = arrastrada de turno anterior
   turnoOrigenId: int("turnoOrigenId"), // turnoId donde quedó pendiente originalmente
+  evidenciaUrl: text("evidenciaUrl"), // URL de foto de evidencia (S3)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type TurnoActividad = typeof turnoActividades.$inferSelect;
