@@ -69,10 +69,25 @@ export default function Ventas() {
   // Multi-sucursal comparativa
   const [sucursalesSeleccionadas, setSucursalesSeleccionadas] = useState<number[]>([]);
   const [modoComparativa, setModoComparativa] = useState(false);
+  // Rango personalizado de fechas
+  const [modoRango, setModoRango] = useState(false);
+  const [fechaInicio, setFechaInicio] = useState<string>("");
+  const [fechaFin, setFechaFin] = useState<string>("");
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+
+  const queryParams = useMemo(() => {
+    if (modoRango && fechaInicio && fechaFin) return { fechaInicio, fechaFin, sucursalId };
+    return { dias, sucursalId };
+  }, [modoRango, fechaInicio, fechaFin, dias, sucursalId]);
+
+  const compParams = useMemo(() => {
+    if (modoRango && fechaInicio && fechaFin) return { fechaInicio, fechaFin };
+    return { dias };
+  }, [modoRango, fechaInicio, fechaFin, dias]);
+
   const { data: historico, isLoading } = trpc.reportesDiarios.historico.useQuery(
-    { dias, sucursalId },
+    queryParams,
     {}
   );
   const { data: avanceMeta = [] } = trpc.reportesDiarios.avanceMeta.useQuery(
@@ -82,23 +97,23 @@ export default function Ventas() {
 
   // Cargar histórico por cada sucursal seleccionada para comparativa
   const { data: historicoComp1 } = trpc.reportesDiarios.historico.useQuery(
-    { dias, sucursalId: sucursalesSeleccionadas[0] },
+    { ...compParams, sucursalId: sucursalesSeleccionadas[0] },
     { enabled: modoComparativa && sucursalesSeleccionadas.length >= 1 }
   );
   const { data: historicoComp2 } = trpc.reportesDiarios.historico.useQuery(
-    { dias, sucursalId: sucursalesSeleccionadas[1] },
+    { ...compParams, sucursalId: sucursalesSeleccionadas[1] },
     { enabled: modoComparativa && sucursalesSeleccionadas.length >= 2 }
   );
   const { data: historicoComp3 } = trpc.reportesDiarios.historico.useQuery(
-    { dias, sucursalId: sucursalesSeleccionadas[2] },
+    { ...compParams, sucursalId: sucursalesSeleccionadas[2] },
     { enabled: modoComparativa && sucursalesSeleccionadas.length >= 3 }
   );
   const { data: historicoComp4 } = trpc.reportesDiarios.historico.useQuery(
-    { dias, sucursalId: sucursalesSeleccionadas[3] },
+    { ...compParams, sucursalId: sucursalesSeleccionadas[3] },
     { enabled: modoComparativa && sucursalesSeleccionadas.length >= 4 }
   );
   const { data: historicoComp5 } = trpc.reportesDiarios.historico.useQuery(
-    { dias, sucursalId: sucursalesSeleccionadas[4] },
+    { ...compParams, sucursalId: sucursalesSeleccionadas[4] },
     { enabled: modoComparativa && sucursalesSeleccionadas.length >= 5 }
   );
 
@@ -272,16 +287,60 @@ export default function Ventas() {
 
       {/* Filtros */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Select value={String(dias)} onValueChange={v => setDias(Number(v))}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PERIODOS.map(p => (
-              <SelectItem key={p.value} value={String(p.value)}>{p.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Selector de período o rango personalizado */}
+        {!modoRango ? (
+          <div className="flex items-center gap-2">
+            <Select value={String(dias)} onValueChange={v => setDias(Number(v))}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIODOS.map(p => (
+                  <SelectItem key={p.value} value={String(p.value)}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => {
+                setModoRango(true);
+                const hoy = new Date().toISOString().split('T')[0];
+                const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+                if (!fechaInicio) setFechaInicio(hace30);
+                if (!fechaFin) setFechaFin(hoy);
+              }}
+            >
+              <span className="text-base leading-none">📅</span> Rango
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground font-medium">Del</span>
+            <input
+              type="date"
+              value={fechaInicio}
+              onChange={e => setFechaInicio(e.target.value)}
+              className="border border-input rounded-md px-2 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-xs text-muted-foreground font-medium">al</span>
+            <input
+              type="date"
+              value={fechaFin}
+              onChange={e => setFechaFin(e.target.value)}
+              className="border border-input rounded-md px-2 py-1.5 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1"
+              onClick={() => setModoRango(false)}
+            >
+              <X className="h-3 w-3" /> Período fijo
+            </Button>
+          </div>
+        )}
 
         {!modoComparativa && (
           <Select

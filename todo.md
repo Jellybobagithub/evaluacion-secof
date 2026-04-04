@@ -495,3 +495,6 @@
 - [x] Frontend: panel "Actividades bajo observación" en KpiLider para líder/manager/dueño
 - [x] Frontend: badge visual en actividades bajo observación en Mi Turno (ojo naranja)
 - [x] Frontend: bloquear completar actividad bajo observación sin foto
+
+## Mejoras v43 (Apr 4)
+- [x] Comparativa: selector de rango de fechas personalizado (fecha inicio + fecha fin) en lugar de solo período fijo

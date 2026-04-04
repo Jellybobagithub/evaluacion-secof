@@ -494,16 +494,28 @@ export const appRouter = router({
 
     historico: protectedProcedure
       .input(z.object({
-        dias: z.number().min(7).max(365).optional(),
+        dias: z.number().min(1).max(730).optional(),
         sucursalId: z.number().optional(),
+        fechaInicio: z.string().optional(), // YYYY-MM-DD
+        fechaFin: z.string().optional(),    // YYYY-MM-DD
       }))
       .query(async ({ input }) => {
         const { getReportesDiarios } = await import('./db');
-        const dias = input.dias ?? 30;
-        const todos = await getReportesDiarios(input.sucursalId, undefined, 1000);
-        const corte = new Date();
-        corte.setDate(corte.getDate() - dias);
-        const recientes = todos.filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado');
+        const todos = await getReportesDiarios(input.sucursalId, undefined, 2000);
+        let recientes;
+        if (input.fechaInicio && input.fechaFin) {
+          const inicio = new Date(input.fechaInicio + 'T00:00:00');
+          const fin = new Date(input.fechaFin + 'T23:59:59');
+          recientes = todos.filter(r => {
+            const f = new Date(r.fecha);
+            return f >= inicio && f <= fin && r.estado === 'enviado';
+          });
+        } else {
+          const dias = input.dias ?? 30;
+          const corte = new Date();
+          corte.setDate(corte.getDate() - dias);
+          recientes = todos.filter(r => new Date(r.fecha) >= corte && r.estado === 'enviado');
+        }
         // Agrupar por fecha (YYYY-MM-DD)
         const porDia: Record<string, { ventas: number; tx: number; efectivo: number; tarjeta: number; rappi: number; reportes: number }> = {};
         for (const r of recientes) {
@@ -530,7 +542,8 @@ export const appRouter = router({
         const totalEfectivo = recientes.reduce((s, r) => s + (r.ventasEfectivo ?? 0), 0);
         const totalTarjeta = recientes.reduce((s, r) => s + (r.ventasTarjeta ?? 0), 0);
         const totalRappi = recientes.reduce((s, r) => s + (r.ventasRappi ?? 0), 0);
-        return { serie, totalVentas, totalEfectivo, totalTarjeta, totalRappi, dias };
+        const diasUsados = (input.fechaInicio && input.fechaFin) ? undefined : (input.dias ?? 30);
+        return { serie, totalVentas, totalEfectivo, totalTarjeta, totalRappi, dias: diasUsados };
       }),
 
     resumen: protectedProcedure
