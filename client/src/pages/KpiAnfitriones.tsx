@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { BarChart2, Plus, Star, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Clock, DollarSign, TrendingUp } from "lucide-react";
+import { BarChart2, Plus, Star, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Clock, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Obtener semana ISO (ej: "2026-W13")
@@ -94,6 +94,12 @@ export default function KpiAnfitriones() {
     { enabled: !!sucursalId }
   );
   const utils = trpc.useUtils();
+
+  // Incidencias de preparaciones por empleado (30 días)
+  const { data: incidenciasPrep = [] } = trpc.preparaciones.incidenciasPorEmpleado.useQuery(
+    { sucursalId: sucursalId ?? 0, dias: 30 },
+    { enabled: !!sucursalId }
+  );
 
   // KPI Puntualidad del mes
   const mesInicio = useMemo(() => {
@@ -332,6 +338,49 @@ export default function KpiAnfitriones() {
                     );
                   })}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+          {/* Incidencias de Preparaciones por Empleado */}
+          {incidenciasPrep.length > 0 && (
+            <Card className="border-orange-200 bg-orange-50/40">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2 text-orange-800">
+                  <AlertTriangle className="w-4 h-4" />
+                  Incidencias de Preparaciones — últimos 30 días
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {incidenciasPrep.map((inc: any) => {
+                    const emp = empleados.find((e: any) => e.id === inc.empleadoId);
+                    const nombre = emp ? `${emp.nombre} ${emp.apellido ?? ''}`.trim() : `Empleado #${inc.empleadoId}`;
+                    return (
+                      <div key={inc.empleadoId} className="flex items-center justify-between p-3 rounded-lg border border-orange-200 bg-white">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-700 font-bold text-xs shrink-0">
+                            {nombre.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{nombre}</p>
+                            <div className="flex gap-1.5 mt-0.5 flex-wrap">
+                              {inc.sinPrep > 0 && <span className="text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5">{inc.sinPrep} sin preparar</span>}
+                              {inc.vencida > 0 && <span className="text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">{inc.vencida} vencida en uso</span>}
+                              {inc.fueraTiempo > 0 && <span className="text-xs bg-orange-100 text-orange-700 rounded px-1.5 py-0.5">{inc.fueraTiempo} fuera de tiempo</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`text-xl font-bold ${inc.total >= 5 ? 'text-red-600' : inc.total >= 2 ? 'text-amber-600' : 'text-orange-500'}`}>
+                          {inc.total}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-orange-600 mt-3 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Rojo = 5+ incidencias (crítico) · Amarillo = 2-4 · Naranja = 1
+                </p>
               </CardContent>
             </Card>
           )}

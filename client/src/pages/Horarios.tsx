@@ -309,17 +309,26 @@ function TurnoModal({ open, onClose, sucursalId, empleados, catalogo, editTurno,
             </Select>
           </div>
 
-          {/* Rol principal */}
+          {/* Rol principal / Área */}
           <div>
-            <Label className="text-xs">Rol principal</Label>
+            <Label className="text-xs">Área del turno</Label>
             <Select value={form.rolPrincipal} onValueChange={v => setForm(f => ({ ...f, rolPrincipal: v }))}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Seleccionar área" /></SelectTrigger>
               <SelectContent>
-                {["Caja", "Cajera", "Bebidas", "Botella", "Fika"].map(r => (
-                  <SelectItem key={r} value={r}>{r}</SelectItem>
-                ))}
+                <SelectItem value="Caja">💰 Caja — Atención al cliente y cobro</SelectItem>
+                <SelectItem value="Barra">🥤 Barra — Preparación de bebidas</SelectItem>
+                <SelectItem value="Comodín">⚡ Comodín — Soporte, insumos y actividades</SelectItem>
+                <SelectItem value="Líder">👑 Líder — Supervisión y gestión del turno</SelectItem>
               </SelectContent>
             </Select>
+            {form.rolPrincipal && (
+              <p className="text-xs text-slate-400 mt-1">
+                {form.rolPrincipal === 'Caja' && 'Actividades leves en tiempos muertos entre clientes.'}
+                {form.rolPrincipal === 'Barra' && 'Actividades leves en tiempos muertos. Prioridad: preparar bebidas.'}
+                {form.rolPrincipal === 'Comodín' && 'Todas las actividades D/S/B/M. Más tiempo libre disponible.'}
+                {form.rolPrincipal === 'Líder' && 'Actividades de supervisión, apertura y cierre de tienda.'}
+              </p>
+            )}
           </div>
 
           {/* Comentarios */}

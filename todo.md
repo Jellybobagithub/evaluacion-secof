@@ -509,3 +509,9 @@
 - [x] Generador automático: con 3 turnos (fin de semana), el comodín lleva las actividades S/B/M
 - [x] Nota en UI: actividades se realizan antes de las 5pm y después de las 7:30pm (hora pico 5-7pm)
 - [x] KPIs Líder: corregir conteo de reportes para solo contar días pasados (hasta ayer), no días futuros del mes
+
+## Mejoras v45 (Apr 4) - Área en Mi Turno + Asignación Manual + Incidencias en KPIs
+- [x] Mi Turno: mostrar área asignada del turno (Caja/Barra/Comodín/Líder) con badge de color y nota de hora pico
+- [x] Horarios: selector de área en el modal de edición de turno (cambiar área manualmente)
+- [x] KPIs Anfitriones: sección de incidencias de preparaciones por empleado (sin preparación / vencida / fuera de tiempo)
+- [x] KPIs Anfitriones: contador de incidencias de preparaciones como indicador adicional de desempeño

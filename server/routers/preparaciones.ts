@@ -322,4 +322,43 @@ export const preparacionesRouter = router({
 
       return { total: rows.length, porReceta, porTipo };
     }),
+
+  /** Incidencias de preparaciones agrupadas por empleado (para KPIs Anfitriones) */
+  incidenciasPorEmpleado: protectedProcedure
+    .input(z.object({
+      sucursalId: z.number(),
+      dias: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return [];
+      const { preparaciones } = await import("../../drizzle/schema");
+      const { eq, and, gte, isNotNull } = await import("drizzle-orm");
+
+      const desde = new Date(Date.now() - input.dias * 24 * 60 * 60 * 1000);
+      const rows = await db.select().from(preparaciones)
+        .where(and(
+          eq(preparaciones.sucursalId, input.sucursalId),
+          gte(preparaciones.preparadaAt, desde),
+          isNotNull(preparaciones.incidenciaTipo)
+        ));
+
+      // Agrupar por empleado
+      const porEmpleado: Record<number, { empleadoId: number; total: number; sinPrep: number; vencida: number; fueraTiempo: number; recetas: Record<string, number> }> = {};
+      for (const r of rows) {
+        const eid = r.empleadoId ?? 0;
+        if (!porEmpleado[eid]) {
+          porEmpleado[eid] = { empleadoId: eid, total: 0, sinPrep: 0, vencida: 0, fueraTiempo: 0, recetas: {} };
+        }
+        const e = porEmpleado[eid];
+        e.total++;
+        if (r.incidenciaTipo === 'sin_preparacion') e.sinPrep++;
+        else if (r.incidenciaTipo === 'vencida_en_uso') e.vencida++;
+        else if (r.incidenciaTipo === 'fuera_de_tiempo') e.fueraTiempo++;
+        e.recetas[r.receta] = (e.recetas[r.receta] ?? 0) + 1;
+      }
+
+      return Object.values(porEmpleado).sort((a, b) => b.total - a.total);
+    }),
 });

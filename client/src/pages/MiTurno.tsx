@@ -354,18 +354,41 @@ export default function MiTurno() {
             {/* Info del turno */}
             <div className="flex items-start justify-between mb-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Clock className="w-4 h-4 text-teal-400" />
                   <span className="text-sm font-semibold text-white capitalize">{miTurnoData.turno.turno}</span>
                   {miTurnoData.turno.cerrado && (
                     <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-xs">Cerrado</Badge>
                   )}
+                  {/* Badge de área */}
+                  {miTurnoData.turno.rolPrincipal && (() => {
+                    const area = (miTurnoData.turno.rolPrincipal as string).toLowerCase();
+                    const areaConfig: Record<string, { label: string; cls: string }> = {
+                      caja: { label: '💰 Caja', cls: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+                      barra: { label: '🥤 Barra', cls: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+                      bebidas: { label: '🥤 Barra', cls: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+                      comodín: { label: '⚡ Comodín', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+                      comodin: { label: '⚡ Comodín', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+                      líder: { label: '👑 Líder', cls: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+                      lider: { label: '👑 Líder', cls: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+                    };
+                    const cfg = areaConfig[area] ?? { label: miTurnoData.turno.rolPrincipal, cls: 'bg-slate-500/20 text-slate-300 border-slate-500/30' };
+                    return <Badge className={`text-xs border ${cfg.cls}`}>{cfg.label}</Badge>;
+                  })()}
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {miTurnoData.turno.horaInicio}–{miTurnoData.turno.horaFin}
                   {miTurnoData.turno.puesto && ` · ${miTurnoData.turno.puesto}`}
-                  {miTurnoData.turno.rolPrincipal && ` · ${miTurnoData.turno.rolPrincipal}`}
                 </p>
+                {/* Nota de hora pico */}
+                {!miTurnoData.turno.cerrado && (
+                  <div className="mt-2 flex items-start gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+                    <span className="text-amber-400 text-xs mt-0.5">⚠️</span>
+                    <p className="text-xs text-amber-300 leading-relaxed">
+                      <strong>Hora pico 5:00–7:00 pm</strong> — Actividades antes de las 5pm y después de las 7:30pm. Prioridad: atención al cliente.
+                    </p>
+                  </div>
+                )}
               </div>
               {!miTurnoData.turno.cerrado && miTurnoData.actividades.length > 0 && (
                 <Button
