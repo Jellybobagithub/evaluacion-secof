@@ -61,10 +61,17 @@ export const empleados = mysqlTable("empleados", {
   fechaBaja: timestamp("fechaBaja"),
   activo: boolean("activo").default(true).notNull(),
   notas: text("notas"),
+  // Disponibilidad semanal
+  // 'fulltime'  = lun-dom con 1 día de descanso rotativo entre lun-mié
+  // 'finde_ext' = vie/sáb/dom
+  // 'finde'     = sáb/dom
+  // 'custom'    = días en diasDisponibles
+  tipoContrato: mysqlEnum("tipoContrato", ["fulltime", "finde_ext", "finde", "custom"]).default("fulltime").notNull(),
+  // JSON array de números 0-6 (0=dom,1=lun,2=mar,3=mié,4=jue,5=vie,6=sáb) — solo para tipo 'custom'
+  diasDisponibles: text("diasDisponibles"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Empleado = typeof empleados.$inferSelect;
 export type InsertEmpleado = typeof empleados.$inferInsert;
 

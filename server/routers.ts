@@ -772,6 +772,8 @@ export const appRouter = router({
         telefono: z.string().optional(),
         fechaIngreso: z.string().optional(), // ISO string
         notas: z.string().optional(),
+        tipoContrato: z.enum(['fulltime', 'finde_ext', 'finde', 'custom']).optional(),
+        diasDisponibles: z.string().optional(), // JSON array
       }))
       .mutation(async ({ ctx, input }) => {
         if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
@@ -786,6 +788,8 @@ export const appRouter = router({
           telefono: input.telefono,
           fechaIngreso: input.fechaIngreso ? new Date(input.fechaIngreso) : new Date(),
           notas: input.notas,
+          tipoContrato: input.tipoContrato ?? 'fulltime',
+          diasDisponibles: input.diasDisponibles,
         });
         return { success: true };
       }),
@@ -798,6 +802,8 @@ export const appRouter = router({
         rol: z.enum(['anfitrion', 'lider', 'administrador']).optional(),
         telefono: z.string().optional(),
         notas: z.string().optional(),
+        tipoContrato: z.enum(['fulltime', 'finde_ext', 'finde', 'custom']).optional(),
+        diasDisponibles: z.string().optional(), // JSON array
       }))
       .mutation(async ({ ctx, input }) => {
         if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {

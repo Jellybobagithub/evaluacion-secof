@@ -23,6 +23,15 @@ const ROL_COLORS: Record<string, string> = {
   administrador: "bg-orange-100 text-orange-800",
 };
 
+const TIPO_CONTRATO_LABELS: Record<string, string> = {
+  fulltime:  "Tiempo completo (Lun–Dom, descanso rotativo Lun–Mié)",
+  finde_ext: "Fin de semana extendido (Vie, Sáb, Dom)",
+  finde:     "Solo fin de semana (Sáb, Dom)",
+  custom:    "Personalizado",
+};
+
+const DIAS_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
 interface EmpleadoForm {
   nombre: string;
   apellido: string;
@@ -30,6 +39,8 @@ interface EmpleadoForm {
   telefono: string;
   fechaIngreso: string;
   notas: string;
+  tipoContrato: "fulltime" | "finde_ext" | "finde" | "custom";
+  diasDisponibles: number[]; // 0=dom, 1=lun, ..., 6=sáb
 }
 
 const defaultForm: EmpleadoForm = {
@@ -39,6 +50,8 @@ const defaultForm: EmpleadoForm = {
   telefono: "",
   fechaIngreso: new Date().toISOString().split("T")[0],
   notas: "",
+  tipoContrato: "fulltime",
+  diasDisponibles: [],
 };
 
 export default function Empleados() {
@@ -99,6 +112,8 @@ export default function Empleados() {
 
   function openEdit(emp: typeof empleados[0]) {
     setEditId(emp.id);
+    let dias: number[] = [];
+    try { dias = JSON.parse((emp as any).diasDisponibles ?? "[]"); } catch { dias = []; }
     setForm({
       nombre: emp.nombre,
       apellido: emp.apellido ?? "",
@@ -108,6 +123,8 @@ export default function Empleados() {
         ? new Date(emp.fechaIngreso).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0],
       notas: emp.notas ?? "",
+      tipoContrato: ((emp as any).tipoContrato ?? "fulltime") as EmpleadoForm["tipoContrato"],
+      diasDisponibles: dias,
     });
     setDialogOpen(true);
   }
@@ -115,10 +132,11 @@ export default function Empleados() {
   function handleSubmit() {
     if (!form.nombre.trim()) { toast.error("El nombre es requerido"); return; }
     if (!sucursalId) { toast.error("Selecciona una sucursal"); return; }
+    const diasJson = form.tipoContrato === "custom" ? JSON.stringify(form.diasDisponibles) : null;
     if (editId) {
-      updateMut.mutate({ id: editId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, notas: form.notas });
+      updateMut.mutate({ id: editId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined });
     } else {
-      createMut.mutate({ sucursalId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, fechaIngreso: form.fechaIngreso, notas: form.notas });
+      createMut.mutate({ sucursalId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, fechaIngreso: form.fechaIngreso, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined });
     }
   }
 
@@ -251,6 +269,20 @@ export default function Empleados() {
                             <span>Ingreso: {new Date(emp.fechaIngreso).toLocaleDateString("es-MX", { year: "numeric", month: "short", day: "numeric" })}</span>
                           </div>
                         </div>
+                        {/* Badge de disponibilidad */}
+                        {(emp as any).tipoContrato && (emp as any).tipoContrato !== "fulltime" && (
+                          <div className="mt-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              (emp as any).tipoContrato === "finde_ext" ? "bg-amber-100 text-amber-700" :
+                              (emp as any).tipoContrato === "finde" ? "bg-orange-100 text-orange-700" :
+                              "bg-gray-100 text-gray-600"
+                            }`}>
+                              {(emp as any).tipoContrato === "finde_ext" ? "Vie–Sáb–Dom" :
+                               (emp as any).tipoContrato === "finde" ? "Sáb–Dom" :
+                               "Personalizado"}
+                            </span>
+                          </div>
+                        )}
                         {emp.notas && (
                           <p className="text-xs text-muted-foreground mt-2 italic border-t pt-2">{emp.notas}</p>
                         )}
@@ -328,6 +360,51 @@ export default function Empleados() {
             <div>
               <Label>Notas internas</Label>
               <Input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" />
+            </div>
+
+            {/* Disponibilidad para horarios */}
+            <div className="border-t pt-4">
+              <Label className="text-sm font-semibold">Disponibilidad para horarios</Label>
+              <p className="text-xs text-muted-foreground mb-2">Define qué días puede trabajar este empleado</p>
+              <Select
+                value={form.tipoContrato}
+                onValueChange={v => setForm(f => ({ ...f, tipoContrato: v as EmpleadoForm["tipoContrato"], diasDisponibles: [] }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TIPO_CONTRATO_LABELS).map(([val, label]) => (
+                    <SelectItem key={val} value={val}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Selector de días para tipo custom */}
+              {form.tipoContrato === "custom" && (
+                <div className="mt-3">
+                  <Label className="text-xs text-muted-foreground mb-2 block">Selecciona los días disponibles</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {DIAS_LABELS.map((dia, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          const dias = form.diasDisponibles.includes(idx)
+                            ? form.diasDisponibles.filter(d => d !== idx)
+                            : [...form.diasDisponibles, idx];
+                          setForm(f => ({ ...f, diasDisponibles: dias }));
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                          form.diasDisponibles.includes(idx)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                        }`}
+                      >
+                        {dia}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

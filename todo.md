@@ -448,3 +448,13 @@
 - [x] Horarios: resumen de cumplimiento por tarjeta de turno (X/Y actividades completadas) ya existía
 - [x] Notificación al owner/manager cuando empleado cierra turno con actividades pendientes (claves incluidas)
 - [x] Mi Turno: foto de evidencia al expandir actividades S/B/M (subida a S3, visible en el panel expandido)
+
+## Disponibilidad de empleados v35 (Apr 4)
+- [x] Schema: agregar campo diasDisponibles (JSON array de días 0-6) y tipoContrato (fulltime/finde_ext/finde/custom) a tabla empleados
+- [x] Schema: migración aplicada en DB
+- [x] Backend: generarHorarioAutomatico respeta diasDisponibles por empleado
+- [x] Backend: descanso variable para fulltime — rotar entre lun/mar/mié (1 día por empleado, rotación cíclica)
+- [x] Backend: empleados finde_ext solo asignados vie/sáb/dom
+- [x] Backend: empleados finde solo asignados sáb/dom
+- [x] Frontend: selector de tipo de contrato + días personalizados en el diálogo de empleado
+- [x] Frontend: badge de disponibilidad en la tarjeta de empleado (solo muestra si no es fulltime)

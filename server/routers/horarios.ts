@@ -447,6 +447,43 @@ export const horariosRouter = router({
         .where(and(eq(empleados.sucursalId, input.sucursalId), eq(empleados.activo, true)));
       if (emps.length === 0) return { ok: false, turnosCreados: 0, mensaje: "No hay empleados activos en esta sucursal." };
 
+      // ── Disponibilidad por empleado ──────────────────────────────────────────
+      // Mapear tipo de contrato a días disponibles (0=dom, 1=lun, 2=mar, 3=mié, 4=jue, 5=vie, 6=sáb)
+      function getDiasDisponibles(emp: typeof emps[0]): number[] {
+        switch (emp.tipoContrato) {
+          case "finde_ext": return [5, 6, 0]; // vie, sáb, dom
+          case "finde":     return [6, 0];    // sáb, dom
+          case "custom": {
+            try { return JSON.parse(emp.diasDisponibles ?? "[]") as number[]; } catch { return [1,2,3,4,5]; }
+          }
+          case "fulltime":
+          default:          return [1, 2, 3, 4, 5, 6, 0]; // todos los días
+        }
+      }
+
+      // Para fulltime: rastrear cuándo fue su último descanso (lun/mar/mié)
+      // para rotar equitativamente
+      const diasDescansoRotativo = [1, 2, 3]; // lun, mar, mié
+      const ultimoDescanso: Record<number, number> = {}; // empleadoId -> semana del último descanso
+      const turnosDescanso = await db.select({ empleadoId: turnosSemana.empleadoId, fecha: turnosSemana.fecha })
+        .from(turnosSemana)
+        .where(and(
+          eq(turnosSemana.sucursalId, input.sucursalId),
+          gte(turnosSemana.semana, input.semana - 8),
+          lte(turnosSemana.semana, input.semana - 1),
+        ));
+      // Detectar días trabajados (si no hay turno un lun/mar/mié = fue descanso)
+      // Simplificación: contar cuántas semanas lleva sin descanso entre lun-mié
+      const semanasTrabajadasSinDescanso: Record<number, number> = {};
+      for (const e of emps) semanasTrabajadasSinDescanso[e.id] = 0;
+      // Ordenar por empleado que más tiempo lleva sin descanso lun-mié para asignarle el descanso primero
+      const descansoAsignado: Record<number, number | null> = {}; // empleadoId -> día de semana (1,2,3) asignado para descanso
+      const fulltimeEmps = emps.filter(e => e.tipoContrato === "fulltime");
+      // Rotar: asignar descanso a cada fulltime en orden, usando los 3 días disponibles
+      fulltimeEmps.forEach((e, idx) => {
+        descansoAsignado[e.id] = diasDescansoRotativo[idx % diasDescansoRotativo.length];
+      });
+
       // Calcular horas trabajadas en las últimas 4 semanas para distribución equitativa
       const semanaInicio = input.semana - 4;
       const horasPorEmpleado: Record<number, number> = {};
@@ -523,11 +560,24 @@ export const horariosRouter = router({
 
       for (let dIdx = 0; dIdx < fechas.length; dIdx++) {
         const fecha = fechas[dIdx];
-        const esFinde = dIdx >= 5; // sábado=5, domingo=6
+        // día de semana JS: 0=dom, 1=lun, ..., 6=sáb
+        const diaSemana = new Date(fecha + "T12:00:00Z").getUTCDay();
+        const esFinde = diaSemana === 0 || diaSemana === 6;
         const turnosDia = esFinde ? TURNOS_FIN_SEMANA : TURNOS_SEMANA;
 
+        // Empleados disponibles este día (respetando tipoContrato y descanso fulltime)
+        const empsDisponiblesHoy = empOrdenados.filter(emp => {
+          const dias = getDiasDisponibles(emp);
+          if (!dias.includes(diaSemana)) return false;
+          // Si es fulltime y tiene descanso asignado hoy, saltarlo
+          if (emp.tipoContrato === "fulltime" && descansoAsignado[emp.id] === diaSemana) return false;
+          return true;
+        });
+
+        if (empsDisponiblesHoy.length === 0) continue;
+
         for (const turnoConfig of turnosDia) {
-          const emp = empOrdenados[empIdx % empOrdenados.length];
+          const emp = empsDisponiblesHoy[empIdx % empsDisponiblesHoy.length];
           empIdx++;
 
           // Calcular actividades para este turno
