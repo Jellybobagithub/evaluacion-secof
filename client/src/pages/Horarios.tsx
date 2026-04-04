@@ -109,7 +109,19 @@ interface TurnoModalProps {
 
 function TurnoModal({ open, onClose, sucursalId, empleados, catalogo, editTurno, fechaDefault, sugerenciaActividades, onSaved }: TurnoModalProps) {
   const [form, setForm] = useState<TurnoFormData>(() =>
-    editTurno ? { ...editTurno } : { ...EMPTY_FORM, fecha: fechaDefault ?? "", actividades: sugerenciaActividades ?? [] }
+    editTurno
+      ? {
+          ...editTurno,
+          // Garantizar que ningún campo sea null (evita value=null en inputs)
+          fecha: editTurno.fecha ?? "",
+          puesto: editTurno.puesto ?? "",
+          horaInicio: editTurno.horaInicio ?? "",
+          horaFin: editTurno.horaFin ?? "",
+          rolPrincipal: editTurno.rolPrincipal ?? "Caja",
+          comentarios: editTurno.comentarios ?? "",
+          actividades: editTurno.actividades ?? [],
+        }
+      : { ...EMPTY_FORM, fecha: fechaDefault ?? "", actividades: sugerenciaActividades ?? [] }
   );
 
   const crear = trpc.horarios.crearTurno.useMutation({
@@ -428,7 +440,17 @@ export default function Horarios() {
 
   function openEdit(turno: any) {
     const acts = (actividadesPorTurno[turno.id] ?? []).map((a: any) => a.actividadClave);
-    setEditTurno({ ...turno, actividades: acts });
+    // Sanitizar null → string vacío para evitar value=null en inputs controlados
+    setEditTurno({
+      ...turno,
+      fecha: turno.fecha ?? "",
+      puesto: turno.puesto ?? "",
+      horaInicio: turno.horaInicio ?? "",
+      horaFin: turno.horaFin ?? "",
+      rolPrincipal: turno.rolPrincipal ?? "Caja",
+      comentarios: turno.comentarios ?? "",
+      actividades: acts,
+    });
     setFechaDefault(undefined);
     setShowModal(true);
   }

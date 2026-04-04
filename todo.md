@@ -458,3 +458,6 @@
 - [x] Backend: empleados finde solo asignados sáb/dom
 - [x] Frontend: selector de tipo de contrato + días personalizados en el diálogo de empleado
 - [x] Frontend: badge de disponibilidad en la tarjeta de empleado (solo muestra si no es fulltime)
+
+## Bug Fix v36 (Apr 4)
+- [x] Bug: value=null en inputs de Horarios.tsx — sanitizados en openEdit() y en el useState inicial del TurnoModal
