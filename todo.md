@@ -540,3 +540,9 @@
 - [x] Bug: Horarios dice "Acceso restringido" (correcto, Horarios es solo para líder)
 - [x] Fix: Agregar ruta /preparaciones con minRole="host" en App.tsx
 - [x] Fix: Agregar ítem Preparaciones en grupo Equipo del menú con minRole="host"
+
+## Mejoras v49 (Apr 4) - Alertas observaciones en Dashboard + Preparaciones en Reporte Diario
+- [x] Dashboard ejecutivo: tarjeta de alertas de observaciones activas por sucursal (visible para leader+)
+- [x] Dashboard ejecutivo: endpoint observaciones.listarTodasSucursales en el router de observación
+- [x] Reporte Diario: sección "Preparaciones del día" con resumen de recetas e incidencias en modal de detalle
+- [x] Reporte Diario: query preparaciones.historial filtrado por fecha y sucursal del reporte

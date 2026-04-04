@@ -8,7 +8,7 @@ import {
   Building2, ClipboardList, AlertTriangle, CheckCircle2, Activity,
   ArrowUpRight, ArrowDownRight, Minus, ShieldCheck, Users, ChevronRight,
   DollarSign, FileText, BarChart3, Target, Store, UserCheck, ClipboardCheck,
-  TrendingDown, Calendar, PlusCircle,
+  TrendingDown, Calendar, PlusCircle, Eye,
 } from "lucide-react";
 import { getCalificacion } from "../../../shared/evaluacionData";
 import { hasRoleAccess } from "@/components/RoleGuard";
@@ -64,6 +64,12 @@ export default function Home() {
     { sucursalId: 0, soloActivos: true },
     { enabled: false } // desactivado — usamos conteo global por sucursal
   );
+  // Observaciones activas en todas las sucursales (solo leader+)
+  const { data: observacionesActivas = [] } = trpc.observacion.listarTodasSucursales.useQuery(
+    undefined,
+    { enabled: isLeader }
+  );
+
   // KPI Nivel 2 — mermas y cumplimiento de reportes (solo manager+)
   const hoy = useMemo(() => new Date(), []);
   const mesActual = useMemo(() => ({ mes: hoy.getMonth() + 1, anio: hoy.getFullYear() }), [hoy]);
@@ -344,9 +350,34 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
+      )}      {/* ── ALERTA: Actividades bajo observación ────────────────────────────────────────────── */}
+      {isLeader && (observacionesActivas as any[]).length > 0 && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+          <div className="flex items-start gap-3">
+            <Eye className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-orange-800">
+                {(observacionesActivas as any[]).length} actividad{(observacionesActivas as any[]).length !== 1 ? "es" : ""} bajo observación
+              </p>
+              <p className="text-xs text-orange-700 mt-1">Requieren evidencia fotográfica diaria hasta ser resueltas</p>
+            </div>
+            <Button variant="ghost" size="sm" className="text-xs text-orange-700 hover:bg-orange-100 h-7" onClick={() => setLocation("/kpi-lider")}>
+              Ver detalles
+            </Button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(observacionesActivas as any[]).map((obs: any) => (
+              <div key={obs.id} className="flex items-center gap-1.5 bg-orange-100 text-orange-800 rounded-lg px-3 py-1.5 text-xs font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-orange-500 inline-block" />
+                <span className="font-bold">{obs.actividadClave}</span>
+                {obs.sucursalNombre && <span className="text-orange-600">· {obs.sucursalNombre}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* ── ALERTA: Tiendas sin reporte ────────────────────────────────────── */}
+      {/* ── ALERTA: Tiendas sin reporte ──────────────────────────────────────────────────────────────────── */}
       {isManager && sinReporte.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-start gap-3">

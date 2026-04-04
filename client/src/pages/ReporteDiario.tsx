@@ -100,6 +100,13 @@ export default function ReporteDiario() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+  // Resumen de preparaciones del día del reporte que se está viendo
+  const prepFecha = viewingReporte?.fecha ?? null;
+  const prepSucursal = viewingReporte?.sucursalId ?? null;
+  const { data: prepDelDia = [] } = trpc.preparaciones.historial.useQuery(
+    { sucursalId: prepSucursal!, fechaInicio: prepFecha!, fechaFin: prepFecha! },
+    { enabled: !!prepFecha && !!prepSucursal }
+  );
   const { data: reportes = [], isLoading } = trpc.reportesDiarios.list.useQuery({
     sucursalId: filterSucursal,
     limit: 50,
@@ -694,6 +701,39 @@ export default function ReporteDiario() {
                     )}
                     {(viewingReporte as any).mermasDetalle && (
                       <p className="text-sm text-foreground">{(viewingReporte as any).mermasDetalle}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Resumen de Preparaciones del Día */}
+              {(prepDelDia as any[]).length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-indigo-600 flex items-center gap-1">
+                    🧪 Preparaciones del Día
+                  </p>
+                  <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 space-y-2">
+                    {(prepDelDia as any[]).map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${
+                            p.incidenciaTipo ? 'bg-red-500' : p.estado === 'consumida' ? 'bg-green-500' : 'bg-indigo-400'
+                          }`} />
+                          <span className="font-medium">{p.nombreReceta}</span>
+                          <span className="text-xs text-muted-foreground">{p.cantidadLabel}</span>
+                        </div>
+                        {p.incidenciaTipo && (
+                          <span className="text-xs text-red-600 font-medium">
+                            {p.incidenciaTipo === 'sin_preparar' ? 'Sin preparar' :
+                             p.incidenciaTipo === 'vencida_en_uso' ? 'Vencida en uso' : 'Fuera de tiempo'}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {(prepDelDia as any[]).some((p: any) => p.incidenciaTipo) && (
+                      <p className="text-xs text-red-600 pt-1 border-t border-red-200">
+                        ⚠️ {(prepDelDia as any[]).filter((p: any) => p.incidenciaTipo).length} incidencia(s) registrada(s)
+                      </p>
                     )}
                   </div>
                 </div>

@@ -34,6 +34,33 @@ export const observacionRouter = router({
         .orderBy(desc(actividadesObservacion.activadaAt));
     }),
 
+  /** Listar observaciones activas de TODAS las sucursales (para el dashboard ejecutivo) */
+  listarTodasSucursales: protectedProcedure
+    .query(async () => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return [];
+      const { actividadesObservacion, sucursales } = await import("../../drizzle/schema");
+      const { eq, desc } = await import("drizzle-orm");
+
+      const rows = await db
+        .select({
+          id: actividadesObservacion.id,
+          sucursalId: actividadesObservacion.sucursalId,
+          actividadClave: actividadesObservacion.actividadClave,
+          motivoActivacion: actividadesObservacion.motivoActivacion,
+          activadaAt: actividadesObservacion.activadaAt,
+          activa: actividadesObservacion.activa,
+          sucursalNombre: sucursales.nombre,
+        })
+        .from(actividadesObservacion)
+        .leftJoin(sucursales, eq(actividadesObservacion.sucursalId, sucursales.id))
+        .where(eq(actividadesObservacion.activa, true))
+        .orderBy(desc(actividadesObservacion.activadaAt));
+
+      return rows;
+    }),
+
   /** Verificar si una actividad específica está bajo observación */
   verificar: protectedProcedure
     .input(z.object({
