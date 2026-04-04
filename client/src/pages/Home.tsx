@@ -30,6 +30,12 @@ export default function Home() {
   const { user } = useAuth();
   const role = (user as any)?.role ?? "user";
 
+  // Redirigir al Anfitrión directamente a Mi Turno
+  if (role === "host") {
+    setLocation("/mi-turno");
+    return null;
+  }
+
   const isAdmin = hasRoleAccess(role, "admin");
   const isManager = hasRoleAccess(role, "manager");
   const isLeader = hasRoleAccess(role, "leader");

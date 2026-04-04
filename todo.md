@@ -515,3 +515,17 @@
 - [x] Horarios: selector de área en el modal de edición de turno (cambiar área manualmente)
 - [x] KPIs Anfitriones: sección de incidencias de preparaciones por empleado (sin preparación / vencida / fuera de tiempo)
 - [x] KPIs Anfitriones: contador de incidencias de preparaciones como indicador adicional de desempeño
+
+## Bug v46 (Apr 4) - Navegación Anfitrión
+- [ ] Bug: Anfitrión ve Dashboard Ejecutivo en lugar de Mi Turno como pantalla principal
+- [ ] Bug: Menú del Anfitrión no muestra "Mi Turno" como opción directa
+- [ ] Fix: Redirigir automáticamente al Anfitrión a /mi-turno al iniciar sesión
+- [ ] Fix: Menú simplificado para Anfitrión (solo Mi Turno + Preparaciones)
+
+## Bug v46 (Apr 4) - Navegación Anfitrión (host)
+- [ ] Bu- [x] Bug: Anfitrión ve Dashboard Ejecutivo en lugar de Mi Turno al entrar
+- [x] Bug: Mi Turno y Asistencia tenían minRole="leader" bloqueando al Anfitrión (host)
+- [x] Fix: Cambiar minRole de /mi-turno a "host" en App.tsx y DashboardLayout
+- [x] Fix: Cambiar minRole de /asistencia a "host" en App.tsx y DashboardLayout
+- [x] Fix: Redirigir automáticamente al host a /mi-turno desde Home.tsx
+- [x] Fix: Grupo Equipo en menú visible para host (Mi Turno + Asistencia)

@@ -87,9 +87,9 @@ function Router() {
           <ProtectedRoute component={Empleados} minRole="leader" />
         </Route>
 
-        {/* Asistencia: leader y superior */}
+        {/* Asistencia: host y superior */}
         <Route path="/asistencia">
-          <ProtectedRoute component={Asistencia} minRole="leader" />
+          <ProtectedRoute component={Asistencia} minRole="host" />
         </Route>
 
         {/* Página pública de registro QR (sin login) */}
@@ -115,9 +115,9 @@ function Router() {
           <ProtectedRoute component={Horarios} minRole="leader" />
         </Route>
 
-        {/* Mi Turno: dashboard móvil del líder */}
+        {/* Mi Turno: anfitrón y superior */}
         <Route path="/mi-turno">
-          <ProtectedRoute component={MiTurno} minRole="leader" />
+          <ProtectedRoute component={MiTurno} minRole="host" />
         </Route>
 
         {/* Colaboradores: owner, manager, superadmin */}
