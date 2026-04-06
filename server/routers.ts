@@ -695,9 +695,19 @@ export const appRouter = router({
       if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Solo administradores pueden gestionar usuarios' });
       }
-      const { getAllUsers, getSucursales } = await import('./db');
+      const { getAllUsers, getSucursales, getUserSucursales } = await import('./db');
       const [allUsers, allSucursales] = await Promise.all([getAllUsers(), getSucursales()]);
-      return { users: allUsers, sucursales: allSucursales };
+      // Enriquecer cada usuario con sus sucursales asignadas
+      const usersWithSucursales = await Promise.all(
+        allUsers.map(async (u) => {
+          const asignaciones = await getUserSucursales(u.id);
+          const sucursalesAsignadas = allSucursales.filter(s =>
+            asignaciones.some(a => a.sucursalId === s.id)
+          );
+          return { ...u, sucursales: sucursalesAsignadas };
+        })
+      );
+      return { users: usersWithSucursales, sucursales: allSucursales };
     }),
 
     // Actualizar rol y notas de un usuario
@@ -1576,7 +1586,256 @@ export const appRouter = router({
           });
           return { id: (result as any).insertId, updated: false };
         }
+       }),
+  }),
+
+  // ─── Turno: Apertura y Cierre ─────────────────────────────────────────────────
+  turno: router({
+    // Registrar apertura de turno
+    registrarApertura: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        empleadoId: z.number(),
+        fecha: z.string(),
+        tipoTurno: z.enum(['matutino', 'vespertino']),
+        conteoVasos: z.number().optional(),
+        conteoPopotes: z.number().optional(),
+        baseSnowteaKg: z.number().optional(),
+        longanKg: z.number().optional(),
+        fotoSelladoUrl: z.string().optional(),
+        contadorSelladora: z.number().optional(),
+        fotoUniformeUrl: z.string().optional(),
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { registrarAperturaTurno } = await import('./db');
+        const id = await registrarAperturaTurno({
+          ...input,
+          usuarioId: ctx.user.id,
+          timestamp: Date.now(),
+        });
+        return { success: true, id };
+      }),
+
+    // Obtener apertura de hoy para una sucursal
+    getAperturaHoy: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fecha: z.string(),
+        tipoTurno: z.enum(['matutino', 'vespertino']).optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getAperturaHoy } = await import('./db');
+        return getAperturaHoy(input.sucursalId, input.fecha, input.tipoTurno);
+      }),
+
+    // Obtener todas las aperturas de una fecha
+    getAperturasByFecha: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), fecha: z.string() }))
+      .query(async ({ input }) => {
+        const { getAperturasByFecha } = await import('./db');
+        return getAperturasByFecha(input.sucursalId, input.fecha);
+      }),
+
+    // Registrar cierre de turno
+    registrarCierre: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        empleadoId: z.number(),
+        fecha: z.string(),
+        tipoTurno: z.enum(['matutino', 'vespertino']),
+        conteoVasosFinal: z.number().optional(),
+        conteoPopotesFinal: z.number().optional(),
+        fotoSelladoCierreUrl: z.string().optional(),
+        contadorSelladoraCierre: z.number().optional(),
+        vasosVendidosSelladora: z.number().optional(),
+        vasosVendidosReporte: z.number().optional(),
+        mermaVasos: z.number().optional(),
+        novedadesTurno: z.string().optional(),
+        incidencias: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { registrarCierreTurno } = await import('./db');
+        const id = await registrarCierreTurno({
+          ...input,
+          usuarioId: ctx.user.id,
+          timestamp: Date.now(),
+        });
+        return { success: true, id };
+      }),
+
+    // Obtener cierre de hoy
+    getCierreHoy: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fecha: z.string(),
+        tipoTurno: z.enum(['matutino', 'vespertino']).optional(),
+      }))
+      .query(async ({ input }) => {
+        const { getCierreHoy } = await import('./db');
+        return getCierreHoy(input.sucursalId, input.fecha, input.tipoTurno);
+      }),
+
+    // Historial de cierres para merma
+    getCierresByRango: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), fechaInicio: z.string(), fechaFin: z.string() }))
+      .query(async ({ input }) => {
+        const { getCierresByRango } = await import('./db');
+        return getCierresByRango(input.sucursalId, input.fechaInicio, input.fechaFin);
+      }),
+
+    // Resumen de merma mensual
+    getMermaResumen: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), anio: z.number(), mes: z.number() }))
+      .query(async ({ input }) => {
+        const { getMermaResumen } = await import('./db');
+        return getMermaResumen(input.sucursalId, input.anio, input.mes);
+      }),
+
+    // Subir foto (selladora o uniforme) a S3 y devolver URL
+    subirFoto: protectedProcedure
+      .input(z.object({
+        base64: z.string(),
+        mimeType: z.string().default('image/jpeg'),
+        tipo: z.enum(['selladora', 'uniforme', 'selladora_cierre']),
+        sucursalId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { storagePut } = await import('./storage');
+        const buffer = Buffer.from(input.base64, 'base64');
+        const ext = input.mimeType.includes('png') ? 'png' : 'jpg';
+        const key = `turnos/${input.sucursalId}/${input.tipo}-${ctx.user.id}-${Date.now()}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        return { url };
+      }),
+
+    // Obtener cuadres recientes de todas las sucursales (para merma en dashboard)
+    getCuadresRecientes: protectedProcedure
+      .input(z.object({ dias: z.number().default(7) }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getCierresByRango, getDb, getSucursales } = await import('./db');
+        const hoy = new Date();
+        const inicio = new Date(hoy);
+        inicio.setDate(inicio.getDate() - input.dias);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const fechaInicio = `${inicio.getFullYear()}-${pad(inicio.getMonth() + 1)}-${pad(inicio.getDate())}`;
+        const fechaFin = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
+        const allSucursales = await getSucursales();
+        const resultados: any[] = [];
+        for (const s of allSucursales) {
+          const cierres = await getCierresByRango(s.id, fechaInicio, fechaFin);
+          for (const c of cierres) {
+            resultados.push({ ...c, sucursalNombre: s.nombre });
+          }
+        }
+        return resultados;
+      }),
+
+    // Detectar número en foto de selladora via LLM vision
+    detectarContadorSelladora: protectedProcedure
+      .input(z.object({ imageUrl: z.string() }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url' as const,
+                  image_url: { url: input.imageUrl, detail: 'high' as const },
+                },
+                {
+                  type: 'text' as const,
+                  text: 'Esta es una foto del contador de una selladora de vasos. Por favor extrae ÚNICAMENTE el número que aparece en el display o contador. Responde solo con el número entero, sin texto adicional. Si no puedes leer el número claramente, responde con "?".',
+                },
+              ],
+            },
+          ],
+        });
+        const rawContent = response?.choices?.[0]?.message?.content;
+        const texto = (typeof rawContent === 'string' ? rawContent : '?').trim();
+        const numero = parseInt(texto.replace(/[^0-9]/g, ''));
+        return { texto, numero: isNaN(numero) ? null : numero };
+      }),
+  }),
+
+  // ─── Avisos Generales ──────────────────────────────────────────────────────
+  avisos: router({
+    // Obtener avisos activos (para empleados al iniciar turno)
+    getActivos: protectedProcedure
+      .input(z.object({ sucursalId: z.number().optional(), fecha: z.string().optional() }))
+      .query(async ({ input }) => {
+        const { getAvisosActivos } = await import('./db');
+        return getAvisosActivos(input.sucursalId, input.fecha);
+      }),
+
+    // Obtener todos los avisos (para admin)
+    getAll: protectedProcedure
+      .input(z.object({ sucursalId: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getAllAvisos } = await import('./db');
+        return getAllAvisos(input.sucursalId);
+      }),
+
+    // Crear aviso
+    create: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number().optional(),
+        titulo: z.string().min(1),
+        contenido: z.string().min(1),
+        tipo: z.enum(['info', 'urgente', 'recordatorio']),
+        fechaExpiracion: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { createAviso } = await import('./db');
+        const id = await createAviso({ ...input, creadoPorId: ctx.user.id });
+        return { success: true, id };
+      }),
+
+    // Actualizar aviso
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        titulo: z.string().optional(),
+        contenido: z.string().optional(),
+        tipo: z.enum(['info', 'urgente', 'recordatorio']).optional(),
+        activo: z.boolean().optional(),
+        fechaExpiracion: z.string().nullable().optional(),
+        sucursalId: z.number().nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { updateAviso } = await import('./db');
+        const { id, ...data } = input;
+        await updateAviso(id, data as any);
+        return { success: true };
+      }),
+
+    // Eliminar aviso
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { deleteAviso } = await import('./db');
+        await deleteAviso(input.id);
+        return { success: true };
       }),
   }),
 });
+
 export type AppRouter = typeof appRouter;
+

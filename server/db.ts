@@ -843,3 +843,155 @@ export async function getGastosOperativos(sucursalId: number, anio: number, mes?
   if (mes) conditions.push(eq(gastosOperativos.mes, mes));
   return db.select().from(gastosOperativos).where(and(...conditions)).orderBy(gastosOperativos.mes);
 }
+
+// ─── Turno Apertura ───────────────────────────────────────────────────────────
+export async function registrarAperturaTurno(data: {
+  sucursalId: number; empleadoId: number; usuarioId: number;
+  fecha: string; tipoTurno: 'matutino' | 'vespertino'; timestamp: number;
+  conteoVasos?: number; conteoPopotes?: number; baseSnowteaKg?: number; longanKg?: number;
+  fotoSelladoUrl?: string; contadorSelladora?: number; fotoUniformeUrl?: string; notas?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { turnoApertura } = await import('../drizzle/schema');
+  const result = await db.insert(turnoApertura).values(data);
+  return (result as any)[0]?.insertId ?? (result as any).insertId;
+}
+
+export async function getAperturaHoy(sucursalId: number, fecha: string, tipoTurno?: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const { turnoApertura } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  const conditions: any[] = [eq(turnoApertura.sucursalId, sucursalId), eq(turnoApertura.fecha, fecha)];
+  if (tipoTurno) conditions.push(eq(turnoApertura.tipoTurno, tipoTurno as any));
+  const rows = await db.select().from(turnoApertura).where(and(...conditions)).orderBy(turnoApertura.timestamp);
+  return rows[0] ?? null;
+}
+
+export async function getAperturasByFecha(sucursalId: number, fecha: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const { turnoApertura } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  return db.select().from(turnoApertura)
+    .where(and(eq(turnoApertura.sucursalId, sucursalId), eq(turnoApertura.fecha, fecha)))
+    .orderBy(turnoApertura.timestamp);
+}
+
+// ─── Turno Cierre ─────────────────────────────────────────────────────────────
+export async function registrarCierreTurno(data: {
+  sucursalId: number; empleadoId: number; usuarioId: number;
+  fecha: string; tipoTurno: 'matutino' | 'vespertino'; timestamp: number;
+  conteoVasosFinal?: number; conteoPopotesFinal?: number;
+  fotoSelladoCierreUrl?: string; contadorSelladoraCierre?: number;
+  vasosVendidosSelladora?: number; vasosVendidosReporte?: number; mermaVasos?: number;
+  novedadesTurno?: string; incidencias?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { turnoCierre } = await import('../drizzle/schema');
+  const result = await db.insert(turnoCierre).values(data);
+  return (result as any)[0]?.insertId ?? (result as any).insertId;
+}
+
+export async function getCierreHoy(sucursalId: number, fecha: string, tipoTurno?: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const { turnoCierre } = await import('../drizzle/schema');
+  const { eq, and } = await import('drizzle-orm');
+  const conditions: any[] = [eq(turnoCierre.sucursalId, sucursalId), eq(turnoCierre.fecha, fecha)];
+  if (tipoTurno) conditions.push(eq(turnoCierre.tipoTurno, tipoTurno as any));
+  const rows = await db.select().from(turnoCierre).where(and(...conditions)).orderBy(turnoCierre.timestamp);
+  return rows[0] ?? null;
+}
+
+export async function getCierresByRango(sucursalId: number, fechaInicio: string, fechaFin: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const { turnoCierre } = await import('../drizzle/schema');
+  const { eq, and, gte, lte } = await import('drizzle-orm');
+  return db.select().from(turnoCierre)
+    .where(and(eq(turnoCierre.sucursalId, sucursalId), gte(turnoCierre.fecha, fechaInicio), lte(turnoCierre.fecha, fechaFin)))
+    .orderBy(turnoCierre.fecha);
+}
+
+// ─── Avisos Generales ─────────────────────────────────────────────────────────
+export async function getAvisosActivos(sucursalId?: number, fecha?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const { avisosGenerales } = await import('../drizzle/schema');
+  const { eq, or, isNull, and, gte } = await import('drizzle-orm');
+  const hoy = fecha ?? new Date().toISOString().split('T')[0];
+  const conditions: any[] = [eq(avisosGenerales.activo, true)];
+  // Filtrar por sucursal: avisos globales (sucursalId null) o de esta sucursal
+  if (sucursalId) {
+    conditions.push(or(isNull(avisosGenerales.sucursalId), eq(avisosGenerales.sucursalId, sucursalId)));
+  }
+  // No expirados
+  conditions.push(or(isNull(avisosGenerales.fechaExpiracion), gte(avisosGenerales.fechaExpiracion, hoy)));
+  return db.select().from(avisosGenerales).where(and(...conditions)).orderBy(avisosGenerales.createdAt);
+}
+
+export async function createAviso(data: {
+  sucursalId?: number; titulo: string; contenido: string;
+  tipo: 'info' | 'urgente' | 'recordatorio'; creadoPorId: number; fechaExpiracion?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { avisosGenerales } = await import('../drizzle/schema');
+  const result = await db.insert(avisosGenerales).values({ ...data, activo: true });
+  return (result as any)[0]?.insertId ?? (result as any).insertId;
+}
+
+export async function updateAviso(id: number, data: Partial<{ titulo: string; contenido: string; tipo: string; activo: boolean; fechaExpiracion: string | null; sucursalId: number | null }>) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { avisosGenerales } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  await db.update(avisosGenerales).set(data as any).where(eq(avisosGenerales.id, id));
+}
+
+export async function deleteAviso(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB not available');
+  const { avisosGenerales } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  await db.delete(avisosGenerales).where(eq(avisosGenerales.id, id));
+}
+
+export async function getAllAvisos(sucursalId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { avisosGenerales } = await import('../drizzle/schema');
+  const { eq, or, isNull, and } = await import('drizzle-orm');
+  if (sucursalId) {
+    return db.select().from(avisosGenerales)
+      .where(and(or(isNull(avisosGenerales.sucursalId), eq(avisosGenerales.sucursalId, sucursalId))))
+      .orderBy(avisosGenerales.createdAt);
+  }
+  return db.select().from(avisosGenerales).orderBy(avisosGenerales.createdAt);
+}
+
+// ─── Merma: resumen mensual por sucursal ─────────────────────────────────────
+export async function getMermaResumen(sucursalId: number, anio: number, mes: number) {
+  const db = await getDb();
+  if (!db) return { totalMermaVasos: 0, registros: 0, porcentajeMerma: 0 };
+  const { turnoCierre } = await import('../drizzle/schema');
+  const { eq, and, like, sum, count } = await import('drizzle-orm');
+  const mesStr = `${anio}-${String(mes).padStart(2, '0')}`;
+  const rows = await db.select({
+    totalMermaVasos: sum(turnoCierre.mermaVasos),
+    totalVasosVendidosSelladora: sum(turnoCierre.vasosVendidosSelladora),
+    registros: count(turnoCierre.id),
+  }).from(turnoCierre)
+    .where(and(eq(turnoCierre.sucursalId, sucursalId), like(turnoCierre.fecha, `${mesStr}%`)));
+  const r = rows[0];
+  const merma = Number(r?.totalMermaVasos ?? 0);
+  const vendidos = Number(r?.totalVasosVendidosSelladora ?? 0);
+  return {
+    totalMermaVasos: merma,
+    registros: Number(r?.registros ?? 0),
+    porcentajeMerma: vendidos > 0 ? Math.round((Math.abs(merma) / vendidos) * 1000) / 10 : 0,
+  };
+}

@@ -30,6 +30,7 @@ import PreparacionesPage from "./pages/PreparacionesPage";
 import DashboardSecof from "./pages/DashboardSecof";
 import DashboardLayout from "./components/DashboardLayout";
 import VentasHistoricas from "./pages/VentasHistoricas";
+import AvisosGenerales from "./pages/AvisosGenerales";
 
 function Router() {
   return (
@@ -139,6 +140,11 @@ function Router() {
         {/* Configuración: solo superadmin */}
         <Route path="/admin/preguntas">
           <ProtectedRoute component={AdminPreguntas} minRole="superadmin" />
+        </Route>
+
+        {/* Avisos generales: manager y superior */}
+        <Route path="/avisos-generales">
+          <ProtectedRoute component={AvisosGenerales} minRole="manager" />
         </Route>
 
         <Route path="/404" component={NotFound} />

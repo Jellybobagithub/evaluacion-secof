@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import Preparaciones from "@/components/Preparaciones";
+import ModalBienvenidaTurno from "@/components/ModalBienvenidaTurno";
+import ModalCierreTurno from "@/components/ModalCierreTurno";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getSemanaISO(date = new Date()) {
@@ -126,6 +128,31 @@ export default function MiTurno() {
   // Estado para expandir descripción de actividad y subir evidencia
   const [actividadExpandida, setActividadExpandida] = useState<number | null>(null);
   const [subiendoEvidencia, setSubiendoEvidencia] = useState<number | null>(null);
+
+  // Estados para modales de bienvenida y cierre de turno
+  const [mostrarModalBienvenida, setMostrarModalBienvenida] = useState(false);
+  const [mostrarModalCierre, setMostrarModalCierre] = useState(false);
+  const [tipoTurnoSeleccionado, setTipoTurnoSeleccionado] = useState<"matutino" | "vespertino">("matutino");
+  const [mostrarSeleccionTurno, setMostrarSeleccionTurno] = useState(false);
+
+  // Datos de apertura del turno actual (para cuadre al cierre)
+  const { data: aperturaHoy } = trpc.turno.getAperturaHoy.useQuery(
+    { sucursalId: sucursalId ?? 0, fecha: hoy },
+    { enabled: !!sucursalId }
+  );
+
+  // Registrar asistencia (se hace via el flujo del modal de bienvenida)
+
+  function handleRegistrarEntrada() {
+    const h = new Date().getHours();
+    if (h >= 14) {
+      // Después de las 2pm: preguntar si es turno vespertino
+      setMostrarSeleccionTurno(true);
+    } else {
+      setTipoTurnoSeleccionado("matutino");
+      setMostrarModalBienvenida(true);
+    }
+  }
 
   const subirEvidencia = trpc.horarios.subirEvidencia.useMutation({
     onSuccess: () => { refetchTurno(); setSubiendoEvidencia(null); },
@@ -254,8 +281,64 @@ export default function MiTurno() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white">
+      {/* Modales */}
+      {mostrarSeleccionTurno && (
+        <div className="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center px-5">
+          <div className="text-center mb-8">
+            <div className="text-4xl mb-3">⏰</div>
+            <h2 className="text-2xl font-bold text-white mb-2">¿Qué turno estás abriendo?</h2>
+            <p className="text-slate-400 text-sm">Son más de las 2pm. Selecciona el turno.</p>
+          </div>
+          <div className="w-full space-y-3">
+            <Button
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white h-14 text-base font-semibold"
+              onClick={() => { setTipoTurnoSeleccionado("vespertino"); setMostrarSeleccionTurno(false); setMostrarModalBienvenida(true); }}
+            >
+              🌆 Turno Vespertino
+            </Button>
+            <Button
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white h-14 text-base font-semibold"
+              onClick={() => { setTipoTurnoSeleccionado("matutino"); setMostrarSeleccionTurno(false); setMostrarModalBienvenida(true); }}
+            >
+              🌅 Turno Matutino (continuación)
+            </Button>
+            <Button variant="ghost" className="w-full text-slate-400 hover:text-white" onClick={() => setMostrarSeleccionTurno(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mostrarModalBienvenida && sucursalId && empleadoActual && (
+        <ModalBienvenidaTurno
+          sucursalId={sucursalId}
+          empleadoId={empleadoActual.id}
+          fecha={hoy}
+          tipoTurno={tipoTurnoSeleccionado}
+          nombreEmpleado={user?.name ?? "Colaborador"}
+          sucursalNombre={sucursalNombre}
+          actividades={(miTurnoData?.actividades ?? []).map((a: any) => ({ id: a.id, nombre: a.actividadClave ?? a.descripcion ?? 'Actividad', descripcion: a.descripcion, categoria: a.categoria }))}
+          esApertura={entradas === 0}
+          onComplete={() => { setMostrarModalBienvenida(false); refetchTurno(); }}
+          onCancel={() => setMostrarModalBienvenida(false)}
+        />
+      )}
+
+      {mostrarModalCierre && sucursalId && empleadoActual && (
+        <ModalCierreTurno
+          sucursalId={sucursalId}
+          empleadoId={empleadoActual.id}
+          fecha={hoy}
+          tipoTurno={tipoTurnoSeleccionado}
+          contadorApertura={(aperturaHoy as any)?.contadorSelladora ?? null}
+          vasosVendidosReporte={(reporteHoy as any)?.totalVasos ?? null}
+          onComplete={() => { setMostrarModalCierre(false); refetchTurno(); }}
+          onCancel={() => setMostrarModalCierre(false)}
+        />
+      )}
+
       {/* Header */}
-      <div className="px-4 pt-8 pb-6">
+      <div className="px-4 pt-8 pb-4">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-slate-400 text-sm capitalize">{fechaHoy()}</p>
@@ -267,6 +350,33 @@ export default function MiTurno() {
             <p className="text-slate-400 text-xs mt-2">Hola, {user?.name?.split(" ")[0] ?? "Líder"}</p>
           </div>
         </div>
+
+        {/* Botón Registrar Entrada */}
+        <div className="mt-4 flex gap-2">
+          <Button
+            className="flex-1 bg-teal-600 hover:bg-teal-700 text-white h-12 font-semibold"
+            onClick={handleRegistrarEntrada}
+          >
+            ✅ Registrar entrada
+          </Button>
+          {miTurnoData?.turno && !miTurnoData.turno.cerrado && (
+            <Button
+              variant="outline"
+              className="h-12 px-4 border-red-500/40 text-red-400 hover:bg-red-500/10 bg-transparent"
+              onClick={() => setMostrarModalCierre(true)}
+            >
+              Cerrar turno
+            </Button>
+          )}
+        </div>
+
+        {/* Novedades del turno anterior */}
+        {(aperturaHoy as any)?.novedadesTurnoAnterior && (
+          <div className="mt-3 bg-amber-500/15 border border-amber-500/30 rounded-xl p-3">
+            <p className="text-xs font-semibold text-amber-300 mb-1">📝 Novedades del turno anterior</p>
+            <p className="text-xs text-slate-300 leading-relaxed">{(aperturaHoy as any).novedadesTurnoAnterior}</p>
+          </div>
+        )}
       </div>
 
       {/* KPIs rápidos */}

@@ -449,3 +449,73 @@ export const actividadesObservacion = mysqlTable("actividades_observacion", {
 });
 export type ActividadObservacion = typeof actividadesObservacion.$inferSelect;
 export type InsertActividadObservacion = typeof actividadesObservacion.$inferInsert;
+
+// ─── Apertura de Turno ────────────────────────────────────────────────────────
+// Registro de inventario al abrir turno (matutino o vespertino)
+export const turnoApertura = mysqlTable("turno_apertura", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  empleadoId: int("empleadoId").notNull(),        // empleado que registra
+  usuarioId: int("usuarioId").notNull(),           // userId del sistema
+  fecha: varchar("fecha", { length: 10 }).notNull(), // YYYY-MM-DD
+  tipoTurno: mysqlEnum("tipoTurno", ["matutino", "vespertino"]).notNull(),
+  timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+  // Inventario inicial
+  conteoVasos: int("conteoVasos"),
+  conteoPopotes: int("conteoPopotes"),
+  baseSnowteaKg: float("baseSnowteaKg"),          // kg de base en refrigerador
+  longanKg: float("longanKg"),                     // kg de longan
+  // Selladora
+  fotoSelladoUrl: text("fotoSelladoUrl"),          // URL de la foto subida a S3
+  contadorSelladora: int("contadorSelladora"),     // número detectado por OCR o capturado manual
+  // Foto uniforme
+  fotoUniformeUrl: text("fotoUniformeUrl"),
+  // Notas adicionales
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type TurnoApertura = typeof turnoApertura.$inferSelect;
+export type InsertTurnoApertura = typeof turnoApertura.$inferInsert;
+
+// ─── Cierre de Turno ──────────────────────────────────────────────────────────
+export const turnoCierre = mysqlTable("turno_cierre", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  empleadoId: int("empleadoId").notNull(),
+  usuarioId: int("usuarioId").notNull(),
+  fecha: varchar("fecha", { length: 10 }).notNull(),
+  tipoTurno: mysqlEnum("tipoTurno", ["matutino", "vespertino"]).notNull(),
+  timestamp: bigint("timestamp", { mode: "number" }).notNull(),
+  // Inventario final
+  conteoVasosFinal: int("conteoVasosFinal"),
+  conteoPopotesFinal: int("conteoPopotesFinal"),
+  // Selladora al cierre
+  fotoSelladoCierreUrl: text("fotoSelladoCierreUrl"),
+  contadorSelladoraCierre: int("contadorSelladoraCierre"),
+  // Cuadre calculado (vasos vendidos según selladora vs reporte de ventas)
+  vasosVendidosSelladora: int("vasosVendidosSelladora"), // diferencia contador cierre - apertura
+  vasosVendidosReporte: int("vasosVendidosReporte"),     // del reporte diario
+  mermaVasos: int("mermaVasos"),                         // diferencia (puede ser negativa)
+  // Incidencias y novedades del turno
+  novedadesTurno: text("novedadesTurno"),                // para el turno siguiente
+  incidencias: text("incidencias"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type TurnoCierre = typeof turnoCierre.$inferSelect;
+export type InsertTurnoCierre = typeof turnoCierre.$inferInsert;
+
+// ─── Avisos Generales (del dueño/manager para todos) ─────────────────────────
+export const avisosGenerales = mysqlTable("avisos_generales", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId"),                   // null = aplica a todas las sucursales
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  contenido: text("contenido").notNull(),
+  tipo: mysqlEnum("tipo", ["info", "urgente", "recordatorio"]).default("info").notNull(),
+  activo: boolean("activo").default(true).notNull(),
+  creadoPorId: int("creadoPorId").notNull(),
+  fechaExpiracion: varchar("fechaExpiracion", { length: 10 }), // YYYY-MM-DD, null = sin expiración
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AvisoGeneral = typeof avisosGenerales.$inferSelect;
+export type InsertAvisoGeneral = typeof avisosGenerales.$inferInsert;

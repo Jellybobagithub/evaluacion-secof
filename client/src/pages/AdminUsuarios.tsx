@@ -51,6 +51,8 @@ const ROLES = [
 const getRoleInfo = (role: string) =>
   ROLES.find(r => r.value === role) ?? ROLES[ROLES.length - 1];
 
+type SucursalRow = { id: number; nombre: string; ciudad: string | null };
+
 type UserRow = {
   id: number;
   name: string | null;
@@ -60,9 +62,8 @@ type UserRow = {
   notas: string | null;
   lastSignedIn: Date;
   createdAt: Date;
+  sucursales?: SucursalRow[];
 };
-
-type Sucursal = { id: number; nombre: string; ciudad: string | null };
 
 export default function AdminUsuarios() {
   const [search, setSearch] = useState("");
@@ -71,6 +72,9 @@ export default function AdminUsuarios() {
   const [editRole, setEditRole] = useState("");
   const [editNotas, setEditNotas] = useState("");
   const [assigningUser, setAssigningUser] = useState<UserRow | null>(null);
+  // IDs de sucursales seleccionadas en el modal (estado local antes de guardar)
+  const [selectedSucursalIds, setSelectedSucursalIds] = useState<number[]>([]);
+  const [savingAssign, setSavingAssign] = useState(false);
 
   const { user: currentUser } = useAuth();
   const currentRole = (currentUser as any)?.role ?? "user";
@@ -100,24 +104,11 @@ export default function AdminUsuarios() {
     onError: (e) => toast.error(e.message),
   });
 
-  const assignSucursal = trpc.adminUsuarios.assignSucursal.useMutation({
-    onSuccess: () => {
-      toast.success("Sucursal asignada");
-      utils.adminUsuarios.list.invalidate();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const removeSucursal = trpc.adminUsuarios.removeSucursal.useMutation({
-    onSuccess: () => {
-      toast.success("Sucursal removida");
-      utils.adminUsuarios.list.invalidate();
-    },
-    onError: (e) => toast.error(e.message),
-  });
+  const assignSucursal = trpc.adminUsuarios.assignSucursal.useMutation();
+  const removeSucursal = trpc.adminUsuarios.removeSucursal.useMutation();
 
   const users: UserRow[] = (data?.users ?? []) as UserRow[];
-  const sucursales: Sucursal[] = (data?.sucursales ?? []) as Sucursal[];
+  const sucursales: SucursalRow[] = (data?.sucursales ?? []) as SucursalRow[];
 
   const filtered = users.filter(u => {
     const matchSearch =
@@ -132,6 +123,47 @@ export default function AdminUsuarios() {
     setEditingUser(u);
     setEditRole(u.role);
     setEditNotas(u.notas ?? "");
+  };
+
+  // Abrir modal de asignación con las sucursales ya asignadas preseleccionadas
+  const openAssign = (u: UserRow) => {
+    const asignadasIds = (u.sucursales ?? []).map(s => s.id);
+    setSelectedSucursalIds(asignadasIds);
+    setAssigningUser(u);
+  };
+
+  // Guardar cambios de asignación: diff entre estado anterior y nuevo
+  const handleGuardarAsignacion = async () => {
+    if (!assigningUser) return;
+    setSavingAssign(true);
+    try {
+      const anteriores = (assigningUser.sucursales ?? []).map(s => s.id);
+      const agregar = selectedSucursalIds.filter(id => !anteriores.includes(id));
+      const quitar = anteriores.filter(id => !selectedSucursalIds.includes(id));
+      await Promise.all([
+        ...agregar.map(sucursalId =>
+          assignSucursal.mutateAsync({ userId: assigningUser.id, sucursalId })
+        ),
+        ...quitar.map(sucursalId =>
+          removeSucursal.mutateAsync({ userId: assigningUser.id, sucursalId })
+        ),
+      ]);
+      await utils.adminUsuarios.list.invalidate();
+      toast.success("Sucursales asignadas correctamente");
+      setAssigningUser(null);
+    } catch {
+      toast.error("Error al guardar las asignaciones");
+    } finally {
+      setSavingAssign(false);
+    }
+  };
+
+  const toggleSucursalSelection = (sucursalId: number) => {
+    setSelectedSucursalIds(prev =>
+      prev.includes(sucursalId)
+        ? prev.filter(id => id !== sucursalId)
+        : [...prev, sucursalId]
+    );
   };
 
   // Stats
@@ -216,6 +248,7 @@ export default function AdminUsuarios() {
                 {filtered.map(u => {
                   const roleInfo = getRoleInfo(u.role);
                   const RoleIcon = roleInfo.icon;
+                  const sucursalesAsignadas = u.sucursales ?? [];
                   return (
                     <div
                       key={u.id}
@@ -241,6 +274,17 @@ export default function AdminUsuarios() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{u.email ?? "Sin correo"}</p>
+                        {/* Sucursales asignadas */}
+                        {sucursalesAsignadas.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {sucursalesAsignadas.map(s => (
+                              <span key={s.id} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                <Building2 className="w-2.5 h-2.5" />
+                                {s.nombre}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Role badge */}
@@ -262,7 +306,7 @@ export default function AdminUsuarios() {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
-                          onClick={() => setAssigningUser(u)}
+                          onClick={() => openAssign(u)}
                           title="Asignar sucursales"
                         >
                           <Building2 className="w-3.5 h-3.5" />
@@ -410,36 +454,56 @@ export default function AdminUsuarios() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Sucursales disponibles</Label>
+                <Label className="text-sm font-medium">
+                  Sucursales disponibles
+                  {selectedSucursalIds.length > 0 && (
+                    <span className="ml-2 text-xs text-primary font-normal">
+                      ({selectedSucursalIds.length} seleccionada{selectedSucursalIds.length !== 1 ? "s" : ""})
+                    </span>
+                  )}
+                </Label>
                 {sucursales.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No hay sucursales registradas.</p>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {sucursales.map(s => (
-                      <div key={s.id} className="flex items-center gap-3 p-2.5 rounded-lg border hover:bg-muted/30">
-                        <Checkbox
-                          id={`s-${s.id}`}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              assignSucursal.mutate({ userId: assigningUser.id, sucursalId: s.id });
-                            } else {
-                              removeSucursal.mutate({ userId: assigningUser.id, sucursalId: s.id });
-                            }
-                          }}
-                        />
-                        <label htmlFor={`s-${s.id}`} className="flex-1 cursor-pointer">
-                          <p className="text-sm font-medium">{s.nombre}</p>
-                          {s.ciudad && <p className="text-xs text-muted-foreground">{s.ciudad}</p>}
-                        </label>
-                      </div>
-                    ))}
+                    {sucursales.map(s => {
+                      const isChecked = selectedSucursalIds.includes(s.id);
+                      return (
+                        <div
+                          key={s.id}
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${isChecked ? "bg-primary/5 border-primary/30" : "hover:bg-muted/30"}`}
+                          onClick={() => toggleSucursalSelection(s.id)}
+                        >
+                          <Checkbox
+                            id={`s-${s.id}`}
+                            checked={isChecked}
+                            onCheckedChange={() => toggleSucursalSelection(s.id)}
+                          />
+                          <label htmlFor={`s-${s.id}`} className="flex-1 cursor-pointer">
+                            <p className="text-sm font-medium">{s.nombre}</p>
+                            {s.ciudad && <p className="text-xs text-muted-foreground">{s.ciudad}</p>}
+                          </label>
+                          {isChecked && (
+                            <span className="text-xs text-primary font-medium">✓ Asignada</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Selecciona las sucursales y presiona Guardar para aplicar los cambios.
+                </p>
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button onClick={() => setAssigningUser(null)}>Cerrar</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setAssigningUser(null)} disabled={savingAssign}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGuardarAsignacion} disabled={savingAssign}>
+              {savingAssign ? "Guardando..." : "Guardar asignación"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

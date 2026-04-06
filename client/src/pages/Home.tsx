@@ -114,6 +114,18 @@ export default function Home() {
 
   // Mermas globales — derivadas del resumen de ventas (7 días)
   const mermasPct = null; // Detalle disponible en KPI Líder por sucursal
+
+  // Cuadres de inventario recientes (descuadres de vasos)
+  const { data: cuadresRecientes = [] } = trpc.turno.getCuadresRecientes.useQuery(
+    { dias: 7 },
+    { enabled: isManager }
+  );
+  const totalMermaVasos = useMemo(() => {
+    return (cuadresRecientes as any[]).reduce((sum: number, c: any) => sum + (c.mermaVasos ?? 0), 0);
+  }, [cuadresRecientes]);
+  const cuadresConDescuadre = useMemo(() => {
+    return (cuadresRecientes as any[]).filter((c: any) => (c.mermaVasos ?? 0) > 0);
+  }, [cuadresRecientes]);
   const reportesCumplimiento = useMemo(() => {
     if (!resumenVentas || !sucursales.length) return null;
     // Aproximación: tiendas sin reporte / total tiendas activas
@@ -263,7 +275,40 @@ export default function Home() {
         </Card>
       </div>
 
-      {/* ── FILA 2: KPIs Nivel 2 (mermas + cumplimiento reportes) ─────────── */}
+      {/* ── FILA 1.5: Alerta de merma de vasos (si hay descuadres recientes) —————— */}
+      {isManager && cuadresConDescuadre.length > 0 && (
+        <div
+          className="rounded-xl border border-orange-200 bg-orange-50 p-4 cursor-pointer hover:bg-orange-100 transition-colors"
+          onClick={() => setLocation("/kpi-lider")}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
+                <TrendingDown className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-orange-800">⚠️ Merma de vasos detectada (7 días)</p>
+                <p className="text-xs text-orange-600 mt-0.5">
+                  {totalMermaVasos} vasos de diferencia en {cuadresConDescuadre.length} cierre{cuadresConDescuadre.length > 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-bold text-orange-700">{totalMermaVasos}</p>
+              <p className="text-xs text-orange-500">vasos</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {cuadresConDescuadre.slice(0, 3).map((c: any, i: number) => (
+              <span key={i} className="text-xs bg-orange-100 text-orange-700 rounded-full px-2 py-0.5">
+                {c.sucursalNombre ?? 'Sucursal'}: {c.mermaVasos} vasos • {new Date(c.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── FILA 2: KPIs Nivel 2 (mermas + cumplimiento reportes) ——————————— */}
       {isManager && (mermasPct !== null || reportesCumplimiento !== null) && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Mermas del mes — acceso directo a KPI Líder */}

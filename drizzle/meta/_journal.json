@@ -134,6 +134,13 @@
       "when": 1775330305719,
       "tag": "0018_moaning_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1775516000004,
+      "tag": "0019_mean_zaladane",
+      "breakpoints": true
     }
   ]
 }

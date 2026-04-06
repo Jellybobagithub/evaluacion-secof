@@ -43,6 +43,7 @@ import {
   Calendar,
   Smartphone,
   FlaskConical,
+  Bell,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -133,6 +134,7 @@ const ALL_NAV_GROUPS = [
     path: null,
     items: [
       { icon: History, label: "Ventas Históricas", path: "/ventas-historicas", minRole: "manager" },
+      { icon: Bell, label: "Avisos Generales", path: "/avisos-generales", minRole: "manager" },
       { icon: ClipboardList, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
     ],
   },

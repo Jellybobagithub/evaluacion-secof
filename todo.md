@@ -546,3 +546,24 @@
 - [x] Dashboard ejecutivo: endpoint observaciones.listarTodasSucursales en el router de observación
 - [x] Reporte Diario: sección "Preparaciones del día" con resumen de recetas e incidencias en modal de detalle
 - [x] Reporte Diario: query preparaciones.historial filtrado por fecha y sucursal del reporte
+
+## Bugs v50 (Apr 6) - Asignación tienda, Asistencia líder, Actividades Mi Turno
+- [ ] Bug: Error al asignar colaborador a una tienda (AdminUsuarios)
+- [ ] Bug: Error de asistencia para usuario con rol líder (Emily)
+- [ ] Bug: Lista de actividades diarias no aparece para líderes y anfitriones en Mi Turno
+
+## Sistema de Apertura/Cierre de Turno (Apr 6) - v51
+- [x] Schema DB: tablas turno_apertura, turno_cierre, avisos_generales
+- [x] Backend: endpoints turno.registrarApertura, turno.registrarCierre, turno.getAperturaHoy
+- [x] Backend: endpoint turno.getCuadresRecientes para merma en dashboard
+- [x] Backend: endpoints avisos.getActivos, avisos.getAll, avisos.create, avisos.update, avisos.delete
+- [x] Backend: endpoint turno.detectarContadorSelladora (OCR via LLM vision)
+- [x] Backend: endpoint turno.subirFoto (S3 para fotos de selladora y uniforme)
+- [x] Modal de bienvenida al turno: flujo paso a paso (bienvenida, avisos, actividades, foto uniforme, foto selladora, inventario apertura)
+- [x] Modal de cierre de turno: inventario final, foto selladora, cuadre automático de vasos, novedades del turno
+- [x] MiTurno: botón "Registrar entrada" que abre el flujo de bienvenida
+- [x] MiTurno: detección automática de turno vespertino (>14h) con selector
+- [x] MiTurno: novedades del turno anterior visibles al iniciar turno
+- [x] Página AvisosGenerales: CRUD de avisos con tipo (info/urgente/recordatorio), sucursal y expiración
+- [x] Dashboard Ejecutivo: tarjeta de alerta de merma de vasos (7 días) con detalle por sucursal
+- [x] Menú lateral: enlace "Avisos Generales" en sección Configuración (manager+)
