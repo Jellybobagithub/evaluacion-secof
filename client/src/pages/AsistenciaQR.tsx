@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CheckCircle2, XCircle, QrCode, LogIn, LogOut, MapPin, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, QrCode, LogIn, LogOut, MapPin, Loader2, ChevronDown } from "lucide-react";
 
 // Parsear query params
 function useQueryParams() {
@@ -12,6 +11,46 @@ function useQueryParams() {
     token: params.get("token") ?? "",
     sucursalId: Number(params.get("sucursalId") ?? "0"),
   };
+}
+
+// Reloj que se actualiza cada segundo usando un interval — NO llama new Date() en render
+function RelojActual() {
+  const [hora, setHora] = useState(() =>
+    new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })
+  );
+  useEffect(() => {
+    const id = setInterval(() => {
+      setHora(new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <div className="text-center text-3xl font-bold tabular-nums">{hora}</div>;
+}
+
+// Selector nativo de empleado — evita el portal de Radix Select que causa removeChild en móvil
+interface SelectorEmpleadoProps {
+  empleados: { id: number; nombre: string; apellido?: string | null }[];
+  value: string;
+  onChange: (v: string) => void;
+}
+function SelectorEmpleado({ empleados, value, onChange }: SelectorEmpleadoProps) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full h-12 px-3 pr-10 text-base rounded-md border border-input bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        <option value="">Selecciona tu nombre...</option>
+        {empleados.map(e => (
+          <option key={e.id} value={e.id.toString()}>
+            {e.nombre} {e.apellido ?? ""}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+    </div>
+  );
 }
 
 export default function AsistenciaQR() {
@@ -84,7 +123,7 @@ export default function AsistenciaQR() {
               </h1>
               <p className="text-muted-foreground">{resultado.mensaje}</p>
               <p className="text-sm text-muted-foreground mt-2">
-                {new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
+                <RelojActual />
               </p>
               <Button
                 className="mt-6 w-full"
@@ -149,7 +188,7 @@ export default function AsistenciaQR() {
             </button>
           </div>
 
-          {/* Selector de empleado */}
+          {/* Selector de empleado — usa <select> nativo para evitar crash de portal Radix en móvil */}
           <div>
             <label className="text-sm font-medium mb-2 block">¿Quién eres?</label>
             {loadingEmpleados ? (
@@ -157,18 +196,11 @@ export default function AsistenciaQR() {
                 <Loader2 className="w-4 h-4 animate-spin" /> Cargando...
               </div>
             ) : (
-              <Select value={empleadoId} onValueChange={setEmpleadoId}>
-                <SelectTrigger className="h-12 text-base">
-                  <SelectValue placeholder="Selecciona tu nombre..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {empleados.map(e => (
-                    <SelectItem key={e.id} value={e.id.toString()} className="text-base py-3">
-                      {e.nombre} {e.apellido ?? ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SelectorEmpleado
+                empleados={empleados}
+                value={empleadoId}
+                onChange={setEmpleadoId}
+              />
             )}
           </div>
 
@@ -184,10 +216,8 @@ export default function AsistenciaQR() {
               : "Obteniendo ubicación..."}
           </div>
 
-          {/* Hora actual */}
-          <div className="text-center text-3xl font-bold tabular-nums">
-            {new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}
-          </div>
+          {/* Reloj actual — estabilizado con useEffect para no causar re-renders infinitos */}
+          <RelojActual />
 
           {/* Botón registrar */}
           <Button
