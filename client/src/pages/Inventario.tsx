@@ -137,13 +137,13 @@ export default function Inventario() {
         </div>
       </div>
 
-      {/* Sin almacenes configurados */}
-      {sucursalId && almacenes && almacenes.length === 0 && (
+      {/* Sin almacenes configurados — mostrar aviso pero dejar acceso a Configuración */}
+      {sucursalId && almacenes && almacenes.length === 0 && activeTab !== "config" && (
         <Card className="border-dashed">
           <CardContent className="py-10 text-center space-y-3">
             <Warehouse className="w-10 h-10 mx-auto text-muted-foreground" />
             <p className="text-muted-foreground">Esta sucursal no tiene almacenes configurados.</p>
-            {isLiderOrAbove && (
+            {isSupervisor && (
               <Button variant="outline" onClick={() => setActiveTab("config")}>
                 <Plus className="w-4 h-4 mr-2" /> Configurar almacenes
               </Button>
@@ -151,9 +151,8 @@ export default function Inventario() {
           </CardContent>
         </Card>
       )}
-
       {/* Tabs principales */}
-      {sucursalId && almacenId && (
+      {sucursalId && (almacenId || isSupervisor) && (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="conteo" className="gap-1">
@@ -179,42 +178,39 @@ export default function Inventario() {
 
           {/* Conteo Físico */}
           <TabsContent value="conteo">
-            <ConteoFisicoTab
+            {almacenId ? <ConteoFisicoTab
               sucursalId={sucursalId}
               almacenId={almacenId}
               almacen={almacenes?.find(a => a.id === almacenId)}
               productos={productos ?? []}
               semana={semana}
-            />
+            /> : <div className="py-10 text-center text-muted-foreground">Selecciona o crea un almacén en la tab Configuración.</div>}
           </TabsContent>
-
           {/* Teórico (solo supervisores) */}
           {isSupervisor && (
             <TabsContent value="teorico">
-              <TeoricoTab
+              {almacenId ? <TeoricoTab
                 sucursalId={sucursalId}
                 almacenId={almacenId}
                 productos={productos ?? []}
                 semana={semana}
-              />
-            </TabsContent>
+              /> : <div className="py-10 text-center text-muted-foreground">Selecciona o crea un almacén en la tab Configuración.</div>}
+             </TabsContent>
           )}
-
           {/* Comparativa */}
           <TabsContent value="comparativa">
-            <ComparativaTab
+            {almacenId && <ComparativaTab
               sucursalId={sucursalId}
               almacenId={almacenId}
               semana={semana}
-            />
+            />}
           </TabsContent>
-
           {/* Historial */}
           <TabsContent value="historial">
-            <HistorialTab
+            {almacenId && <HistorialTab
               sucursalId={sucursalId}
               almacenId={almacenId}
-            />
+            />}
           </TabsContent>
 
           {/* Configuración */}
