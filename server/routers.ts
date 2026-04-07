@@ -1899,6 +1899,78 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ─── Control de Asistencias / Nómina ────────────────────────────────────────
+  nomina: router({
+    // Calcular/recalcular registros de nómina para una sucursal y rango de fechas
+    calcular: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(),
+        fechaFin: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { calcularRegistrosNomina } = await import('./db');
+        await calcularRegistrosNomina(input.sucursalId, input.fechaInicio, input.fechaFin);
+        return { success: true };
+      }),
+
+    // Obtener registros detallados por día
+    getRegistros: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(),
+        fechaFin: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getRegistrosNomina } = await import('./db');
+        return getRegistrosNomina(input.sucursalId, input.fechaInicio, input.fechaFin);
+      }),
+
+    // Resumen semanal por empleado
+    getResumen: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(),
+        fechaFin: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getResumenNominaSemanal } = await import('./db');
+        return getResumenNominaSemanal(input.sucursalId, input.fechaInicio, input.fechaFin);
+      }),
+
+    // Justificar / editar un registro manualmente
+    justificar: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        estado: z.enum(['ausencia_justificada', 'presente', 'retardo']),
+        justificacion: z.string().min(5),
+        tipoJustificacion: z.enum(['enfermedad', 'permiso_personal', 'emergencia_familiar', 'capacitacion', 'vacaciones', 'error_sistema', 'otro']),
+        fotoJustificacionUrl: z.string().optional(),
+        horasTrabajadas: z.number().optional(),
+        minutosRetardo: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { justificarRegistroNomina } = await import('./db');
+        await justificarRegistroNomina(input.id, {
+          ...input,
+          editadoPorId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

@@ -6,7 +6,8 @@ import {
   InsertPuntoEvaluacion, empleados, InsertEmpleado, checklistPlantillas, InsertChecklistPlantilla,
   checklistRegistros, InsertChecklistRegistro, asistencia, InsertAsistencia,
   observacionesKpi, InsertObservacionKpi, reportesDiarios, InsertReporteDiario,
-  horariosSemanales, InsertHorarioSemanal, bajasEmpleados, InsertBajaEmpleado
+  horariosSemanales, InsertHorarioSemanal, bajasEmpleados, InsertBajaEmpleado,
+  registroNomina, InsertRegistroNomina, turnoApertura, turnoCierre
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -1091,4 +1092,240 @@ export async function getRegistrosTurnoConFotos(sucursalId: number, fechaInicio:
   }
 
   return Object.values(mapa).sort((a, b) => (b.fecha > a.fecha ? 1 : b.fecha < a.fecha ? -1 : 0));
+}
+
+// ─── Control de Asistencias / Nómina ─────────────────────────────────────────
+
+// Horas de inicio/fin de turno según tipo (hora local México UTC-6)
+const TURNO_HORAS: Record<string, { entrada: string; salida: string }> = {
+  M: { entrada: "08:00", salida: "15:00" },
+  V: { entrada: "15:00", salida: "22:00" },
+  MV: { entrada: "08:00", salida: "22:00" },
+};
+const TOLERANCIA_RETARDO_MIN = 10; // minutos de gracia antes de marcar retardo
+
+/** Convierte "HH:MM" + fecha YYYY-MM-DD a timestamp Unix ms en zona México (UTC-6) */
+function horaFechaToTs(fecha: string, hora: string): number {
+  return new Date(`${fecha}T${hora}:00-06:00`).getTime();
+}
+
+/**
+ * Genera o actualiza los registros de nómina para una sucursal en un rango de fechas.
+ * Cruza horario_semanal + turno_apertura + turno_cierre para calcular horas, retardos y ausencias.
+ */
+export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: string, fechaFin: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 1. Obtener empleados activos de la sucursal
+  const emps = await db.select().from(empleados)
+    .where(and(eq(empleados.sucursalId, sucursalId), eq(empleados.activo, true)));
+  if (emps.length === 0) return [];
+
+  // 2. Obtener aperturas y cierres en el rango
+  const aperturas = await db.select().from(turnoApertura)
+    .where(and(
+      eq(turnoApertura.sucursalId, sucursalId),
+      gte(turnoApertura.fecha, fechaInicio),
+      lte(turnoApertura.fecha, fechaFin)
+    ));
+  const cierres = await db.select().from(turnoCierre)
+    .where(and(
+      eq(turnoCierre.sucursalId, sucursalId),
+      gte(turnoCierre.fecha, fechaInicio),
+      lte(turnoCierre.fecha, fechaFin)
+    ));
+
+  // 3. Obtener horarios semanales que cubran el rango
+  const horarios = await db.select().from(horariosSemanales)
+    .where(eq(horariosSemanales.sucursalId, sucursalId));
+
+  // 4. Generar lista de fechas en el rango
+  const fechas: string[] = [];
+  const cur = new Date(fechaInicio + "T12:00:00Z");
+  const end = new Date(fechaFin + "T12:00:00Z");
+  while (cur <= end) {
+    fechas.push(cur.toISOString().split("T")[0]);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  const DIAS_ES = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"] as const;
+  type DiaKey = typeof DIAS_ES[number];
+
+  const resultados: InsertRegistroNomina[] = [];
+
+  for (const emp of emps) {
+    for (const fecha of fechas) {
+      // Buscar si ya existe un registro editado manualmente — no sobreescribir
+      const existente = await db.select().from(registroNomina)
+        .where(and(
+          eq(registroNomina.empleadoId, emp.id),
+          eq(registroNomina.sucursalId, sucursalId),
+          eq(registroNomina.fecha, fecha)
+        )).limit(1);
+      if (existente.length > 0 && existente[0].editadoManualmente) continue;
+
+      // Día de la semana
+      const diaSemana = DIAS_ES[new Date(fecha + "T12:00:00Z").getUTCDay()] as DiaKey;
+
+      // Semana ISO para buscar horario
+      const d = new Date(fecha + "T12:00:00Z");
+      const startOfYear = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNum = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getUTCDay() + 1) / 7);
+      const semana = `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+
+      const horario = horarios.find(h => h.empleadoId === emp.id && h.semana === semana);
+      const turnoAsignado = horario ? (horario[diaSemana] as string | null) : null;
+
+      // Apertura y cierre del empleado en esa fecha
+      const apertura = aperturas.find(a => a.empleadoId === emp.id && a.fecha === fecha);
+      const cierre = cierres.find(c => c.empleadoId === emp.id && c.fecha === fecha);
+
+      let estado: InsertRegistroNomina["estado"] = "sin_horario";
+      let horasTrabajadas: number | null = null;
+      let minutosRetardo = 0;
+      let horaEntradaEsperada: string | null = null;
+      let horaSalidaEsperada: string | null = null;
+
+      if (turnoAsignado === "D") {
+        estado = "descanso";
+      } else if (turnoAsignado && TURNO_HORAS[turnoAsignado]) {
+        const horas = TURNO_HORAS[turnoAsignado];
+        horaEntradaEsperada = horas.entrada;
+        horaSalidaEsperada = horas.salida;
+        const tsEntradaEsperada = horaFechaToTs(fecha, horas.entrada);
+
+        if (!apertura) {
+          estado = "ausente";
+        } else {
+          const tsEntrada = apertura.timestamp;
+          const retrasoMin = Math.max(0, Math.round((tsEntrada - tsEntradaEsperada) / 60000));
+          minutosRetardo = retrasoMin;
+          estado = retrasoMin > TOLERANCIA_RETARDO_MIN ? "retardo" : "presente";
+
+          if (cierre) {
+            horasTrabajadas = Math.round(((cierre.timestamp - tsEntrada) / 3600000) * 100) / 100;
+          }
+        }
+      } else if (apertura) {
+        // Tiene apertura pero no horario asignado — contar horas si hay cierre
+        estado = "presente";
+        if (cierre) {
+          horasTrabajadas = Math.round(((cierre.timestamp - apertura.timestamp) / 3600000) * 100) / 100;
+        }
+      }
+
+      const registro: InsertRegistroNomina = {
+        sucursalId,
+        empleadoId: emp.id,
+        fecha,
+        turnoEsperado: turnoAsignado ?? undefined,
+        horaEntradaEsperada: horaEntradaEsperada ?? undefined,
+        horaSalidaEsperada: horaSalidaEsperada ?? undefined,
+        timestampEntrada: apertura?.timestamp ?? undefined,
+        timestampSalida: cierre?.timestamp ?? undefined,
+        aperturaId: apertura?.id ?? undefined,
+        cierreId: cierre?.id ?? undefined,
+        horasTrabajadas: horasTrabajadas ?? undefined,
+        minutosRetardo,
+        estado,
+        editadoManualmente: false,
+      };
+
+      if (existente.length > 0) {
+        await db.update(registroNomina).set(registro).where(eq(registroNomina.id, existente[0].id));
+      } else {
+        await db.insert(registroNomina).values(registro);
+      }
+      resultados.push(registro);
+    }
+  }
+  return resultados;
+}
+
+/** Obtiene los registros de nómina ya calculados para una sucursal y rango */
+export async function getRegistrosNomina(sucursalId: number, fechaInicio: string, fechaFin: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const registros = await db.select().from(registroNomina)
+    .where(and(
+      eq(registroNomina.sucursalId, sucursalId),
+      gte(registroNomina.fecha, fechaInicio),
+      lte(registroNomina.fecha, fechaFin)
+    ))
+    .orderBy(registroNomina.fecha, registroNomina.empleadoId);
+
+  // Enriquecer con nombre del empleado
+  const emps = await db.select({ id: empleados.id, nombre: empleados.nombre, apellido: empleados.apellido, rol: empleados.rol })
+    .from(empleados).where(eq(empleados.sucursalId, sucursalId));
+
+  return registros.map(r => {
+    const emp = emps.find(e => e.id === r.empleadoId);
+    return {
+      ...r,
+      empleadoNombre: emp ? `${emp.nombre}${emp.apellido ? " " + emp.apellido : ""}` : "Desconocido",
+      empleadoRol: emp?.rol ?? "anfitrion",
+    };
+  });
+}
+
+/** Actualiza un registro de nómina con justificación manual */
+export async function justificarRegistroNomina(id: number, data: {
+  estado: "ausencia_justificada" | "presente" | "retardo";
+  justificacion: string;
+  tipoJustificacion: InsertRegistroNomina["tipoJustificacion"];
+  fotoJustificacionUrl?: string;
+  editadoPorId: number;
+  horasTrabajadas?: number;
+  minutosRetardo?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  return db.update(registroNomina).set({
+    estado: data.estado,
+    justificacion: data.justificacion,
+    tipoJustificacion: data.tipoJustificacion,
+    fotoJustificacionUrl: data.fotoJustificacionUrl,
+    editadoPorId: data.editadoPorId,
+    editadoManualmente: true,
+    horasTrabajadas: data.horasTrabajadas,
+    minutosRetardo: data.minutosRetardo ?? 0,
+  }).where(eq(registroNomina.id, id));
+}
+
+/** Resumen de nómina por empleado para una semana */
+export async function getResumenNominaSemanal(sucursalId: number, fechaInicio: string, fechaFin: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const registros = await getRegistrosNomina(sucursalId, fechaInicio, fechaFin);
+
+  // Agrupar por empleado
+  const porEmpleado = new Map<number, typeof registros>();
+  for (const r of registros) {
+    if (!porEmpleado.has(r.empleadoId)) porEmpleado.set(r.empleadoId, []);
+    porEmpleado.get(r.empleadoId)!.push(r);
+  }
+
+  return Array.from(porEmpleado.entries()).map(([empleadoId, regs]) => {
+    const diasTrabajados = regs.filter(r => r.estado === "presente" || r.estado === "retardo").length;
+    const diasAusente = regs.filter(r => r.estado === "ausente").length;
+    const diasJustificados = regs.filter(r => r.estado === "ausencia_justificada").length;
+    const diasDescanso = regs.filter(r => r.estado === "descanso").length;
+    const retardos = regs.filter(r => r.estado === "retardo").length;
+    const horasTotales = regs.reduce((s, r) => s + (r.horasTrabajadas ?? 0), 0);
+    const minutosRetardoTotal = regs.reduce((s, r) => s + (r.minutosRetardo ?? 0), 0);
+    return {
+      empleadoId,
+      empleadoNombre: regs[0]?.empleadoNombre ?? "Desconocido",
+      empleadoRol: regs[0]?.empleadoRol ?? "anfitrion",
+      diasTrabajados,
+      diasAusente,
+      diasJustificados,
+      diasDescanso,
+      retardos,
+      horasTotales: Math.round(horasTotales * 100) / 100,
+      minutosRetardoTotal,
+      registros: regs,
+    };
+  }).sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre));
 }

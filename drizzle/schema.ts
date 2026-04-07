@@ -520,3 +520,48 @@ export const avisosGenerales = mysqlTable("avisos_generales", {
 });
 export type AvisoGeneral = typeof avisosGenerales.$inferSelect;
 export type InsertAvisoGeneral = typeof avisosGenerales.$inferInsert;
+
+// ─── Registro de Nómina / Control de Asistencias ─────────────────────────────
+// Una fila por empleado por día. Se genera automáticamente al cruzar turno_apertura
+// y turno_cierre con el horario asignado. El líder puede editar justificaciones.
+export const registroNomina = mysqlTable("registro_nomina", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  empleadoId: int("empleadoId").notNull(),
+  fecha: varchar("fecha", { length: 10 }).notNull(),        // YYYY-MM-DD
+  // Turno programado según horario semanal
+  turnoEsperado: varchar("turnoEsperado", { length: 4 }),   // 'M', 'V', 'MV', 'D', null=sin horario
+  horaEntradaEsperada: varchar("horaEntradaEsperada", { length: 5 }), // "08:00"
+  horaSalidaEsperada: varchar("horaSalidaEsperada", { length: 5 }),   // "15:00"
+  // Registros reales (timestamps Unix ms de turno_apertura / turno_cierre)
+  timestampEntrada: bigint("timestampEntrada", { mode: "number" }),
+  timestampSalida: bigint("timestampSalida", { mode: "number" }),
+  aperturaId: int("aperturaId"),   // FK a turno_apertura.id
+  cierreId: int("cierreId"),       // FK a turno_cierre.id
+  // Cálculos automáticos
+  horasTrabajadas: float("horasTrabajadas"),                // horas reales trabajadas
+  minutosRetardo: int("minutosRetardo").default(0),         // minutos de retraso en entrada
+  // Estado del día
+  estado: mysqlEnum("estado", [
+    "presente",       // entró y salió dentro del turno
+    "retardo",        // entró tarde (> tolerancia)
+    "ausente",        // no registró entrada
+    "ausencia_justificada", // ausente pero con justificación aprobada
+    "descanso",       // día de descanso según horario
+    "sin_horario",    // no tiene turno asignado ese día
+  ]).default("sin_horario").notNull(),
+  // Edición manual por líder/manager/owner
+  editadoManualmente: boolean("editadoManualmente").default(false).notNull(),
+  editadoPorId: int("editadoPorId"),       // userId del líder que editó
+  justificacion: text("justificacion"),    // texto de la justificación
+  tipoJustificacion: mysqlEnum("tipoJustificacion", [
+    "enfermedad", "permiso_personal", "emergencia_familiar",
+    "capacitacion", "vacaciones", "error_sistema", "otro"
+  ]),
+  // Foto de evidencia de la justificación (opcional)
+  fotoJustificacionUrl: text("fotoJustificacionUrl"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type RegistroNomina = typeof registroNomina.$inferSelect;
+export type InsertRegistroNomina = typeof registroNomina.$inferInsert;

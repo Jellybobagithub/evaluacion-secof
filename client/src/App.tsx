@@ -21,6 +21,7 @@ import MetasVentas from "./pages/MetasVentas";
 import Empleados from "./pages/Empleados";
 import Asistencia from "./pages/Asistencia";
 import AsistenciaQR from "./pages/AsistenciaQR";
+import ControlAsistencias from "./pages/ControlAsistencias";
 import KpiAnfitriones from "./pages/KpiAnfitriones";
 import KpiLider from "./pages/KpiLider";
 import KpiAdmin from "./pages/KpiAdmin";
@@ -93,6 +94,11 @@ function Router() {
         {/* Asistencia: host y superior */}
         <Route path="/asistencia">
           <ProtectedRoute component={Asistencia} minRole="host" />
+        </Route>
+
+        {/* Control de Asistencias / Nómina: leader y superior */}
+        <Route path="/control-asistencias">
+          <ProtectedRoute component={ControlAsistencias} minRole="leader" />
         </Route>
 
         {/* Página pública de registro QR (sin login) */}
