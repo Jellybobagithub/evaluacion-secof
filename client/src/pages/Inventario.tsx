@@ -1,0 +1,1012 @@
+import { useState, useMemo } from "react";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Package, Warehouse, ClipboardList, BarChart3, History,
+  Plus, Save, Send, AlertTriangle, CheckCircle, Settings,
+  ChevronDown, ChevronUp, Download, Edit, Trash2
+} from "lucide-react";
+import * as XLSX from "xlsx";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+function getSemanaISO(date = new Date()): string {
+  const d = new Date(date);
+  d.setUTCHours(12, 0, 0, 0);
+  const dayOfWeek = d.getUTCDay();
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  d.setUTCDate(d.getUTCDate() + diff);
+  const year = d.getUTCFullYear();
+  const startOfYear = new Date(Date.UTC(year, 0, 1));
+  const weekNum = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getUTCDay() + 1) / 7);
+  return `${year}-W${String(weekNum).padStart(2, "0")}`;
+}
+
+function formatSemana(semana: string): string {
+  const [year, week] = semana.split("-W");
+  return `Semana ${week} / ${year}`;
+}
+
+// ─── Tipos ───────────────────────────────────────────────────────────────────
+type Producto = {
+  id: number; nombre: string; categoria: string;
+  unidadCompra: string; unidadConteo: string;
+  factorConversion: number | null; pesoNetoPorUnidad: number | null;
+  puedeAbrirse: boolean; activo: boolean; notas: string | null;
+};
+
+type Almacen = {
+  id: number; sucursalId: number; nombre: string;
+  tipo: "piezas" | "piezas_gramos"; consideraMinMax: boolean; activo: boolean;
+};
+
+// ─── Componente Principal ────────────────────────────────────────────────────
+export default function Inventario() {
+  const { user } = useAuth();
+  const role = user?.role ?? "host";
+  const isSupervisor = ["superadmin", "owner", "manager"].includes(role);
+  const isLiderOrAbove = ["superadmin", "owner", "manager", "leader"].includes(role);
+
+  const [sucursalId, setSucursalId] = useState<number | null>(null);
+  const [almacenId, setAlmacenId] = useState<number | null>(null);
+  const [semana] = useState(() => getSemanaISO());
+  const [activeTab, setActiveTab] = useState("conteo");
+
+  // Sucursales disponibles
+  const { data: sucursales } = trpc.sucursales.list.useQuery();
+  const sucursalesDisponibles = useMemo(() => sucursales ?? [], [sucursales]);
+
+  // Almacenes de la sucursal seleccionada
+  const { data: almacenes, refetch: refetchAlmacenes } = trpc.inventario.almacenes.list.useQuery(
+    { sucursalId: sucursalId! },
+    { enabled: !!sucursalId }
+  );
+
+  // Productos
+  const { data: productos, refetch: refetchProductos } = trpc.inventario.productos.list.useQuery();
+
+  // Selección automática de primera sucursal
+  useMemo(() => {
+    if (sucursalesDisponibles.length > 0 && !sucursalId) {
+      setSucursalId(sucursalesDisponibles[0].id);
+    }
+  }, [sucursalesDisponibles, sucursalId]);
+
+  useMemo(() => {
+    if (almacenes && almacenes.length > 0 && !almacenId) {
+      setAlmacenId(almacenes[0].id);
+    }
+  }, [almacenes, almacenId]);
+
+  if (!isLiderOrAbove) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        No tienes permisos para acceder al módulo de inventario.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-6 space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Package className="w-6 h-6 text-emerald-500" />
+            Inventario de Tienda
+          </h1>
+          <p className="text-sm text-muted-foreground">Control semanal de existencias</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {/* Selector de sucursal */}
+          <Select value={sucursalId?.toString() ?? ""} onValueChange={v => { setSucursalId(Number(v)); setAlmacenId(null); }}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Sucursal" />
+            </SelectTrigger>
+            <SelectContent>
+              {sucursalesDisponibles.map(s => (
+                <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Selector de almacén */}
+          {almacenes && almacenes.length > 0 && (
+            <Select value={almacenId?.toString() ?? ""} onValueChange={v => setAlmacenId(Number(v))}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Almacén" />
+              </SelectTrigger>
+              <SelectContent>
+                {almacenes.map(a => (
+                  <SelectItem key={a.id} value={a.id.toString()}>
+                    {a.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+
+      {/* Sin almacenes configurados */}
+      {sucursalId && almacenes && almacenes.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="py-10 text-center space-y-3">
+            <Warehouse className="w-10 h-10 mx-auto text-muted-foreground" />
+            <p className="text-muted-foreground">Esta sucursal no tiene almacenes configurados.</p>
+            {isLiderOrAbove && (
+              <Button variant="outline" onClick={() => setActiveTab("config")}>
+                <Plus className="w-4 h-4 mr-2" /> Configurar almacenes
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tabs principales */}
+      {sucursalId && almacenId && (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="flex-wrap h-auto">
+            <TabsTrigger value="conteo" className="gap-1">
+              <ClipboardList className="w-4 h-4" /> Conteo Físico
+            </TabsTrigger>
+            {isSupervisor && (
+              <TabsTrigger value="teorico" className="gap-1">
+                <BarChart3 className="w-4 h-4" /> Teórico
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="comparativa" className="gap-1">
+              <BarChart3 className="w-4 h-4" /> Comparativa
+            </TabsTrigger>
+            <TabsTrigger value="historial" className="gap-1">
+              <History className="w-4 h-4" /> Historial
+            </TabsTrigger>
+            {isSupervisor && (
+              <TabsTrigger value="config" className="gap-1">
+                <Settings className="w-4 h-4" /> Configuración
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          {/* Conteo Físico */}
+          <TabsContent value="conteo">
+            <ConteoFisicoTab
+              sucursalId={sucursalId}
+              almacenId={almacenId}
+              almacen={almacenes?.find(a => a.id === almacenId)}
+              productos={productos ?? []}
+              semana={semana}
+            />
+          </TabsContent>
+
+          {/* Teórico (solo supervisores) */}
+          {isSupervisor && (
+            <TabsContent value="teorico">
+              <TeoricoTab
+                sucursalId={sucursalId}
+                almacenId={almacenId}
+                productos={productos ?? []}
+                semana={semana}
+              />
+            </TabsContent>
+          )}
+
+          {/* Comparativa */}
+          <TabsContent value="comparativa">
+            <ComparativaTab
+              sucursalId={sucursalId}
+              almacenId={almacenId}
+              semana={semana}
+            />
+          </TabsContent>
+
+          {/* Historial */}
+          <TabsContent value="historial">
+            <HistorialTab
+              sucursalId={sucursalId}
+              almacenId={almacenId}
+            />
+          </TabsContent>
+
+          {/* Configuración */}
+          {isSupervisor && (
+            <TabsContent value="config">
+              <ConfigTab
+                sucursalId={sucursalId}
+                almacenes={almacenes ?? []}
+                productos={productos ?? []}
+                refetchAlmacenes={refetchAlmacenes}
+                refetchProductos={refetchProductos}
+              />
+            </TabsContent>
+          )}
+        </Tabs>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab: Conteo Físico ───────────────────────────────────────────────────────
+function ConteoFisicoTab({
+  sucursalId, almacenId, almacen, productos, semana
+}: {
+  sucursalId: number; almacenId: number; almacen?: Almacen;
+  productos: Producto[]; semana: string;
+}) {
+  const [conteoId, setConteoId] = useState<number | null>(null);
+  const [lineas, setLineas] = useState<Record<number, { piezas: string; gramos: string }>>({});
+  const [notas, setNotas] = useState("");
+  const [bloqueado, setBloqueado] = useState(false);
+  const [cargando, setCargando] = useState(false);
+  const [iniciado, setIniciado] = useState(false);
+
+  const getOrCreate = trpc.inventario.conteoFisico.getOrCreate.useMutation({
+    onSuccess: (data) => {
+      setConteoId(data.conteo.id);
+      setBloqueado(data.conteo.estado === "bloqueado");
+      setNotas(data.conteo.notas ?? "");
+      // Cargar detalles existentes
+      const lineasExistentes: Record<number, { piezas: string; gramos: string }> = {};
+      data.detalles.forEach(d => {
+        lineasExistentes[d.productoId] = {
+          piezas: d.cantidadPiezas.toString(),
+          gramos: (d.cantidadGramos ?? 0).toString(),
+        };
+      });
+      setLineas(lineasExistentes);
+      setIniciado(true);
+    },
+    onError: () => toast.error("Error al iniciar el conteo"),
+  });
+
+  const guardar = trpc.inventario.conteoFisico.guardarDetalle.useMutation({
+    onSuccess: () => toast.success("Conteo guardado"),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const enviar = trpc.inventario.conteoFisico.enviar.useMutation({
+    onSuccess: () => { setBloqueado(true); toast.success("Conteo enviado y bloqueado"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleIniciar = () => {
+    getOrCreate.mutate({ sucursalId, almacenId, semana });
+  };
+
+  const handleGuardar = async () => {
+    if (!conteoId) return;
+    setCargando(true);
+    const lineasData = productos
+      .filter(p => lineas[p.id]?.piezas && parseFloat(lineas[p.id].piezas) >= 0)
+      .map(p => ({
+        productoId: p.id,
+        cantidadPiezas: parseFloat(lineas[p.id]?.piezas ?? "0") || 0,
+        cantidadGramos: parseFloat(lineas[p.id]?.gramos ?? "0") || 0,
+      }));
+    await guardar.mutateAsync({ conteoId, lineas: lineasData });
+    setCargando(false);
+  };
+
+  const handleEnviar = async () => {
+    if (!conteoId) return;
+    await handleGuardar();
+    enviar.mutate({ conteoId, notas });
+  };
+
+  const categorias = useMemo(() => {
+    const cats = new Set(productos.map(p => p.categoria));
+    return Array.from(cats).sort();
+  }, [productos]);
+
+  if (!iniciado) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center space-y-4">
+          <ClipboardList className="w-12 h-12 mx-auto text-muted-foreground" />
+          <div>
+            <p className="font-medium">Conteo Físico — {formatSemana(semana)}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Almacén: <strong>{almacen?.nombre}</strong> ({almacen?.tipo === "piezas_gramos" ? "Piezas + Gramos" : "Solo Piezas"})
+            </p>
+          </div>
+          <Button onClick={handleIniciar} disabled={getOrCreate.isPending} className="bg-emerald-600 hover:bg-emerald-700">
+            <ClipboardList className="w-4 h-4 mr-2" />
+            {getOrCreate.isPending ? "Iniciando..." : "Iniciar Conteo"}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Estado */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Badge variant={bloqueado ? "secondary" : "default"} className={bloqueado ? "bg-gray-500" : "bg-emerald-600"}>
+            {bloqueado ? "Bloqueado" : "En progreso"}
+          </Badge>
+          <span className="text-sm text-muted-foreground">{formatSemana(semana)}</span>
+        </div>
+        {!bloqueado && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleGuardar} disabled={cargando}>
+              <Save className="w-4 h-4 mr-1" /> Guardar borrador
+            </Button>
+            <Button size="sm" onClick={handleEnviar} disabled={cargando} className="bg-emerald-600 hover:bg-emerald-700">
+              <Send className="w-4 h-4 mr-1" /> Enviar y bloquear
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {bloqueado && (
+        <div className="flex items-center gap-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm">
+          <CheckCircle className="w-4 h-4 text-gray-500" />
+          <span className="text-muted-foreground">Este conteo está bloqueado y no puede modificarse.</span>
+        </div>
+      )}
+
+      {/* Tabla de conteo por categoría */}
+      {categorias.map(cat => {
+        const prods = productos.filter(p => p.categoria === cat && p.activo);
+        if (prods.length === 0) return null;
+        return (
+          <Card key={cat}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{cat}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="w-28 text-center">Piezas cerradas</TableHead>
+                    {almacen?.tipo === "piezas_gramos" && (
+                      <TableHead className="w-28 text-center">Gramos abiertos</TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {prods.map(prod => (
+                    <TableRow key={prod.id}>
+                      <TableCell>
+                        <div className="font-medium text-sm">{prod.nombre}</div>
+                        <div className="text-xs text-muted-foreground">{prod.unidadConteo}</div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          className="w-20 mx-auto text-center h-8"
+                          value={lineas[prod.id]?.piezas ?? ""}
+                          onChange={e => setLineas(prev => ({
+                            ...prev,
+                            [prod.id]: { ...prev[prod.id], piezas: e.target.value }
+                          }))}
+                          disabled={bloqueado}
+                        />
+                      </TableCell>
+                      {almacen?.tipo === "piezas_gramos" && (
+                        <TableCell className="text-center">
+                          {prod.puedeAbrirse ? (
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.1"
+                              className="w-20 mx-auto text-center h-8"
+                              value={lineas[prod.id]?.gramos ?? ""}
+                              onChange={e => setLineas(prev => ({
+                                ...prev,
+                                [prod.id]: { ...prev[prod.id], gramos: e.target.value }
+                              }))}
+                              disabled={bloqueado}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {/* Notas */}
+      {!bloqueado && (
+        <Card>
+          <CardContent className="pt-4">
+            <Label className="text-sm">Notas del conteo</Label>
+            <Textarea
+              className="mt-1"
+              placeholder="Observaciones, diferencias encontradas, etc."
+              value={notas}
+              onChange={e => setNotas(e.target.value)}
+              rows={3}
+            />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab: Inventario Teórico ──────────────────────────────────────────────────
+function TeoricoTab({
+  sucursalId, almacenId, productos, semana
+}: {
+  sucursalId: number; almacenId: number; productos: Producto[]; semana: string;
+}) {
+  const [teoricoId, setTeoricoId] = useState<number | null>(null);
+  const [lineas, setLineas] = useState<Record<number, string>>({});
+  const [publicado, setPublicado] = useState(false);
+  const [iniciado, setIniciado] = useState(false);
+
+  const getOrCreate = trpc.inventario.teorico.getOrCreate.useMutation({
+    onSuccess: (data) => {
+      setTeoricoId(data.teorico.id);
+      setPublicado(data.teorico.estado === "publicado");
+      const lineasExistentes: Record<number, string> = {};
+      data.detalles.forEach(d => { lineasExistentes[d.productoId] = d.cantidadEsperada.toString(); });
+      setLineas(lineasExistentes);
+      setIniciado(true);
+    },
+    onError: () => toast.error("Error al iniciar el teórico"),
+  });
+
+  const guardar = trpc.inventario.teorico.guardarDetalle.useMutation({
+    onSuccess: (_, vars) => {
+      if (vars.publicar) { setPublicado(true); toast.success("Inventario teórico publicado"); }
+      else toast.success("Teórico guardado como borrador");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleGuardar = (publicar = false) => {
+    if (!teoricoId) return;
+    const lineasData = productos
+      .filter(p => lineas[p.id] !== undefined)
+      .map(p => ({
+        productoId: p.id,
+        cantidadEsperada: parseFloat(lineas[p.id] ?? "0") || 0,
+      }));
+    guardar.mutate({ teoricoId, lineas: lineasData, publicar });
+  };
+
+  const categorias = useMemo(() => Array.from(new Set(productos.map(p => p.categoria))).sort(), [productos]);
+
+  if (!iniciado) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center space-y-4">
+          <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground" />
+          <div>
+            <p className="font-medium">Inventario Teórico — {formatSemana(semana)}</p>
+            <p className="text-sm text-muted-foreground mt-1">Ingresa las cantidades esperadas basadas en ventas Odoo</p>
+          </div>
+          <Button onClick={() => getOrCreate.mutate({ sucursalId, almacenId, semana })} disabled={getOrCreate.isPending} className="bg-blue-600 hover:bg-blue-700">
+            <BarChart3 className="w-4 h-4 mr-2" />
+            {getOrCreate.isPending ? "Iniciando..." : "Iniciar Teórico"}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <Badge variant={publicado ? "secondary" : "default"} className={publicado ? "bg-blue-600 text-white" : ""}>
+          {publicado ? "Publicado" : "Borrador"}
+        </Badge>
+        {!publicado && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleGuardar(false)} disabled={guardar.isPending}>
+              <Save className="w-4 h-4 mr-1" /> Guardar borrador
+            </Button>
+            <Button size="sm" onClick={() => handleGuardar(true)} disabled={guardar.isPending} className="bg-blue-600 hover:bg-blue-700">
+              <Send className="w-4 h-4 mr-1" /> Publicar
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {publicado && (
+        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-sm">
+          <CheckCircle className="w-4 h-4 text-blue-500" />
+          <span>Teórico publicado. El líder puede ver la comparativa.</span>
+        </div>
+      )}
+
+      {categorias.map(cat => {
+        const prods = productos.filter(p => p.categoria === cat && p.activo);
+        if (prods.length === 0) return null;
+        return (
+          <Card key={cat}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{cat}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="w-32 text-center">Cantidad esperada</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {prods.map(prod => (
+                    <TableRow key={prod.id}>
+                      <TableCell>
+                        <div className="font-medium text-sm">{prod.nombre}</div>
+                        <div className="text-xs text-muted-foreground">{prod.unidadConteo}</div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Input
+                          type="number" min="0" step="0.01"
+                          className="w-24 mx-auto text-center h-8"
+                          value={lineas[prod.id] ?? ""}
+                          onChange={e => setLineas(prev => ({ ...prev, [prod.id]: e.target.value }))}
+                          disabled={publicado}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Tab: Comparativa ─────────────────────────────────────────────────────────
+function ComparativaTab({ sucursalId, almacenId, semana }: { sucursalId: number; almacenId: number; semana: string }) {
+  const { data, isLoading } = trpc.inventario.comparativa.useQuery({ sucursalId, almacenId, semana });
+
+  const exportarExcel = () => {
+    if (!data) return;
+    const rows = data.lineas.map(l => ({
+      Producto: l.productoNombre,
+      Categoría: l.categoria,
+      Unidad: l.unidadConteo,
+      "Cantidad Física": l.cantidadFisica,
+      "Gramos Abiertos": l.cantidadGramos > 0 ? l.cantidadGramos : "",
+      "Cantidad Teórica": l.cantidadTeorica,
+      "Diferencia": l.diferencia,
+      "% Variación": l.pctVariacion !== null ? `${l.pctVariacion.toFixed(1)}%` : "N/A",
+      "Stock Mínimo": l.stockMinimo ?? "",
+      "Stock Máximo": l.stockMaximo ?? "",
+      "Alerta": l.alerta ? "SÍ" : "",
+      "Bajo Mínimo": l.bajoMinimo ? "SÍ" : "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Comparativa");
+    XLSX.writeFile(wb, `inventario-comparativa-${semana}.xlsx`);
+  };
+
+  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Cargando comparativa...</div>;
+  if (!data) return null;
+
+  const { resumen, lineas } = data;
+  const categorias = Array.from(new Set(lineas.map(l => l.categoria))).sort();
+
+  return (
+    <div className="space-y-4">
+      {/* Resumen */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Total productos</div>
+          <div className="text-2xl font-bold">{resumen.totalProductos}</div>
+        </Card>
+        <Card className={`p-3 ${resumen.conAlerta > 0 ? "border-orange-400" : ""}`}>
+          <div className="text-xs text-muted-foreground">Con alerta (&gt;10%)</div>
+          <div className={`text-2xl font-bold ${resumen.conAlerta > 0 ? "text-orange-500" : ""}`}>{resumen.conAlerta}</div>
+        </Card>
+        <Card className={`p-3 ${resumen.bajoMinimo > 0 ? "border-red-400" : ""}`}>
+          <div className="text-xs text-muted-foreground">Bajo mínimo</div>
+          <div className={`text-2xl font-bold ${resumen.bajoMinimo > 0 ? "text-red-500" : ""}`}>{resumen.bajoMinimo}</div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Estado</div>
+          <div className="text-sm font-medium mt-1">
+            {resumen.hayFisico ? "✅ Físico" : "⏳ Sin físico"} / {resumen.hayTeorico ? "✅ Teórico" : "⏳ Sin teórico"}
+          </div>
+        </Card>
+      </div>
+
+      {/* Avisos */}
+      {!resumen.hayFisico && (
+        <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-300 rounded-lg text-sm">
+          <AlertTriangle className="w-4 h-4 text-yellow-600 shrink-0" />
+          <span>No hay conteo físico para esta semana. El líder debe realizarlo primero.</span>
+        </div>
+      )}
+      {!resumen.hayTeorico && (
+        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-300 rounded-lg text-sm">
+          <AlertTriangle className="w-4 h-4 text-blue-600 shrink-0" />
+          <span>No hay inventario teórico publicado para esta semana.</span>
+        </div>
+      )}
+
+      {/* Botón exportar */}
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={exportarExcel}>
+          <Download className="w-4 h-4 mr-2" /> Exportar Excel
+        </Button>
+      </div>
+
+      {/* Tabla por categoría */}
+      {categorias.map(cat => {
+        const prods = lineas.filter(l => l.categoria === cat);
+        return (
+          <Card key={cat}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{cat}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="text-center">Físico</TableHead>
+                    <TableHead className="text-center">Teórico</TableHead>
+                    <TableHead className="text-center">Diferencia</TableHead>
+                    <TableHead className="text-center">% Var.</TableHead>
+                    <TableHead className="text-center">Min/Max</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {prods.map(l => (
+                    <TableRow key={l.productoId} className={l.alerta ? "bg-orange-50 dark:bg-orange-950/20" : l.bajoMinimo ? "bg-red-50 dark:bg-red-950/20" : ""}>
+                      <TableCell>
+                        <div className="font-medium text-sm">{l.productoNombre}</div>
+                        {l.cantidadGramos > 0 && <div className="text-xs text-muted-foreground">{l.cantidadGramos}g abiertos</div>}
+                      </TableCell>
+                      <TableCell className="text-center font-mono">{l.cantidadFisica}</TableCell>
+                      <TableCell className="text-center font-mono text-muted-foreground">{l.cantidadTeorica}</TableCell>
+                      <TableCell className="text-center font-mono">
+                        <span className={l.diferencia < 0 ? "text-red-500" : l.diferencia > 0 ? "text-green-600" : ""}>
+                          {l.diferencia > 0 ? "+" : ""}{l.diferencia}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {l.pctVariacion !== null ? (
+                          <Badge variant="outline" className={Math.abs(l.pctVariacion) > 10 ? "border-orange-400 text-orange-600" : ""}>
+                            {l.pctVariacion.toFixed(1)}%
+                          </Badge>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-center text-xs">
+                        {l.stockMinimo !== null ? (
+                          <span className={l.bajoMinimo ? "text-red-500 font-medium" : "text-muted-foreground"}>
+                            {l.stockMinimo}–{l.stockMaximo}
+                            {l.bajoMinimo && " ⚠️"}
+                          </span>
+                        ) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Tab: Historial ───────────────────────────────────────────────────────────
+function HistorialTab({ sucursalId, almacenId }: { sucursalId: number; almacenId: number }) {
+  const { data: historial } = trpc.inventario.conteoFisico.historial.useQuery({ sucursalId, almacenId });
+  const [expandido, setExpandido] = useState<number | null>(null);
+  const { data: conteoDetalle } = trpc.inventario.conteoFisico.getById.useQuery(
+    { conteoId: expandido! },
+    { enabled: !!expandido }
+  );
+  const { data: productos } = trpc.inventario.productos.list.useQuery();
+
+  if (!historial || historial.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-muted-foreground">
+          <History className="w-10 h-10 mx-auto mb-2" />
+          <p>No hay conteos registrados aún.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {historial.map(conteo => (
+        <Card key={conteo.id} className="overflow-hidden">
+          <button
+            className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
+            onClick={() => setExpandido(expandido === conteo.id ? null : conteo.id)}
+          >
+            <div className="flex items-center gap-3">
+              <Badge variant={conteo.estado === "bloqueado" ? "secondary" : "outline"}>
+                {conteo.estado === "bloqueado" ? "Bloqueado" : conteo.estado === "enviado" ? "Enviado" : "Borrador"}
+              </Badge>
+              <span className="font-medium">{formatSemana(conteo.semana)}</span>
+              <span className="text-sm text-muted-foreground">{conteo.fechaConteo}</span>
+            </div>
+            {expandido === conteo.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {expandido === conteo.id && conteoDetalle && (
+            <CardContent className="pt-0 pb-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="text-center">Piezas</TableHead>
+                    <TableHead className="text-center">Gramos</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {conteoDetalle.detalles.map(d => {
+                    const prod = productos?.find(p => p.id === d.productoId);
+                    return (
+                      <TableRow key={d.id}>
+                        <TableCell className="text-sm">{prod?.nombre ?? `Producto #${d.productoId}`}</TableCell>
+                        <TableCell className="text-center font-mono">{d.cantidadPiezas}</TableCell>
+                        <TableCell className="text-center font-mono text-muted-foreground">
+                          {d.cantidadGramos ? `${d.cantidadGramos}g` : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              {conteoDetalle.conteo.notas && (
+                <p className="text-sm text-muted-foreground mt-2 px-2">📝 {conteoDetalle.conteo.notas}</p>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ─── Tab: Configuración ───────────────────────────────────────────────────────
+function ConfigTab({
+  sucursalId, almacenes, productos, refetchAlmacenes, refetchProductos
+}: {
+  sucursalId: number; almacenes: Almacen[]; productos: Producto[];
+  refetchAlmacenes: () => void; refetchProductos: () => void;
+}) {
+  const [showNuevoAlmacen, setShowNuevoAlmacen] = useState(false);
+  const [showNuevoProducto, setShowNuevoProducto] = useState(false);
+  const [editProducto, setEditProducto] = useState<Producto | null>(null);
+
+  // Nuevo almacén
+  const [nuevoAlmacen, setNuevoAlmacen] = useState({ nombre: "", tipo: "piezas" as "piezas" | "piezas_gramos", consideraMinMax: false });
+  const crearAlmacen = trpc.inventario.almacenes.create.useMutation({
+    onSuccess: () => { refetchAlmacenes(); setShowNuevoAlmacen(false); setNuevoAlmacen({ nombre: "", tipo: "piezas", consideraMinMax: false }); toast.success("Almacén creado"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Nuevo / editar producto
+  const [formProd, setFormProd] = useState({ nombre: "", categoria: "General", unidadCompra: "pieza", unidadConteo: "pieza", factorConversion: "1", pesoNetoPorUnidad: "", puedeAbrirse: false, notas: "" });
+  const crearProducto = trpc.inventario.productos.create.useMutation({
+    onSuccess: () => { refetchProductos(); setShowNuevoProducto(false); toast.success("Producto creado"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const actualizarProducto = trpc.inventario.productos.update.useMutation({
+    onSuccess: () => { refetchProductos(); setEditProducto(null); toast.success("Producto actualizado"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleGuardarProducto = () => {
+    const data = {
+      nombre: formProd.nombre,
+      categoria: formProd.categoria,
+      unidadCompra: formProd.unidadCompra,
+      unidadConteo: formProd.unidadConteo,
+      factorConversion: parseFloat(formProd.factorConversion) || 1,
+      pesoNetoPorUnidad: formProd.pesoNetoPorUnidad ? parseFloat(formProd.pesoNetoPorUnidad) : undefined,
+      puedeAbrirse: formProd.puedeAbrirse,
+      notas: formProd.notas || undefined,
+    };
+    if (editProducto) {
+      actualizarProducto.mutate({ id: editProducto.id, ...data });
+    } else {
+      crearProducto.mutate(data);
+    }
+  };
+
+  const abrirEditar = (p: Producto) => {
+    setFormProd({
+      nombre: p.nombre, categoria: p.categoria,
+      unidadCompra: p.unidadCompra, unidadConteo: p.unidadConteo,
+      factorConversion: (p.factorConversion ?? 1).toString(),
+      pesoNetoPorUnidad: p.pesoNetoPorUnidad?.toString() ?? "",
+      puedeAbrirse: p.puedeAbrirse, notas: p.notas ?? "",
+    });
+    setEditProducto(p);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Almacenes */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base flex items-center gap-2"><Warehouse className="w-4 h-4" /> Almacenes</CardTitle>
+          <Button size="sm" variant="outline" onClick={() => setShowNuevoAlmacen(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Nuevo
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {almacenes.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Sin almacenes configurados</p>
+          ) : (
+            <div className="space-y-2">
+              {almacenes.map(a => (
+                <div key={a.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <div className="font-medium text-sm">{a.nombre}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {a.tipo === "piezas_gramos" ? "Piezas + Gramos" : "Solo Piezas"}
+                      {a.consideraMinMax && " · Aplica Min/Max"}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-xs">Activo</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Catálogo de Productos */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base flex items-center gap-2"><Package className="w-4 h-4" /> Catálogo de Productos</CardTitle>
+          <Button size="sm" variant="outline" onClick={() => { setFormProd({ nombre: "", categoria: "General", unidadCompra: "pieza", unidadConteo: "pieza", factorConversion: "1", pesoNetoPorUnidad: "", puedeAbrirse: false, notas: "" }); setShowNuevoProducto(true); }}>
+            <Plus className="w-4 h-4 mr-1" /> Nuevo
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {productos.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Sin productos en el catálogo</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead className="text-center">Unidad</TableHead>
+                  <TableHead className="text-center">Pesable</TableHead>
+                  <TableHead className="w-16"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {productos.map(p => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium text-sm">{p.nombre}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{p.categoria}</TableCell>
+                    <TableCell className="text-center text-sm">{p.unidadConteo}</TableCell>
+                    <TableCell className="text-center">{p.puedeAbrirse ? "✅" : "—"}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEditar(p)}>
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modal: Nuevo Almacén */}
+      <Dialog open={showNuevoAlmacen} onOpenChange={setShowNuevoAlmacen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nuevo Almacén</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nombre</Label>
+              <Input value={nuevoAlmacen.nombre} onChange={e => setNuevoAlmacen(p => ({ ...p, nombre: e.target.value }))} placeholder="Ej: Bodega, Tienda" />
+            </div>
+            <div>
+              <Label>Tipo de conteo</Label>
+              <Select value={nuevoAlmacen.tipo} onValueChange={v => setNuevoAlmacen(p => ({ ...p, tipo: v as any }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="piezas">Solo Piezas (bodega)</SelectItem>
+                  <SelectItem value="piezas_gramos">Piezas + Gramos (tienda)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="minmax" checked={nuevoAlmacen.consideraMinMax}
+                onChange={e => setNuevoAlmacen(p => ({ ...p, consideraMinMax: e.target.checked }))} />
+              <Label htmlFor="minmax">Aplica mínimos y máximos (para pedidos)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNuevoAlmacen(false)}>Cancelar</Button>
+            <Button onClick={() => crearAlmacen.mutate({ sucursalId, ...nuevoAlmacen })} disabled={!nuevoAlmacen.nombre || crearAlmacen.isPending}>
+              Crear Almacén
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Nuevo / Editar Producto */}
+      <Dialog open={showNuevoProducto || !!editProducto} onOpenChange={v => { if (!v) { setShowNuevoProducto(false); setEditProducto(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{editProducto ? "Editar Producto" : "Nuevo Producto"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nombre</Label>
+              <Input value={formProd.nombre} onChange={e => setFormProd(p => ({ ...p, nombre: e.target.value }))} placeholder="Nombre del producto" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Categoría</Label>
+                <Input value={formProd.categoria} onChange={e => setFormProd(p => ({ ...p, categoria: e.target.value }))} placeholder="General" />
+              </div>
+              <div>
+                <Label>Unidad de conteo</Label>
+                <Input value={formProd.unidadConteo} onChange={e => setFormProd(p => ({ ...p, unidadConteo: e.target.value }))} placeholder="pieza, bolsa..." />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Unidad de compra</Label>
+                <Input value={formProd.unidadCompra} onChange={e => setFormProd(p => ({ ...p, unidadCompra: e.target.value }))} placeholder="caja, kg..." />
+              </div>
+              <div>
+                <Label>Factor conversión</Label>
+                <Input type="number" value={formProd.factorConversion} onChange={e => setFormProd(p => ({ ...p, factorConversion: e.target.value }))} placeholder="1" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="pesable" checked={formProd.puedeAbrirse}
+                onChange={e => setFormProd(p => ({ ...p, puedeAbrirse: e.target.checked }))} />
+              <Label htmlFor="pesable">Puede tener unidades abiertas (pesable en gramos)</Label>
+            </div>
+            {formProd.puedeAbrirse && (
+              <div>
+                <Label>Peso neto por unidad (gramos)</Label>
+                <Input type="number" value={formProd.pesoNetoPorUnidad} onChange={e => setFormProd(p => ({ ...p, pesoNetoPorUnidad: e.target.value }))} placeholder="Ej: 500" />
+              </div>
+            )}
+            <div>
+              <Label>Notas</Label>
+              <Textarea value={formProd.notas} onChange={e => setFormProd(p => ({ ...p, notas: e.target.value }))} rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowNuevoProducto(false); setEditProducto(null); }}>Cancelar</Button>
+            <Button onClick={handleGuardarProducto} disabled={!formProd.nombre || crearProducto.isPending || actualizarProducto.isPending}>
+              {editProducto ? "Guardar cambios" : "Crear Producto"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

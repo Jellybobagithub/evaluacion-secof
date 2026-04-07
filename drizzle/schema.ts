@@ -565,3 +565,105 @@ export const registroNomina = mysqlTable("registro_nomina", {
 });
 export type RegistroNomina = typeof registroNomina.$inferSelect;
 export type InsertRegistroNomina = typeof registroNomina.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MÓDULO INVENTARIO DE TIENDA
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Catálogo global de productos (compartido entre todas las sucursales) */
+export const invProductos = mysqlTable("inv_productos", {
+  id: int("id").autoincrement().primaryKey(),
+  nombre: varchar("nombre", { length: 120 }).notNull(),
+  categoria: varchar("categoria", { length: 80 }).notNull().default("General"),
+  unidadCompra: varchar("unidadCompra", { length: 40 }).notNull().default("pieza"), // ej: caja, bolsa, kg
+  unidadConteo: varchar("unidadConteo", { length: 40 }).notNull().default("pieza"), // ej: pieza, bolsa
+  factorConversion: float("factorConversion").default(1),   // unidades de conteo por unidad de compra
+  pesoNetoPorUnidad: float("pesoNetoPorUnidad"),             // gramos por unidad (para productos pesables)
+  puedeAbrirse: boolean("puedeAbrirse").default(false).notNull(), // si puede haber unidades abiertas (pesables)
+  activo: boolean("activo").default(true).notNull(),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InvProducto = typeof invProductos.$inferSelect;
+export type InsertInvProducto = typeof invProductos.$inferInsert;
+
+/** Almacenes por sucursal (bodega, tienda, etc.) */
+export const invAlmacenes = mysqlTable("inv_almacenes", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  nombre: varchar("nombre", { length: 80 }).notNull(),           // ej: "Bodega", "Tienda"
+  tipo: mysqlEnum("tipo", ["piezas", "piezas_gramos"]).default("piezas").notNull(),
+  consideraMinMax: boolean("consideraMinMax").default(false).notNull(), // solo bodega aplica
+  activo: boolean("activo").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type InvAlmacen = typeof invAlmacenes.$inferSelect;
+export type InsertInvAlmacen = typeof invAlmacenes.$inferInsert;
+
+/** Configuración de mínimos y máximos por producto en un almacén (solo bodega) */
+export const invMinMax = mysqlTable("inv_min_max", {
+  id: int("id").autoincrement().primaryKey(),
+  almacenId: int("almacenId").notNull(),
+  productoId: int("productoId").notNull(),
+  stockMinimo: float("stockMinimo").default(0).notNull(),
+  stockMaximo: float("stockMaximo").default(0).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InvMinMax = typeof invMinMax.$inferSelect;
+export type InsertInvMinMax = typeof invMinMax.$inferInsert;
+
+/** Encabezado de un conteo físico semanal */
+export const invConteoFisico = mysqlTable("inv_conteo_fisico", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  almacenId: int("almacenId").notNull(),
+  semana: varchar("semana", { length: 10 }).notNull(),   // formato "2026-W14"
+  fechaConteo: varchar("fechaConteo", { length: 10 }).notNull(), // YYYY-MM-DD
+  liderId: int("liderId").notNull(),                     // userId del líder
+  anfitrionId: int("anfitrionId"),                       // userId del anfitrión de apoyo
+  estado: mysqlEnum("estado", ["borrador", "enviado", "bloqueado"]).default("borrador").notNull(),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InvConteoFisico = typeof invConteoFisico.$inferSelect;
+export type InsertInvConteoFisico = typeof invConteoFisico.$inferInsert;
+
+/** Detalle línea a línea del conteo físico */
+export const invConteoDetalle = mysqlTable("inv_conteo_detalle", {
+  id: int("id").autoincrement().primaryKey(),
+  conteoId: int("conteoId").notNull(),
+  productoId: int("productoId").notNull(),
+  cantidadPiezas: float("cantidadPiezas").default(0).notNull(),  // unidades cerradas
+  cantidadGramos: float("cantidadGramos").default(0),            // gramos de unidades abiertas
+  notas: text("notas"),
+});
+export type InvConteoDetalle = typeof invConteoDetalle.$inferSelect;
+export type InsertInvConteoDetalle = typeof invConteoDetalle.$inferInsert;
+
+/** Inventario teórico capturado por el supervisor (basado en ventas Odoo) */
+export const invTeorico = mysqlTable("inv_teorico", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  almacenId: int("almacenId").notNull(),
+  semana: varchar("semana", { length: 10 }).notNull(),   // formato "2026-W14"
+  supervisorId: int("supervisorId").notNull(),           // userId del manager/owner
+  estado: mysqlEnum("estado", ["borrador", "publicado"]).default("borrador").notNull(),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type InvTeorico = typeof invTeorico.$inferSelect;
+export type InsertInvTeorico = typeof invTeorico.$inferInsert;
+
+/** Detalle línea a línea del inventario teórico */
+export const invTeoricoDetalle = mysqlTable("inv_teorico_detalle", {
+  id: int("id").autoincrement().primaryKey(),
+  teoricoId: int("teoricoId").notNull(),
+  productoId: int("productoId").notNull(),
+  cantidadEsperada: float("cantidadEsperada").default(0).notNull(), // unidades teóricas
+  notas: text("notas"),
+});
+export type InvTeoricoDetalle = typeof invTeoricoDetalle.$inferSelect;
+export type InsertInvTeoricoDetalle = typeof invTeoricoDetalle.$inferInsert;

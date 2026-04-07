@@ -603,3 +603,16 @@
 - [ ] BUG: Emily no aparece en Control de Asistencias aunque tiene registro de turno hoy
 - [ ] FEAT: Cron job nocturno para calcular registros de nómina automáticamente
 - [ ] FEAT: Alertas automáticas al líder cuando empleado acumule 3 retardos o 2 ausencias en la semana
+
+## Módulo Inventario de Tienda (Apr 7)
+- [ ] Schema BD: tablas inv_productos, inv_presentaciones, inv_almacenes, inv_conteo_fisico, inv_conteo_detalle, inv_teorico, inv_teorico_detalle
+- [ ] Endpoints tRPC: CRUD productos, almacenes, guardar conteo físico (bloqueable), guardar teórico, comparativa
+- [ ] Página Config Inventario: catálogo de productos con presentaciones y conversión de unidades
+- [ ] Página Config Almacenes: crear almacenes por sucursal con tipo (piezas / piezas+gramos)
+- [ ] Página Conteo Físico (líder): formulario semanal por almacén, campo gramos solo para productos abiertos
+- [ ] Página Inventario Teórico (supervisor/manager): captura semanal basada en ventas Odoo
+- [ ] Página Comparativa: teórico vs físico con diferencias, % variación y alertas
+- [ ] Página Historial: semana a semana con tendencias
+- [ ] Exportación a Excel del comparativo
+- [ ] Alertas automáticas cuando variación supera umbral configurable
+- [ ] Mínimos y máximos en bodega para sugerir pedidos de compra

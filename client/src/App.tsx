@@ -33,6 +33,7 @@ import DashboardLayout from "./components/DashboardLayout";
 import VentasHistoricas from "./pages/VentasHistoricas";
 import AvisosGenerales from "./pages/AvisosGenerales";
 import CuadreVasos from "./pages/CuadreVasos";
+import Inventario from "./pages/Inventario";
 
 function Router() {
   return (
@@ -157,6 +158,11 @@ function Router() {
         {/* Cuadre de Vasos: leader y superior */}
         <Route path="/cuadre-vasos">
           <ProtectedRoute component={CuadreVasos} minRole="leader" />
+        </Route>
+
+        {/* Inventario de Tienda: leader y superior */}
+        <Route path="/inventario">
+          <ProtectedRoute component={Inventario} minRole="leader" />
         </Route>
 
         <Route path="/404" component={NotFound} />

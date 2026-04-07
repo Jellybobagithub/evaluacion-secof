@@ -46,6 +46,7 @@ import {
   Bell,
   Scale,
   ClockAlert,
+  Package,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -118,6 +119,7 @@ const ALL_NAV_GROUPS = [
       { icon: TrendingUp, label: "KPIs Líder (Nivel 2)", path: "/kpi-lider", minRole: "leader" },
       { icon: DollarSign, label: "KPIs Admin (Nivel 3)", path: "/kpi-admin", minRole: "manager" },
       { icon: Scale, label: "Cuadre de Vasos", path: "/cuadre-vasos", minRole: "leader" },
+      { icon: Package, label: "Inventario", path: "/inventario", minRole: "leader" },
     ],
   },
   {
