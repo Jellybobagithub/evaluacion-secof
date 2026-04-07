@@ -30,6 +30,9 @@ export default function Asistencia() {
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [manualForm, setManualForm] = useState({ empleadoId: "", tipo: "entrada" as "entrada" | "salida", hora: new Date().toTimeString().slice(0, 5) });
   const [fechaFiltro] = useState(() => new Date().toISOString().split("T")[0]);
+  // Estabilizar timestamps del día para evitar loop de re-renders (causa del crash removeChild)
+  const [hoyInicio] = useState(() => HOY_INICIO());
+  const [hoyFin] = useState(() => HOY_FIN());
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   // Auto-seleccionar sucursal si el usuario solo tiene una asignada (evita el Select con 1 opción que causa error DOM)
@@ -47,7 +50,7 @@ export default function Asistencia() {
     { enabled: !!sucursalId }
   );
   const { data: registros = [], refetch: refetchRegistros } = trpc.asistencia.listBySucursal.useQuery(
-    { sucursalId: sucursalId ?? 0, fechaInicio: HOY_INICIO(), fechaFin: HOY_FIN() },
+    { sucursalId: sucursalId ?? 0, fechaInicio: hoyInicio, fechaFin: hoyFin },
     { enabled: !!sucursalId }
   );
 
