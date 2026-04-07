@@ -1122,7 +1122,7 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
     .where(and(eq(empleados.sucursalId, sucursalId), eq(empleados.activo, true)));
   if (emps.length === 0) return [];
 
-  // 2. Obtener aperturas y cierres en el rango
+  // 2. Obtener aperturas y cierres en el rango (turno_apertura/cierre con foto)
   const aperturas = await db.select().from(turnoApertura)
     .where(and(
       eq(turnoApertura.sucursalId, sucursalId),
@@ -1135,6 +1135,32 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
       gte(turnoCierre.fecha, fechaInicio),
       lte(turnoCierre.fecha, fechaFin)
     ));
+
+  // 2b. Obtener registros de asistencia (QR/manual) como fuente alternativa
+  // Convertir timestamps a fechas locales para comparar
+  const tsInicio = new Date(fechaInicio + "T00:00:00Z").getTime();
+  const tsFin = new Date(fechaFin + "T23:59:59Z").getTime();
+  const asistenciaRows = await db.select().from(asistencia)
+    .where(and(
+      eq(asistencia.sucursalId, sucursalId),
+      gte(asistencia.timestamp, tsInicio),
+      lte(asistencia.timestamp, tsFin)
+    ));
+  // Agrupar asistencia por empleadoId y fecha (YYYY-MM-DD en UTC)
+  const asistByEmpFecha = new Map<string, { entrada: number | null; salida: number | null }>();
+  for (const row of asistenciaRows) {
+    const fechaRow = new Date(row.timestamp).toISOString().split("T")[0];
+    const key = `${row.empleadoId}|${fechaRow}`;
+    if (!asistByEmpFecha.has(key)) asistByEmpFecha.set(key, { entrada: null, salida: null });
+    const entry = asistByEmpFecha.get(key)!;
+    if (row.tipo === "entrada") {
+      // Tomar la entrada más temprana del día
+      if (entry.entrada === null || row.timestamp < entry.entrada) entry.entrada = row.timestamp;
+    } else if (row.tipo === "salida") {
+      // Tomar la salida más tardía del día
+      if (entry.salida === null || row.timestamp > entry.salida) entry.salida = row.timestamp;
+    }
+  }
 
   // 3. Obtener horarios semanales que cubran el rango
   const horarios = await db.select().from(horariosSemanales)
@@ -1178,8 +1204,15 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
       const turnoAsignado = horario ? (horario[diaSemana] as string | null) : null;
 
       // Apertura y cierre del empleado en esa fecha
+      // Prioridad: turno_apertura/cierre (con foto) > asistencia (QR/manual)
       const apertura = aperturas.find(a => a.empleadoId === emp.id && a.fecha === fecha);
       const cierre = cierres.find(c => c.empleadoId === emp.id && c.fecha === fecha);
+      const asistKey = `${emp.id}|${fecha}`;
+      const asistRow = asistByEmpFecha.get(asistKey);
+
+      // Timestamps efectivos de entrada y salida (combinar ambas fuentes)
+      const tsEntradaEfectiva = apertura?.timestamp ?? asistRow?.entrada ?? null;
+      const tsSalidaEfectiva = cierre?.timestamp ?? asistRow?.salida ?? null;
 
       let estado: InsertRegistroNomina["estado"] = "sin_horario";
       let horasTrabajadas: number | null = null;
@@ -1195,23 +1228,22 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
         horaSalidaEsperada = horas.salida;
         const tsEntradaEsperada = horaFechaToTs(fecha, horas.entrada);
 
-        if (!apertura) {
+        if (!tsEntradaEfectiva) {
           estado = "ausente";
         } else {
-          const tsEntrada = apertura.timestamp;
-          const retrasoMin = Math.max(0, Math.round((tsEntrada - tsEntradaEsperada) / 60000));
+          const retrasoMin = Math.max(0, Math.round((tsEntradaEfectiva - tsEntradaEsperada) / 60000));
           minutosRetardo = retrasoMin;
           estado = retrasoMin > TOLERANCIA_RETARDO_MIN ? "retardo" : "presente";
 
-          if (cierre) {
-            horasTrabajadas = Math.round(((cierre.timestamp - tsEntrada) / 3600000) * 100) / 100;
+          if (tsSalidaEfectiva) {
+            horasTrabajadas = Math.round(((tsSalidaEfectiva - tsEntradaEfectiva) / 3600000) * 100) / 100;
           }
         }
-      } else if (apertura) {
-        // Tiene apertura pero no horario asignado — contar horas si hay cierre
+      } else if (tsEntradaEfectiva) {
+        // Tiene registro de entrada pero no horario asignado — contar horas si hay salida
         estado = "presente";
-        if (cierre) {
-          horasTrabajadas = Math.round(((cierre.timestamp - apertura.timestamp) / 3600000) * 100) / 100;
+        if (tsSalidaEfectiva) {
+          horasTrabajadas = Math.round(((tsSalidaEfectiva - tsEntradaEfectiva) / 3600000) * 100) / 100;
         }
       }
 
@@ -1222,8 +1254,8 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
         turnoEsperado: turnoAsignado ?? undefined,
         horaEntradaEsperada: horaEntradaEsperada ?? undefined,
         horaSalidaEsperada: horaSalidaEsperada ?? undefined,
-        timestampEntrada: apertura?.timestamp ?? undefined,
-        timestampSalida: cierre?.timestamp ?? undefined,
+        timestampEntrada: tsEntradaEfectiva ?? undefined,
+        timestampSalida: tsSalidaEfectiva ?? undefined,
         aperturaId: apertura?.id ?? undefined,
         cierreId: cierre?.id ?? undefined,
         horasTrabajadas: horasTrabajadas ?? undefined,

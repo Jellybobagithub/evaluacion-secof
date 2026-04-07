@@ -220,6 +220,92 @@ async function alertaMermasYDescuadres() {
   }
 }
 
+// ─── Cálculo Nocturno de Nómina ─────────────────────────────────────────────────────────────────────
+async function calcularNominaAutomatica() {
+  try {
+    const { getDb, calcularRegistrosNomina } = await import("./db");
+    const db = await getDb();
+    if (!db) return;
+    const { sucursales } = await import("../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const todasSucursales = await db.select({ id: sucursales.id, nombre: sucursales.nombre })
+      .from(sucursales).where(eq(sucursales.activa, true));
+    const hoy = new Date().toISOString().split("T")[0];
+    // Calcular la semana actual (lunes a hoy)
+    const d = new Date();
+    const diaSemana = d.getDay(); // 0=dom, 1=lun...
+    const diasDesdelunes = diaSemana === 0 ? 6 : diaSemana - 1;
+    const lunes = new Date(d);
+    lunes.setDate(d.getDate() - diasDesdelunes);
+    const fechaInicio = lunes.toISOString().split("T")[0];
+    let totalRegistros = 0;
+    for (const suc of todasSucursales) {
+      const regs = await calcularRegistrosNomina(suc.id, fechaInicio, hoy);
+      totalRegistros += regs.length;
+    }
+    console.log(`[Scheduler] Nómina automática calculada: ${totalRegistros} registros en ${todasSucursales.length} sucursales (${fechaInicio} → ${hoy})`);
+  } catch (err) {
+    console.error("[Scheduler] Error en cálculo nocturno de nómina:", err);
+  }
+}
+
+// ─── Alertas de Retardos y Ausencias ────────────────────────────────────────────────────────────────
+async function alertaRetardosYAusencias() {
+  try {
+    const { getDb, getResumenNominaSemanal } = await import("./db");
+    const db = await getDb();
+    if (!db) return;
+    const { sucursales, userSucursales, users } = await import("../drizzle/schema");
+    const { eq, and } = await import("drizzle-orm");
+    const todasSucursales = await db.select({ id: sucursales.id, nombre: sucursales.nombre })
+      .from(sucursales).where(eq(sucursales.activa, true));
+    // Calcular semana actual
+    const d = new Date();
+    const diaSemana = d.getDay();
+    const diasDesdelunes = diaSemana === 0 ? 6 : diaSemana - 1;
+    const lunes = new Date(d);
+    lunes.setDate(d.getDate() - diasDesdelunes);
+    const fechaInicio = lunes.toISOString().split("T")[0];
+    const hoy = d.toISOString().split("T")[0];
+    const UMBRAL_RETARDOS = 3;
+    const UMBRAL_AUSENCIAS = 2;
+    for (const suc of todasSucursales) {
+      const resumen = await getResumenNominaSemanal(suc.id, fechaInicio, hoy);
+      const alertasEmp: string[] = [];
+      for (const emp of resumen) {
+        if (emp.retardos >= UMBRAL_RETARDOS) {
+          alertasEmp.push(`⏰ ${emp.empleadoNombre}: ${emp.retardos} retardos esta semana`);
+        }
+        if (emp.diasAusente >= UMBRAL_AUSENCIAS) {
+          alertasEmp.push(`🚫 ${emp.empleadoNombre}: ${emp.diasAusente} ausencias injustificadas esta semana`);
+        }
+      }
+      if (alertasEmp.length > 0) {
+        // Notificar a los líderes asignados a esta sucursal
+        const lideresAsignados = await db.select({ userId: userSucursales.userId })
+          .from(userSucursales)
+          .where(eq(userSucursales.sucursalId, suc.id));
+        const userIds = lideresAsignados.map(l => l.userId);
+        if (userIds.length > 0) {
+          const lideres = await db.select({ id: users.id, email: users.email, name: users.name })
+            .from(users)
+            .where(eq(users.role, 'leader'));
+          const lideresEnSucursal = lideres.filter(l => userIds.includes(l.id));
+          console.log(`[Scheduler] Alertas asistencia ${suc.nombre}: ${alertasEmp.length} empleados con incidencias. Líderes: ${lideresEnSucursal.length}`);
+        }
+        // Notificar al dueño
+        await notifyOwner({
+          title: `⚠️ Incidencias de asistencia — ${suc.nombre}`,
+          content: `Se detectaron las siguientes incidencias de asistencia en la semana (${fechaInicio} al ${hoy}):\n\n${alertasEmp.join("\n")}\n\nRevisa el módulo Control de Asistencias para tomar acción o justificar ausencias.`,
+        });
+      }
+    }
+    console.log(`[Scheduler] Alertas retardos/ausencias procesadas: ${todasSucursales.length} sucursales`);
+  } catch (err) {
+    console.error("[Scheduler] Error en alertas de retardos/ausencias:", err);
+  }
+}
+
 // ─── Alerta de Preparaciones por Vencer ───────────────────────────────────────────────────────────
 async function alertaPreparacionesPorVencer() {
   try {
@@ -325,4 +411,22 @@ export function initScheduler() {
   setInterval(alertaPreparacionesPorVencer, 30 * 60 * 1000);
   // Ejecutar también al arrancar (para detectar preparaciones que ya estén por vencer)
   setTimeout(alertaPreparacionesPorVencer, 5000);
+
+  // 5. Cálculo nocturno de nómina: cada día a las 23:30
+  const msNomina = msHastaHoraHoy(23, 30);
+  const hrsNomina = (msNomina / (1000 * 60 * 60)).toFixed(1);
+  console.log(`[Scheduler] Cálculo nocturno de nómina programado en ${hrsNomina} horas (23:30 diario)`);
+  setTimeout(() => {
+    calcularNominaAutomatica();
+    setInterval(calcularNominaAutomatica, 24 * 60 * 60 * 1000);
+  }, msNomina);
+
+  // 6. Alertas de retardos/ausencias: cada lunes a las 9:00 AM
+  const msAlertasAsistencia = msHastaProximoLunes8am() + (60 * 60 * 1000); // lunes 9am = lunes 8am + 1h
+  const diasAlertasAsist = (msAlertasAsistencia / (1000 * 60 * 60 * 24)).toFixed(1);
+  console.log(`[Scheduler] Alertas retardos/ausencias programadas en ${diasAlertasAsist} días (próximo lunes 9:00 AM)`);
+  setTimeout(() => {
+    alertaRetardosYAusencias();
+    setInterval(alertaRetardosYAusencias, 7 * 24 * 60 * 60 * 1000);
+  }, msAlertasAsistencia);
 }

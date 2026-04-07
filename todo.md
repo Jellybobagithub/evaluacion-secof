@@ -598,3 +598,8 @@
 - [x] C-4: Error al asignar colaborador a tienda (código OK, es dato de configuración — asignar desde AdminUsuarios)
 - [x] Fórmula de merma invertida en ModalCierreTurno (ahora: selladora - reporte)
 - [x] Responsive KpiLider y ReporteDiario mejorado para móvil
+
+## Pendientes v60 (Apr 7)
+- [ ] BUG: Emily no aparece en Control de Asistencias aunque tiene registro de turno hoy
+- [ ] FEAT: Cron job nocturno para calcular registros de nómina automáticamente
+- [ ] FEAT: Alertas automáticas al líder cuando empleado acumule 3 retardos o 2 ausencias en la semana
