@@ -279,7 +279,7 @@ export default function Home() {
       {isManager && cuadresConDescuadre.length > 0 && (
         <div
           className="rounded-xl border border-orange-200 bg-orange-50 p-4 cursor-pointer hover:bg-orange-100 transition-colors"
-          onClick={() => setLocation("/kpi-lider")}
+          onClick={() => setLocation("/cuadre-vasos")}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

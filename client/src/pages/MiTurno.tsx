@@ -239,8 +239,9 @@ export default function MiTurno() {
     { enabled: !!sucursalId }
   );
 
-  // Acciones rápidas
-  const accionesRapidas = [
+  // Acciones rápidas — filtradas por rol
+  const isLeaderPlus = ['leader', 'manager', 'owner', 'superadmin'].includes(user?.role ?? '');
+  const accionesRapidasTodas = [
     {
       icon: FileText,
       label: reporteHoy ? "Ver reporte de hoy" : "Registrar reporte",
@@ -249,6 +250,7 @@ export default function MiTurno() {
       bg: reporteHoy?.estado === "enviado" ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200",
       path: "/reporte-diario",
       done: reporteHoy?.estado === "enviado",
+      minRole: 'leader',
     },
     {
       icon: ClipboardList,
@@ -258,6 +260,7 @@ export default function MiTurno() {
       bg: "bg-blue-50 border-blue-200",
       path: "/horarios",
       done: false,
+      minRole: 'leader',
     },
     {
       icon: Users,
@@ -267,6 +270,7 @@ export default function MiTurno() {
       bg: entradas > 0 ? "bg-green-50 border-green-200" : "bg-purple-50 border-purple-200",
       path: "/asistencia",
       done: entradas > 0,
+      minRole: 'leader',
     },
     {
       icon: ClipboardCheck,
@@ -276,8 +280,22 @@ export default function MiTurno() {
       bg: "bg-teal-50 border-teal-200",
       path: "/evaluacion/nueva",
       done: false,
+      minRole: 'leader',
+    },
+    {
+      icon: BarChart2,
+      label: "Mis KPIs",
+      sublabel: kpiSemana != null ? `Esta semana: ${kpiSemana}%` : "Ver mis evaluaciones",
+      color: "text-yellow-600",
+      bg: "bg-yellow-50 border-yellow-200",
+      path: "/kpi-anfitriones",
+      done: false,
+      minRole: 'host',
     },
   ];
+  const roleLevelMap: Record<string, number> = { host: 2, leader: 3, manager: 5, owner: 5, superadmin: 6 };
+  const userRoleLevel = roleLevelMap[user?.role ?? ''] ?? 0;
+  const accionesRapidas = accionesRapidasTodas.filter(a => userRoleLevel >= (roleLevelMap[a.minRole] ?? 0));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white">
@@ -317,7 +335,7 @@ export default function MiTurno() {
           tipoTurno={tipoTurnoSeleccionado}
           nombreEmpleado={user?.name ?? "Colaborador"}
           sucursalNombre={sucursalNombre}
-          actividades={(miTurnoData?.actividades ?? []).map((a: any) => ({ id: a.id, nombre: a.actividadClave ?? a.descripcion ?? 'Actividad', descripcion: a.descripcion, categoria: a.categoria }))}
+          actividades={(miTurnoData?.actividades ?? []).map((a: any) => ({ id: a.id, nombre: a.descripcion ?? a.actividadClave ?? 'Actividad', descripcion: a.descripcion, categoria: a.categoria, clave: a.actividadClave }))}
           esApertura={entradas === 0}
           onComplete={() => { setMostrarModalBienvenida(false); refetchTurno(); }}
           onCancel={() => setMostrarModalBienvenida(false)}
@@ -500,20 +518,7 @@ export default function MiTurno() {
                   </div>
                 )}
               </div>
-              {!miTurnoData.turno.cerrado && miTurnoData.actividades.length > 0 && (
-                <Button
-                  size="sm"
-                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs h-7 px-3"
-                  onClick={() => {
-                    if (confirm('¿Cerrar el turno? Las actividades no completadas se asignarán a tu próximo turno.')) {
-                      cerrarTurno.mutate({ turnoId: miTurnoData.turno.id });
-                    }
-                  }}
-                  disabled={cerrarTurno.isPending}
-                >
-                  {cerrarTurno.isPending ? 'Cerrando...' : 'Cerrar turno'}
-                </Button>
-              )}
+{/* Botón cerrar turno eliminado aquí — se usa el del header para evitar duplicados */}
             </div>
 
             {/* Checklist de actividades */}
@@ -754,27 +759,37 @@ export default function MiTurno() {
         </div>
       </div>
 
-      {/* Acceso a módulos */}
-      <div className="px-4 pb-8">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Módulos</p>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { icon: BarChart2, label: "KPIs Anfitriones", path: "/kpi-anfitriones", color: "from-yellow-600/30 to-orange-600/30" },
-            { icon: TrendingUp, label: "KPIs Líder", path: "/kpi-lider", color: "from-teal-600/30 to-cyan-600/30" },
-            { icon: Calendar, label: "Horarios", path: "/horarios", color: "from-indigo-600/30 to-blue-600/30" },
-            { icon: Users, label: "Empleados", path: "/empleados", color: "from-purple-600/30 to-pink-600/30" },
-          ].map(m => (
-            <button
-              key={m.path}
-              onClick={() => navigate(m.path)}
-              className={`bg-gradient-to-br ${m.color} rounded-2xl p-4 text-left border border-white/10 hover:border-white/20 transition-all`}
-            >
-              <m.icon className="w-6 h-6 text-white mb-2" />
-              <p className="text-sm font-medium text-white">{m.label}</p>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Acceso a módulos — filtrados por rol */}
+      {(() => {
+        const isLeaderPlus = ['leader', 'manager', 'owner', 'superadmin'].includes(user?.role ?? '');
+        const modulos = [
+          { icon: BarChart2, label: 'KPIs Anfitriones', path: '/kpi-anfitriones', color: 'from-yellow-600/30 to-orange-600/30', minRole: 'host' },
+          { icon: TrendingUp, label: 'KPIs Líder', path: '/kpi-lider', color: 'from-teal-600/30 to-cyan-600/30', minRole: 'leader' },
+          { icon: Calendar, label: 'Horarios', path: '/horarios', color: 'from-indigo-600/30 to-blue-600/30', minRole: 'leader' },
+          { icon: Users, label: 'Empleados', path: '/empleados', color: 'from-purple-600/30 to-pink-600/30', minRole: 'leader' },
+        ];
+        const roleLevel: Record<string, number> = { host: 2, leader: 3, manager: 5, owner: 5, superadmin: 6 };
+        const userLevel = roleLevel[user?.role ?? ''] ?? 0;
+        const visibles = modulos.filter(m => userLevel >= (roleLevel[m.minRole] ?? 0));
+        if (visibles.length === 0) return null;
+        return (
+          <div className="px-4 pb-8">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Módulos</p>
+            <div className="grid grid-cols-2 gap-3">
+              {visibles.map(m => (
+                <button
+                  key={m.path}
+                  onClick={() => navigate(m.path)}
+                  className={`bg-gradient-to-br ${m.color} rounded-2xl p-4 text-left border border-white/10 hover:border-white/20 transition-all`}
+                >
+                  <m.icon className="w-6 h-6 text-white mb-2" />
+                  <p className="text-sm font-medium text-white">{m.label}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

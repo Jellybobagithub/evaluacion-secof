@@ -31,6 +31,7 @@ import DashboardSecof from "./pages/DashboardSecof";
 import DashboardLayout from "./components/DashboardLayout";
 import VentasHistoricas from "./pages/VentasHistoricas";
 import AvisosGenerales from "./pages/AvisosGenerales";
+import CuadreVasos from "./pages/CuadreVasos";
 
 function Router() {
   return (
@@ -97,9 +98,9 @@ function Router() {
         {/* Página pública de registro QR (sin login) */}
         <Route path="/asistencia-qr" component={AsistenciaQR} />
 
-        {/* KPIs Anfitriones: leader y superior */}
+        {/* KPIs Anfitriones: host y superior */}
         <Route path="/kpi-anfitriones">
-          <ProtectedRoute component={KpiAnfitriones} minRole="leader" />
+          <ProtectedRoute component={KpiAnfitriones} minRole="host" />
         </Route>
 
         {/* KPIs Líder Nivel 2: leader y superior */}
@@ -145,6 +146,11 @@ function Router() {
         {/* Avisos generales: manager y superior */}
         <Route path="/avisos-generales">
           <ProtectedRoute component={AvisosGenerales} minRole="manager" />
+        </Route>
+
+        {/* Cuadre de Vasos: leader y superior */}
+        <Route path="/cuadre-vasos">
+          <ProtectedRoute component={CuadreVasos} minRole="leader" />
         </Route>
 
         <Route path="/404" component={NotFound} />

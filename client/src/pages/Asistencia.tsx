@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -32,6 +32,12 @@ export default function Asistencia() {
   const [fechaFiltro] = useState(() => new Date().toISOString().split("T")[0]);
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+  // Auto-seleccionar sucursal si el usuario solo tiene una asignada (evita el Select con 1 opción que causa error DOM)
+  useEffect(() => {
+    if (sucursales.length === 1 && sucursalId === null) {
+      setSucursalId(sucursales[0].id);
+    }
+  }, [sucursales]);
   const { data: qrData, refetch: refetchQr } = trpc.asistencia.getQrToken.useQuery(
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId && qrDialogOpen }

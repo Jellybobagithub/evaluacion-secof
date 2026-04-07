@@ -567,3 +567,12 @@
 - [x] Página AvisosGenerales: CRUD de avisos con tipo (info/urgente/recordatorio), sucursal y expiración
 - [x] Dashboard Ejecutivo: tarjeta de alerta de merma de vasos (7 días) con detalle por sucursal
 - [x] Menú lateral: enlace "Avisos Generales" en sección Configuración (manager+)
+
+## Bugs y mejoras v52 (Apr 6)
+- [ ] Bug: Error NotFoundError en asistencia para líder Emily (removeChild DOM)
+- [ ] Mejora: Mostrar descripción completa de actividades en modal bienvenida (no solo D1, D2...)
+- [ ] Mejora: Ocultar módulos sin acceso para anfitrión en Mi Turno (Horarios, Empleados, KPIs Líder, Evaluación SECOF)
+- [ ] Mejora: Dar acceso a KPIs propios del anfitrión en Mi Turno
+- [ ] Mejora: Unificar los dos botones "Cerrar turno" en uno solo
+- [ ] Mejora: Crear vista de historial de cuadres de vasos (accesible desde Dashboard)
+- [ ] Info: Explicar cómo funciona el cuadre de vasos (necesita apertura + reporte de ventas)

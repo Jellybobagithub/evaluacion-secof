@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,6 +85,12 @@ export default function KpiAnfitriones() {
   const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+  // Auto-seleccionar sucursal si el usuario tiene solo una asignada
+  useEffect(() => {
+    if (sucursales.length === 1 && sucursalId === null) {
+      setSucursalId(sucursales[0].id);
+    }
+  }, [sucursales]);
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId }

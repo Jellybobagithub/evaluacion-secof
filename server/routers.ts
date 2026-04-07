@@ -1711,21 +1711,29 @@ export const appRouter = router({
 
     // Obtener cuadres recientes de todas las sucursales (para merma en dashboard)
     getCuadresRecientes: protectedProcedure
-      .input(z.object({ dias: z.number().default(7) }))
+      .input(z.object({ dias: z.number().default(7), sucursalId: z.number().optional() }))
       .query(async ({ ctx, input }) => {
-        if (!['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
+        if (!['owner', 'manager', 'superadmin', 'leader'].includes(ctx.user.role)) {
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
-        const { getCierresByRango, getDb, getSucursales } = await import('./db');
+        const { getCierresByRango, getSucursales, getSucursalesAsignadas } = await import('./db');
         const hoy = new Date();
         const inicio = new Date(hoy);
         inicio.setDate(inicio.getDate() - input.dias);
         const pad = (n: number) => String(n).padStart(2, '0');
         const fechaInicio = `${inicio.getFullYear()}-${pad(inicio.getMonth() + 1)}-${pad(inicio.getDate())}`;
         const fechaFin = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
-        const allSucursales = await getSucursales();
+        let sucursalesToQuery: { id: number; nombre: string }[];
+        if (input.sucursalId) {
+          const all = await getSucursales();
+          sucursalesToQuery = all.filter((s: any) => s.id === input.sucursalId);
+        } else if (['owner', 'manager', 'superadmin'].includes(ctx.user.role)) {
+          sucursalesToQuery = await getSucursales();
+        } else {
+          sucursalesToQuery = await getSucursalesAsignadas(ctx.user.id);
+        }
         const resultados: any[] = [];
-        for (const s of allSucursales) {
+        for (const s of sucursalesToQuery) {
           const cierres = await getCierresByRango(s.id, fechaInicio, fechaFin);
           for (const c of cierres) {
             resultados.push({ ...c, sucursalNombre: s.nombre });
