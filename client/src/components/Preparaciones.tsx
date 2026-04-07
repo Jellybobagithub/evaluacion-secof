@@ -171,7 +171,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
       {/* Header del módulo */}
       <Card className="overflow-hidden">
         <CardHeader className="py-3 px-4 bg-slate-50 border-b">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <button
               className="flex items-center gap-2 text-left"
               onClick={() => setCollapsed(!collapsed)}
@@ -185,24 +185,24 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
               )}
               {collapsed ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronUp className="w-3.5 h-3.5 text-slate-400" />}
             </button>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 flex-wrap">
               <Button
                 variant="ghost" size="sm"
-                className="h-7 text-xs text-slate-500"
+                className="h-8 text-xs text-slate-500 flex-1 sm:flex-none"
                 onClick={() => setShowHistorial(!showHistorial)}
               >
                 <History className="w-3.5 h-3.5 mr-1" /> Historial
               </Button>
               <Button
                 variant="ghost" size="sm"
-                className="h-7 text-xs text-red-600 hover:text-red-700"
+                className="h-8 text-xs text-red-600 hover:text-red-700 flex-1 sm:flex-none"
                 onClick={() => { setPreparacionSeleccionada(null); setShowIncidencia(true); }}
               >
                 <AlertTriangle className="w-3.5 h-3.5 mr-1" /> Incidencia
               </Button>
               <Button
                 size="sm"
-                className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                className="h-8 text-xs bg-teal-600 hover:bg-teal-700 text-white flex-1 sm:flex-none"
                 onClick={() => setShowNueva(true)}
               >
                 <Plus className="w-3.5 h-3.5 mr-1" /> Registrar

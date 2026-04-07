@@ -1783,6 +1783,21 @@ export const appRouter = router({
         return resultados;
       }),
 
+    // Obtener registros de turno con fotos (apertura + cierre) para líder/manager/dueño
+    getRegistrosTurnoConFotos: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(),
+        fechaFin: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { getRegistrosTurnoConFotos } = await import('./db');
+        return getRegistrosTurnoConFotos(input.sucursalId, input.fechaInicio, input.fechaFin);
+      }),
+
     // Detectar número en foto de selladora via LLM vision
     detectarContadorSelladora: protectedProcedure
       .input(z.object({ imageUrl: z.string() }))

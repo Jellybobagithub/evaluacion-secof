@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { QrCode, RefreshCw, Clock, Download, UserCheck, UserX, Plus, Calendar } from "lucide-react";
+import { QrCode, RefreshCw, Clock, Download, UserCheck, UserX, Plus, Calendar, AlertTriangle } from "lucide-react";
 
 const HOY_INICIO = () => {
   const d = new Date();
@@ -184,11 +184,17 @@ export default function Asistencia() {
       {sucursalId && (
         <>
           {/* Resumen del día */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
                 <div className="text-3xl font-bold text-violet-600">{resumenEmpleados.filter(e => e.entrada && !e.salida).length}</div>
-                <div className="text-xs text-muted-foreground mt-1">Empleados presentes</div>
+                <div className="text-xs text-muted-foreground mt-1">En turno ahora</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4 pb-4 text-center">
+                <div className="text-3xl font-bold text-blue-600">{resumenEmpleados.filter(e => e.entrada && e.salida).length}</div>
+                <div className="text-xs text-muted-foreground mt-1">Salieron hoy</div>
               </CardContent>
             </Card>
             <Card>
@@ -204,6 +210,42 @@ export default function Asistencia() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Alerta: empleados con turno prolongado (más de 9h sin salida) */}
+          {canEdit && resumenEmpleados.filter(e => e.entrada && !e.salida && (Date.now() - e.entrada) > 9 * 3600000).length > 0 && (
+            <Card className="border-amber-300 bg-amber-50">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Turno prolongado — más de 9 horas sin registrar salida</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {resumenEmpleados
+                        .filter(e => e.entrada && !e.salida && (Date.now() - e.entrada) > 9 * 3600000)
+                        .map(e => (
+                          <div key={e.empleadoId} className="flex items-center gap-2 bg-amber-100 border border-amber-200 rounded-md px-2 py-1">
+                            <span className="text-xs font-medium text-amber-900">{e.nombre}</span>
+                            <span className="text-xs text-amber-700">{Math.floor((Date.now() - e.entrada!) / 3600000)}h {Math.floor(((Date.now() - e.entrada!) % 3600000) / 60000)}min</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-5 px-1.5 text-[10px] text-orange-600 border-orange-300 hover:bg-orange-50"
+                              onClick={() => {
+                                const ahora = new Date().toTimeString().slice(0, 5);
+                                setManualForm({ empleadoId: String(e.empleadoId), tipo: "salida", hora: ahora });
+                                setManualDialogOpen(true);
+                              }}
+                            >
+                              Registrar salida
+                            </Button>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Tabla de asistencia del día */}
           <Card>
@@ -223,14 +265,14 @@ export default function Asistencia() {
               ) : (
                 <div className="space-y-2">
                   {resumenEmpleados.map(emp => (
-                    <div key={emp.empleadoId} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div key={emp.empleadoId} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border gap-2">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-semibold text-sm">
+                        <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-semibold text-sm shrink-0">
                           {emp.nombre.charAt(0).toUpperCase()}
                         </div>
                         <span className="font-medium text-sm">{emp.nombre}</span>
                       </div>
-                      <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-3 text-sm flex-wrap ml-11 sm:ml-0">
                         <div className="flex items-center gap-1">
                           <UserCheck className="w-3.5 h-3.5 text-green-500" />
                           <span className={emp.entrada ? "text-green-600 font-medium" : "text-muted-foreground"}>
@@ -249,13 +291,15 @@ export default function Asistencia() {
                           </Badge>
                         )}
                         {emp.entrada && !emp.salida && (
-                          <div className="flex items-center gap-1">
-                            <Badge className="bg-green-100 text-green-800 text-xs" variant="outline">En turno</Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge className={`text-xs ${(Date.now() - (emp.entrada ?? 0)) > 9 * 3600000 ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-green-100 text-green-800'}`} variant="outline">
+                              {(Date.now() - (emp.entrada ?? 0)) > 9 * 3600000 ? '⚠ En turno' : 'En turno'}
+                            </Badge>
                             {canEdit && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-6 px-2 text-[10px] text-orange-600 border-orange-200 hover:bg-orange-50"
+                                className="h-7 px-2 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
                                 onClick={() => {
                                   const ahora = new Date().toTimeString().slice(0, 5);
                                   setManualForm({ empleadoId: String(emp.empleadoId), tipo: "salida", hora: ahora });

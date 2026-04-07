@@ -1005,3 +1005,72 @@ export async function getEmpleadoByUserId(userId: number) {
   const rows = await db.select().from(empleados).where(eq(empleados.userId, userId)).limit(1);
   return rows[0] ?? null;
 }
+
+// ─── Registros de turno con fotos (para vista del líder/manager/dueño) ─────────
+export async function getRegistrosTurnoConFotos(sucursalId: number, fechaInicio: string, fechaFin: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const { turnoApertura, turnoCierre, empleados } = await import('../drizzle/schema');
+  const { eq, and, gte, lte } = await import('drizzle-orm');
+
+  const aperturas = await db.select().from(turnoApertura)
+    .where(and(eq(turnoApertura.sucursalId, sucursalId), gte(turnoApertura.fecha, fechaInicio), lte(turnoApertura.fecha, fechaFin)))
+    .orderBy(turnoApertura.fecha);
+
+  const cierres = await db.select().from(turnoCierre)
+    .where(and(eq(turnoCierre.sucursalId, sucursalId), gte(turnoCierre.fecha, fechaInicio), lte(turnoCierre.fecha, fechaFin)))
+    .orderBy(turnoCierre.fecha);
+
+  // Obtener nombres de empleados
+  const allEmpIds = [...aperturas.map(a => a.empleadoId), ...cierres.map(c => c.empleadoId)];
+  const empIds = allEmpIds.filter((id, idx) => allEmpIds.indexOf(id) === idx);
+  const empRows = empIds.length > 0 ? await db.select({ id: empleados.id, nombre: empleados.nombre, apellido: empleados.apellido }).from(empleados) : [];
+  const empMap: Record<number, string> = {};
+  for (const e of empRows) {
+    empMap[e.id] = `${e.nombre} ${e.apellido ?? ''}`.trim();
+  }
+
+  // Combinar por fecha + tipoTurno
+  const mapa: Record<string, any> = {};
+  for (const a of aperturas) {
+    const key = `${a.fecha}-${a.tipoTurno}`;
+    mapa[key] = {
+      fecha: a.fecha,
+      tipoTurno: a.tipoTurno,
+      apertura: {
+        id: a.id,
+        timestamp: a.timestamp,
+        empleadoId: a.empleadoId,
+        empleadoNombre: empMap[a.empleadoId] ?? `#${a.empleadoId}`,
+        fotoUniformeUrl: a.fotoUniformeUrl,
+        fotoSelladoUrl: a.fotoSelladoUrl,
+        contadorSelladora: a.contadorSelladora,
+        conteoVasos: a.conteoVasos,
+        conteoPopotes: a.conteoPopotes,
+        notas: a.notas,
+      },
+      cierre: null,
+    };
+  }
+  for (const c of cierres) {
+    const key = `${c.fecha}-${c.tipoTurno}`;
+    if (!mapa[key]) {
+      mapa[key] = { fecha: c.fecha, tipoTurno: c.tipoTurno, apertura: null };
+    }
+    mapa[key].cierre = {
+      id: c.id,
+      timestamp: c.timestamp,
+      empleadoId: c.empleadoId,
+      empleadoNombre: empMap[c.empleadoId] ?? `#${c.empleadoId}`,
+      fotoSelladoCierreUrl: c.fotoSelladoCierreUrl,
+      contadorSelladoraCierre: c.contadorSelladoraCierre,
+      conteoVasosFinal: c.conteoVasosFinal,
+      vasosVendidosSelladora: c.vasosVendidosSelladora,
+      vasosVendidosReporte: c.vasosVendidosReporte,
+      mermaVasos: c.mermaVasos,
+      novedadesTurno: c.novedadesTurno,
+    };
+  }
+
+  return Object.values(mapa).sort((a, b) => (b.fecha > a.fecha ? 1 : b.fecha < a.fecha ? -1 : 0));
+}
