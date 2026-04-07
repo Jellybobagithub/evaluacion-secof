@@ -187,7 +187,7 @@ export default function Asistencia() {
           <div className="grid grid-cols-3 gap-4">
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
-                <div className="text-3xl font-bold text-violet-600">{resumenEmpleados.length}</div>
+                <div className="text-3xl font-bold text-violet-600">{resumenEmpleados.filter(e => e.entrada && !e.salida).length}</div>
                 <div className="text-xs text-muted-foreground mt-1">Empleados presentes</div>
               </CardContent>
             </Card>
