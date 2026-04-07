@@ -444,10 +444,12 @@ export default function Empleados() {
             <div>
               <Label>ID de usuario del sistema</Label>
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="Ej: 5"
                 value={userIdInput}
-                onChange={e => setUserIdInput(e.target.value)}
+                onChange={e => setUserIdInput(e.target.value.replace(/[^0-9]/g, ""))}
               />
               <p className="text-xs text-muted-foreground mt-1">El ID del usuario se puede obtener en la sección de Admin Usuarios.</p>
             </div>

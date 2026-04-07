@@ -14,6 +14,10 @@ function Input({
   // Get dialog composition context if available (will be no-op if not inside Dialog)
   const dialogComposition = useDialogComposition();
 
+  // Numeric inputs don't use IME/composition — skip composition logic entirely
+  // to prevent spurious composition events from crashing the dialog portal (removeChild error)
+  const isNumericType = type === "number" || type === "tel";
+
   // Add composition event handlers to support input method editor (IME) for CJK languages.
   const {
     onCompositionStart: handleCompositionStart,
@@ -21,6 +25,10 @@ function Input({
     onKeyDown: handleKeyDown,
   } = useComposition<HTMLInputElement>({
     onKeyDown: (e) => {
+      if (isNumericType) {
+        onKeyDown?.(e);
+        return;
+      }
       // Check if this is an Enter key that should be blocked
       const isComposing = (e.nativeEvent as any).isComposing || dialogComposition.justEndedComposing();
 
@@ -34,17 +42,21 @@ function Input({
       onKeyDown?.(e);
     },
     onCompositionStart: e => {
-      dialogComposition.setComposing(true);
+      if (!isNumericType) {
+        dialogComposition.setComposing(true);
+      }
       onCompositionStart?.(e);
     },
     onCompositionEnd: e => {
-      // Mark that composition just ended - this helps handle the Enter key that confirms input
-      dialogComposition.markCompositionEnd();
-      // Delay setting composing to false to handle Safari's event order
-      // In Safari, compositionEnd fires before the ESC keydown event
-      setTimeout(() => {
-        dialogComposition.setComposing(false);
-      }, 100);
+      if (!isNumericType) {
+        // Mark that composition just ended - this helps handle the Enter key that confirms input
+        dialogComposition.markCompositionEnd();
+        // Delay setting composing to false to handle Safari's event order
+        // In Safari, compositionEnd fires before the ESC keydown event
+        setTimeout(() => {
+          dialogComposition.setComposing(false);
+        }, 100);
+      }
       onCompositionEnd?.(e);
     },
   });
@@ -59,9 +71,9 @@ function Input({
         "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
         className
       )}
-      onCompositionStart={handleCompositionStart}
-      onCompositionEnd={handleCompositionEnd}
-      onKeyDown={handleKeyDown}
+      onCompositionStart={isNumericType ? onCompositionStart : handleCompositionStart}
+      onCompositionEnd={isNumericType ? onCompositionEnd : handleCompositionEnd}
+      onKeyDown={isNumericType ? onKeyDown : handleKeyDown}
       {...props}
     />
   );
