@@ -5,12 +5,35 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { QrCode, RefreshCw, Clock, Download, UserCheck, UserX, Plus, Calendar, AlertTriangle } from "lucide-react";
+
+// Select nativo estilizado — evita el portal de Radix que crashea en navegadores móviles
+function NativeSelect({ value, onChange, placeholder, children, className }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full h-10 px-3 pr-9 text-sm rounded-md border border-input bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50"
+      >
+        {placeholder && <option value="">{placeholder}</option>}
+        {children}
+      </select>
+      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+    </div>
+  );
+}
 
 const HOY_INICIO = () => {
   const d = new Date();
@@ -160,12 +183,9 @@ export default function Asistencia() {
           <div className="flex items-center gap-4">
             <div className="flex-1 max-w-xs">
               <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
-              <Select value={sucursalId?.toString() ?? ""} onValueChange={v => setSucursalId(Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Selecciona una sucursal..." /></SelectTrigger>
-                <SelectContent>
-                  {sucursales.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <NativeSelect value={sucursalId?.toString() ?? ""} onChange={v => setSucursalId(Number(v))} placeholder="Selecciona una sucursal...">
+                {sucursales.map(s => <option key={s.id} value={s.id.toString()}>{s.nombre}</option>)}
+              </NativeSelect>
             </div>
             {sucursalId && (
               <div className="flex items-center gap-2 mt-5 text-sm text-muted-foreground">
@@ -398,24 +418,18 @@ export default function Asistencia() {
           <div className="space-y-4">
             <div>
               <Label>Empleado</Label>
-              <Select value={manualForm.empleadoId} onValueChange={v => setManualForm(f => ({ ...f, empleadoId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecciona empleado..." /></SelectTrigger>
-                <SelectContent>
-                  {empleados.map(e => (
-                    <SelectItem key={e.id} value={e.id.toString()}>{e.nombre} {e.apellido ?? ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <NativeSelect value={manualForm.empleadoId} onChange={v => setManualForm(f => ({ ...f, empleadoId: v }))} placeholder="Selecciona empleado...">
+                {empleados.map(e => (
+                  <option key={e.id} value={e.id.toString()}>{e.nombre} {e.apellido ?? ""}</option>
+                ))}
+              </NativeSelect>
             </div>
             <div>
               <Label>Tipo</Label>
-              <Select value={manualForm.tipo} onValueChange={v => setManualForm(f => ({ ...f, tipo: v as "entrada" | "salida" }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="entrada">Entrada</SelectItem>
-                  <SelectItem value="salida">Salida</SelectItem>
-                </SelectContent>
-              </Select>
+              <NativeSelect value={manualForm.tipo} onChange={v => setManualForm(f => ({ ...f, tipo: v as "entrada" | "salida" }))}>
+                <option value="entrada">Entrada</option>
+                <option value="salida">Salida</option>
+              </NativeSelect>
             </div>
             <div>
               <Label>Hora</Label>
