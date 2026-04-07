@@ -10,6 +10,7 @@ import {
   invProductos, invAlmacenes, invMinMax,
   invConteoFisico, invConteoDetalle,
   invTeorico, invTeoricoDetalle,
+  invCategoria,
 } from "../../drizzle/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
 
@@ -79,14 +80,85 @@ export const inventarioRouter = router({
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         const role = ctx.user.role;
-        if (!["superadmin", "owner", "manager"].includes(role))
+        if (![
+"superadmin", "owner", "manager"].includes(role))
           throw new TRPCError({ code: "FORBIDDEN" });
         const { id, ...data } = input;
         await db.update(invProductos).set(data as any).where(eq(invProductos.id, id));
         return { ok: true };
       }),
+
+    duplicate: protectedProcedure
+      .input(z.object({ id: z.number(), nuevoNombre: z.string().min(1).max(120) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const role = ctx.user.role;
+        if (!["superadmin", "owner", "manager"].includes(role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const [original] = await db.select().from(invProductos).where(eq(invProductos.id, input.id));
+        if (!original) throw new TRPCError({ code: "NOT_FOUND", message: "Producto no encontrado" });
+        const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = original;
+        const [result] = await db.insert(invProductos).values({ ...rest, nombre: input.nuevoNombre });
+        return { id: (result as any).insertId };
+      }),
   },
 
+  // ── Categorías ─────────────────────────────────────────────────────────────
+  categorias: {
+    list: protectedProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        return db.select().from(invCategoria).orderBy(invCategoria.orden, invCategoria.nombre);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        nombre: z.string().min(1).max(80),
+        descripcion: z.string().optional(),
+        color: z.string().optional(),
+        orden: z.number().default(0),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        if (!["superadmin", "owner", "manager"].includes(ctx.user.role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const [result] = await db.insert(invCategoria).values(input);
+        return { id: (result as any).insertId };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nombre: z.string().min(1).max(80).optional(),
+        descripcion: z.string().optional(),
+        color: z.string().optional(),
+        orden: z.number().optional(),
+        activa: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        if (!["superadmin", "owner", "manager"].includes(ctx.user.role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const { id, ...data } = input;
+        await db.update(invCategoria).set(data).where(eq(invCategoria.id, id));
+        return { ok: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        if (!["superadmin", "owner", "manager"].includes(ctx.user.role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+        await db.delete(invCategoria).where(eq(invCategoria.id, input.id));
+        return { ok: true };
+      }),
+  },
   // ── Almacenes ──────────────────────────────────────────────────────────────
   almacenes: {
     list: protectedProcedure

@@ -667,3 +667,16 @@ export const invTeoricoDetalle = mysqlTable("inv_teorico_detalle", {
 });
 export type InvTeoricoDetalle = typeof invTeoricoDetalle.$inferSelect;
 export type InsertInvTeoricoDetalle = typeof invTeoricoDetalle.$inferInsert;
+
+/** Categorías del catálogo de productos de inventario */
+export const invCategoria = mysqlTable("inv_categoria", {
+  id: int("id").autoincrement().primaryKey(),
+  nombre: varchar("nombre", { length: 80 }).notNull(),
+  descripcion: text("descripcion"),
+  color: varchar("color", { length: 20 }).default("#6b7280"),
+  orden: int("orden").default(0).notNull(),
+  activa: boolean("activa").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type InvCategoria = typeof invCategoria.$inferSelect;
+export type InsertInvCategoria = typeof invCategoria.$inferInsert;

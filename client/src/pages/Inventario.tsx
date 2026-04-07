@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Package, Warehouse, ClipboardList, BarChart3, History,
   Plus, Save, Send, AlertTriangle, CheckCircle, Settings,
-  ChevronDown, ChevronUp, Download, Edit, Trash2
+  ChevronDown, ChevronUp, Download, Edit, Trash2, Copy, Tag
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -195,7 +195,7 @@ export default function Inventario() {
                 productos={productos ?? []}
                 semana={semana}
               /> : <div className="py-10 text-center text-muted-foreground">Selecciona o crea un almacén en la tab Configuración.</div>}
-             </TabsContent>
+            </TabsContent>
           )}
           {/* Comparativa */}
           <TabsContent value="comparativa">
@@ -794,6 +794,30 @@ function ConfigTab({
   const [showNuevoAlmacen, setShowNuevoAlmacen] = useState(false);
   const [showNuevoProducto, setShowNuevoProducto] = useState(false);
   const [editProducto, setEditProducto] = useState<Producto | null>(null);
+  // Duplicar producto
+  const [duplicarProducto, setDuplicarProducto] = useState<Producto | null>(null);
+  const [nombreDuplicado, setNombreDuplicado] = useState("");
+  const duplicar = trpc.inventario.productos.duplicate.useMutation({
+    onSuccess: () => { refetchProductos(); setDuplicarProducto(null); setNombreDuplicado(""); toast.success("Producto duplicado"); },
+    onError: (e) => toast.error(e.message),
+  });
+  // Categorías
+  const { data: categoriasDB, refetch: refetchCategorias } = trpc.inventario.categorias.list.useQuery();
+  const [showNuevaCategoria, setShowNuevaCategoria] = useState(false);
+  const [editCategoria, setEditCategoria] = useState<{ id: number; nombre: string; descripcion?: string | null; color?: string | null; orden: number } | null>(null);
+  const [formCat, setFormCat] = useState({ nombre: "", descripcion: "", color: "#6b7280", orden: 0 });
+  const crearCategoria = trpc.inventario.categorias.create.useMutation({
+    onSuccess: () => { refetchCategorias(); setShowNuevaCategoria(false); setFormCat({ nombre: "", descripcion: "", color: "#6b7280", orden: 0 }); toast.success("Categoría creada"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const actualizarCategoria = trpc.inventario.categorias.update.useMutation({
+    onSuccess: () => { refetchCategorias(); setEditCategoria(null); toast.success("Categoría actualizada"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const eliminarCategoria = trpc.inventario.categorias.delete.useMutation({
+    onSuccess: () => { refetchCategorias(); toast.success("Categoría eliminada"); },
+    onError: (e) => toast.error(e.message),
+  });
 
   // Nuevo almacén
   const [nuevoAlmacen, setNuevoAlmacen] = useState({ nombre: "", tipo: "piezas" as "piezas" | "piezas_gramos", consideraMinMax: false });
@@ -904,9 +928,14 @@ function ConfigTab({
                     <TableCell className="text-center text-sm">{p.unidadConteo}</TableCell>
                     <TableCell className="text-center">{p.puedeAbrirse ? "✅" : "—"}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEditar(p)}>
-                        <Edit className="w-3 h-3" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" onClick={() => abrirEditar(p)}>
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Duplicar" onClick={() => { setDuplicarProducto(p); setNombreDuplicado(p.nombre + " (copia)"); }}>
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -916,6 +945,106 @@ function ConfigTab({
         </CardContent>
       </Card>
 
+      {/* Sección: Categorías */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base flex items-center gap-2"><Tag className="w-4 h-4" /> Categorías del Catálogo</CardTitle>
+          <Button size="sm" variant="outline" onClick={() => { setFormCat({ nombre: "", descripcion: "", color: "#6b7280", orden: 0 }); setShowNuevaCategoria(true); }}>
+            <Plus className="w-4 h-4 mr-1" /> Nueva
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {!categoriasDB || categoriasDB.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Sin categorías. Crea una para organizar el catálogo.</p>
+          ) : (
+            <div className="space-y-2">
+              {categoriasDB.map(cat => (
+                <div key={cat.id} className="flex items-center justify-between p-2 border rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color ?? "#6b7280" }} />
+                    <span className="text-sm font-medium">{cat.nombre}</span>
+                    {cat.descripcion && <span className="text-xs text-muted-foreground">{cat.descripcion}</span>}
+                    {!cat.activa && <Badge variant="secondary" className="text-xs">Inactiva</Badge>}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditCategoria(cat)}>
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => eliminarCategoria.mutate({ id: cat.id })}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      {/* Modal: Nueva / Editar Categoría */}
+      <Dialog open={showNuevaCategoria || !!editCategoria} onOpenChange={v => { if (!v) { setShowNuevaCategoria(false); setEditCategoria(null); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editCategoria ? "Editar Categoría" : "Nueva Categoría"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nombre</Label>
+              <Input value={editCategoria ? editCategoria.nombre : formCat.nombre}
+                onChange={e => editCategoria ? setEditCategoria(p => p ? { ...p, nombre: e.target.value } : p) : setFormCat(p => ({ ...p, nombre: e.target.value }))}
+                placeholder="Ej: Bebidas, Insumos, Empaque" />
+            </div>
+            <div>
+              <Label>Descripción (opcional)</Label>
+              <Input value={editCategoria ? (editCategoria.descripcion ?? "") : formCat.descripcion}
+                onChange={e => editCategoria ? setEditCategoria(p => p ? { ...p, descripcion: e.target.value } : p) : setFormCat(p => ({ ...p, descripcion: e.target.value }))}
+                placeholder="Descripción breve" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Color</Label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={editCategoria ? (editCategoria.color ?? "#6b7280") : formCat.color}
+                    onChange={e => editCategoria ? setEditCategoria(p => p ? { ...p, color: e.target.value } : p) : setFormCat(p => ({ ...p, color: e.target.value }))}
+                    className="h-9 w-14 rounded border cursor-pointer" />
+                  <span className="text-sm text-muted-foreground">{editCategoria ? editCategoria.color : formCat.color}</span>
+                </div>
+              </div>
+              <div>
+                <Label>Orden</Label>
+                <Input type="number" value={editCategoria ? editCategoria.orden : formCat.orden}
+                  onChange={e => editCategoria ? setEditCategoria(p => p ? { ...p, orden: parseInt(e.target.value) || 0 } : p) : setFormCat(p => ({ ...p, orden: parseInt(e.target.value) || 0 }))}
+                  placeholder="0" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowNuevaCategoria(false); setEditCategoria(null); }}>Cancelar</Button>
+            <Button
+              onClick={() => editCategoria
+                ? actualizarCategoria.mutate({ id: editCategoria.id, nombre: editCategoria.nombre, descripcion: editCategoria.descripcion ?? undefined, color: editCategoria.color ?? undefined, orden: editCategoria.orden })
+                : crearCategoria.mutate(formCat)
+              }
+              disabled={!(editCategoria ? editCategoria.nombre : formCat.nombre) || crearCategoria.isPending || actualizarCategoria.isPending}>
+              {editCategoria ? "Guardar" : "Crear Categoría"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Modal: Duplicar Producto */}
+      <Dialog open={!!duplicarProducto} onOpenChange={v => { if (!v) setDuplicarProducto(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Duplicar Producto</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Se copiará <strong>{duplicarProducto?.nombre}</strong> con todos sus parámetros. Solo cambia el nombre.</p>
+          <div>
+            <Label>Nombre del nuevo producto</Label>
+            <Input value={nombreDuplicado} onChange={e => setNombreDuplicado(e.target.value)} placeholder="Nombre" autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicarProducto(null)}>Cancelar</Button>
+            <Button onClick={() => duplicarProducto && duplicar.mutate({ id: duplicarProducto.id, nuevoNombre: nombreDuplicado })} disabled={!nombreDuplicado || duplicar.isPending}>
+              Duplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Modal: Nuevo Almacén */}
       <Dialog open={showNuevoAlmacen} onOpenChange={setShowNuevoAlmacen}>
         <DialogContent>
@@ -962,7 +1091,23 @@ function ConfigTab({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Categoría</Label>
-                <Input value={formProd.categoria} onChange={e => setFormProd(p => ({ ...p, categoria: e.target.value }))} placeholder="General" />
+                {categoriasDB && categoriasDB.length > 0 ? (
+                  <Select value={formProd.categoria} onValueChange={v => setFormProd(p => ({ ...p, categoria: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona categoría" /></SelectTrigger>
+                    <SelectContent>
+                      {categoriasDB.filter(c => c.activa).map(c => (
+                        <SelectItem key={c.id} value={c.nombre}>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color ?? "#6b7280" }} />
+                            {c.nombre}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={formProd.categoria} onChange={e => setFormProd(p => ({ ...p, categoria: e.target.value }))} placeholder="General" />
+                )}
               </div>
               <div>
                 <Label>Unidad de conteo</Label>
