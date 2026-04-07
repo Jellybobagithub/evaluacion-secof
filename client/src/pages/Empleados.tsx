@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Users, Plus, Pencil, UserX, Phone, Calendar, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, Plus, Pencil, UserX, Phone, Calendar, ChevronDown, ChevronUp, Link2 } from "lucide-react";
 
 const ROL_LABELS: Record<string, string> = {
   anfitrion: "Anfitrión",
@@ -62,6 +62,8 @@ export default function Empleados() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<EmpleadoForm>(defaultForm);
   const [bajaConfirm, setBajaConfirm] = useState<number | null>(null);
+  const [vincularEmpleado, setVincularEmpleado] = useState<typeof empleados[0] | null>(null);
+  const [userIdInput, setUserIdInput] = useState("");
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const utils = trpc.useUtils();
@@ -97,6 +99,16 @@ export default function Empleados() {
       utils.empleados.list.invalidate();
       toast.success("Empleado dado de baja");
       setBajaConfirm(null);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const vincularMut = trpc.empleados.vincularUsuario.useMutation({
+    onSuccess: () => {
+      utils.empleados.list.invalidate();
+      toast.success("Usuario vinculado correctamente");
+      setVincularEmpleado(null);
+      setUserIdInput("");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -248,6 +260,9 @@ export default function Empleados() {
                           </div>
                           {canEdit && (
                             <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Vincular usuario del sistema" onClick={() => { setVincularEmpleado(emp); setUserIdInput(String((emp as any).userId ?? "")); }}>
+                                <Link2 className="w-3.5 h-3.5 text-blue-500" />
+                              </Button>
                               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(emp)}>
                                 <Pencil className="w-3.5 h-3.5" />
                               </Button>
@@ -411,6 +426,46 @@ export default function Empleados() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
             <Button onClick={handleSubmit} disabled={createMut.isPending || updateMut.isPending}>
               {editId ? "Guardar cambios" : "Registrar empleado"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal vincular usuario del sistema */}
+      <Dialog open={!!vincularEmpleado} onOpenChange={() => { setVincularEmpleado(null); setUserIdInput(""); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Vincular usuario del sistema</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Vincula la cuenta de usuario del sistema al empleado <strong>{vincularEmpleado?.nombre} {vincularEmpleado?.apellido}</strong> para que pueda ver sus propias evaluaciones KPI.
+            </p>
+            <div>
+              <Label>ID de usuario del sistema</Label>
+              <Input
+                type="number"
+                placeholder="Ej: 5"
+                value={userIdInput}
+                onChange={e => setUserIdInput(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">El ID del usuario se puede obtener en la sección de Admin Usuarios.</p>
+            </div>
+            {(vincularEmpleado as any)?.userId && (
+              <p className="text-xs text-green-600 font-medium">✓ Actualmente vinculado al usuario ID: {(vincularEmpleado as any).userId}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setVincularEmpleado(null); setUserIdInput(""); }}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!vincularEmpleado) return;
+                const uid = userIdInput ? parseInt(userIdInput) : null;
+                vincularMut.mutate({ empleadoId: vincularEmpleado.id, userId: uid });
+              }}
+              disabled={vincularMut.isPending}
+            >
+              Guardar vinculación
             </Button>
           </DialogFooter>
         </DialogContent>

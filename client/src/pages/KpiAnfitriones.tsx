@@ -139,12 +139,28 @@ export default function KpiAnfitriones() {
     onError: (e) => toast.error(e.message),
   });
 
+  const isHost = user?.role === "host";
   const canEdit = ["owner", "superadmin", "manager", "leader"].includes(user?.role ?? "");
+
+  // Para anfitriones: obtener su propio registro de empleado
+  const { data: miEmpleado } = trpc.empleados.miEmpleado.useQuery(
+    undefined,
+    { enabled: isHost }
+  );
+
+  // Para anfitriones: cargar solo sus propias observaciones usando listByEmpleado
+  const { data: misObservaciones = [] } = trpc.kpiAnfitriones.listByEmpleado.useQuery(
+    { empleadoId: miEmpleado?.id ?? 0, semana },
+    { enabled: isHost && !!miEmpleado?.id }
+  );
+
+  // Usar las observaciones correctas según el rol
+  const obsActivas = isHost ? misObservaciones : observaciones;
 
   // Calcular resumen por empleado
   const resumenPorEmpleado = useMemo(() => {
     const mapa: Record<number, { nombre: string; total: number; cumple: number; tipos: Record<string, number> }> = {};
-    for (const obs of observaciones) {
+    for (const obs of obsActivas) {
       if (!mapa[obs.empleadoId]) {
         const emp = empleados.find(e => e.id === obs.empleadoId);
         mapa[obs.empleadoId] = { nombre: emp ? `${emp.nombre} ${emp.apellido ?? ""}`.trim() : `#${obs.empleadoId}`, total: 0, cumple: 0, tipos: {} };
@@ -233,7 +249,15 @@ export default function KpiAnfitriones() {
         </div>
       )}
 
-      {sucursalId && (
+      {/* Mensaje para anfitriones sin empleado vinculado */}
+      {isHost && sucursalId && !miEmpleado && (
+        <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
+          <p className="font-medium">Tu perfil de empleado no está vinculado</p>
+          <p className="text-sm mt-1">Pide a tu líder que vincule tu cuenta de usuario a tu registro de empleado para ver tus evaluaciones.</p>
+        </div>
+      )}
+
+      {sucursalId && (!isHost || miEmpleado) && (
         <>
           <Tabs defaultValue="servicio">
             <TabsList className="grid grid-cols-3 w-full max-w-md">
@@ -310,14 +334,14 @@ export default function KpiAnfitriones() {
           )}
 
           {/* Detalle de observaciones */}
-          {observaciones.length > 0 && (
+          {obsActivas.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Detalle de observaciones</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {observaciones.map((obs, i) => {
+                  {obsActivas.map((obs, i) => {
                     const emp = empleados.find(e => e.id === obs.empleadoId);
                     return (
                       <div key={i} className="flex items-center justify-between p-3 rounded-lg border text-sm">

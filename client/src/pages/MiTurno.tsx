@@ -518,7 +518,16 @@ export default function MiTurno() {
                   </div>
                 )}
               </div>
-{/* Botón cerrar turno eliminado aquí — se usa el del header para evitar duplicados */}
+{!miTurnoData.turno.cerrado && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 bg-transparent text-xs"
+                  onClick={() => setMostrarModalCierre(true)}
+                >
+                  Cerrar turno
+                </Button>
+              )}
             </div>
 
             {/* Checklist de actividades */}

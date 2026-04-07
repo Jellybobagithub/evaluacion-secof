@@ -141,6 +141,13 @@
       "when": 1775516000004,
       "tag": "0019_mean_zaladane",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1775532403308,
+      "tag": "0020_cynical_tinkerer",
+      "breakpoints": true
     }
   ]
 }

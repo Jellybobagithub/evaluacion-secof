@@ -831,6 +831,7 @@ export const appRouter = router({
         notas: z.string().optional(),
         tipoContrato: z.enum(['fulltime', 'finde_ext', 'finde', 'custom']).optional(),
         diasDisponibles: z.string().optional(), // JSON array
+        userId: z.number().nullable().optional(), // vincular con usuario del sistema
       }))
       .mutation(async ({ ctx, input }) => {
         if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
@@ -839,6 +840,21 @@ export const appRouter = router({
         const { updateEmpleado } = await import('./db');
         const { id, ...data } = input;
         await updateEmpleado(id, data);
+        return { success: true };
+      }),
+
+    // Vincular usuario del sistema a un empleado (para que el anfitrión vea sus KPIs)
+    vincularUsuario: protectedProcedure
+      .input(z.object({
+        empleadoId: z.number(),
+        userId: z.number().nullable(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { updateEmpleado } = await import('./db');
+        await updateEmpleado(input.empleadoId, { userId: input.userId ?? undefined });
         return { success: true };
       }),
 
@@ -852,6 +868,12 @@ export const appRouter = router({
         await darBajaEmpleado(input.id);
         return { success: true };
       }),
+
+    // Obtener el empleado vinculado al usuario actual (para anfitriones)
+    miEmpleado: protectedProcedure.query(async ({ ctx }) => {
+      const { getEmpleadoByUserId } = await import('./db');
+      return getEmpleadoByUserId(ctx.user.id);
+    }),
   }),
 
   // ─── Checklist Plantillas ────────────────────────────────────────────────

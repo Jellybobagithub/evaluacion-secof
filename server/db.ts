@@ -995,3 +995,13 @@ export async function getMermaResumen(sucursalId: number, anio: number, mes: num
     porcentajeMerma: vendidos > 0 ? Math.round((Math.abs(merma) / vendidos) * 1000) / 10 : 0,
   };
 }
+
+// ─── Empleado por userId (para anfitriones con cuenta de usuario) ─────────────
+export async function getEmpleadoByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const { empleados } = await import('../drizzle/schema');
+  const { eq } = await import('drizzle-orm');
+  const rows = await db.select().from(empleados).where(eq(empleados.userId, userId)).limit(1);
+  return rows[0] ?? null;
+}

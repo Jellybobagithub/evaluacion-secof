@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -100,6 +100,16 @@ export default function ReporteDiario() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+
+  // Auto-seleccionar sucursal si el usuario solo tiene una asignada (evita el error DOM del Select)
+  useEffect(() => {
+    if ((sucursales as any[]).length === 1) {
+      const s = (sucursales as any[])[0];
+      setFilterSucursal(s.id);
+      setForm(f => ({ ...f, sucursalId: String(s.id) }));
+    }
+  }, [(sucursales as any[]).length]);
+
   // Resumen de preparaciones del día del reporte que se está viendo
   const prepFecha = viewingReporte?.fecha ?? null;
   const prepSucursal = viewingReporte?.sucursalId ?? null;

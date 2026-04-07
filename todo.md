@@ -576,3 +576,7 @@
 - [ ] Mejora: Unificar los dos botones "Cerrar turno" en uno solo
 - [ ] Mejora: Crear vista de historial de cuadres de vasos (accesible desde Dashboard)
 - [ ] Info: Explicar cómo funciona el cuadre de vasos (necesita apertura + reporte de ventas)
+
+## Bugs v53 (Apr 7)
+- [ ] KpiAnfitriones: anfitrión debe ver solo sus propias evaluaciones históricas (no las de otros)
+- [ ] MiTurno: botón "Cerrar turno" desapareció, restaurar

@@ -273,7 +273,7 @@ export default function AdminUsuarios() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground truncate">{u.email ?? "Sin correo"}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email ?? "Sin correo"} <span className="text-[10px] text-muted-foreground/60 font-mono">(ID: {u.id})</span></p>
                         {/* Sucursales asignadas */}
                         {sucursalesAsignadas.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1">
