@@ -249,7 +249,23 @@ export default function Asistencia() {
                           </Badge>
                         )}
                         {emp.entrada && !emp.salida && (
-                          <Badge className="bg-green-100 text-green-800 text-xs" variant="outline">En turno</Badge>
+                          <div className="flex items-center gap-1">
+                            <Badge className="bg-green-100 text-green-800 text-xs" variant="outline">En turno</Badge>
+                            {canEdit && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-[10px] text-orange-600 border-orange-200 hover:bg-orange-50"
+                                onClick={() => {
+                                  const ahora = new Date().toTimeString().slice(0, 5);
+                                  setManualForm({ empleadoId: String(emp.empleadoId), tipo: "salida", hora: ahora });
+                                  setManualDialogOpen(true);
+                                }}
+                              >
+                                Registrar salida
+                              </Button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

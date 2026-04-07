@@ -1677,12 +1677,31 @@ export const appRouter = router({
         incidencias: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const { registrarCierreTurno } = await import('./db');
+        const { registrarCierreTurno, registrarAsistencia, getUltimoRegistroAsistencia } = await import('./db');
+        const now = Date.now();
         const id = await registrarCierreTurno({
           ...input,
           usuarioId: ctx.user.id,
-          timestamp: Date.now(),
+          timestamp: now,
         });
+        // Registrar salida automática en asistencia si no hay una reciente (últimas 2h)
+        try {
+          const ultimo = await getUltimoRegistroAsistencia(input.empleadoId);
+          const dosHoras = 2 * 60 * 60 * 1000;
+          if (!ultimo || ultimo.tipo !== 'salida' || (now - ultimo.timestamp) > dosHoras) {
+            await registrarAsistencia({
+              empleadoId: input.empleadoId,
+              sucursalId: input.sucursalId,
+              tipo: 'salida',
+              timestamp: now,
+              metodo: 'manual',
+              registradoPorId: ctx.user.id,
+              notas: 'Salida automática al cerrar turno',
+            });
+          }
+        } catch (_) {
+          // No bloquear el cierre si falla el registro de asistencia
+        }
         return { success: true, id };
       }),
 
