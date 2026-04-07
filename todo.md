@@ -580,3 +580,21 @@
 ## Bugs v53 (Apr 7)
 - [ ] KpiAnfitriones: anfitrión debe ver solo sus propias evaluaciones históricas (no las de otros)
 - [ ] MiTurno: botón "Cerrar turno" desapareció, restaurar
+
+## Bugs críticos v57 (Apr 7) — Evaluación del sistema
+- [ ] C-2: Restaurar botón "Cerrar turno" en MiTurno.tsx
+- [ ] C-1: Corregir mapeo de campos en CuadreVasos (diferencia→mermaVasos, contadorCierre→contadorSelladoraCierre, vasosVendidos→vasosVendidosReporte, novedades→novedadesTurno)
+- [ ] C-1: Mejorar getCierresByRango para incluir contadorSelladora de apertura
+- [ ] Bug M-1: Invertir fórmula de merma en ModalCierreTurno (mermaVasos = selladora - reporte)
+- [ ] Responsive: KpiLider.tsx — grid de 4 columnas → 2 en móvil
+- [ ] Responsive: ReporteDiario.tsx — tabla → cards en móvil
+- [ ] C-3: Corregir error de asistencia para rol líder (removeChild DOM)
+- [ ] C-4: Corregir error al asignar colaborador a tienda en AdminUsuarios
+
+## Bugs críticos resueltos (Apr 7)
+- [x] C-1: Mapeo incorrecto de campos en CuadreVasos (diferencia→mermaVasos, contadorCierre→contadorSelladoraCierre)
+- [x] C-2: Botón Cerrar turno desaparecido en MiTurno (ahora aparece cuando hay apertura registrada hoy)
+- [x] C-3: Error de asistencia para rol líder (mensaje claro cuando no tiene sucursal asignada)
+- [x] C-4: Error al asignar colaborador a tienda (código OK, es dato de configuración — asignar desde AdminUsuarios)
+- [x] Fórmula de merma invertida en ModalCierreTurno (ahora: selladora - reporte)
+- [x] Responsive KpiLider y ReporteDiario mejorado para móvil

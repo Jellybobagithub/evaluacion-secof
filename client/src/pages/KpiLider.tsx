@@ -236,17 +236,17 @@ export default function KpiLider() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">KPIs Líder — Nivel 2</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">KPIs Líder — Nivel 2</h1>
           <p className="text-slate-500 text-sm mt-1">SECOF · Ventas · Reportes · Mermas · Rotación de Equipo</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           {sucursales.length > 1 && (
             <Select value={String(activeSucursalId ?? "")} onValueChange={v => setSucursalId(Number(v))}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="Sucursal..." /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sucursal..." /></SelectTrigger>
               <SelectContent>
                 {sucursales.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
               </SelectContent>
@@ -256,7 +256,7 @@ export default function KpiLider() {
             type="month"
             value={mes}
             onChange={e => setMes(e.target.value)}
-            className="border rounded-md px-3 py-1.5 text-sm"
+            className="border rounded-md px-3 py-1.5 text-sm w-full sm:w-auto"
           />
         </div>
       </div>

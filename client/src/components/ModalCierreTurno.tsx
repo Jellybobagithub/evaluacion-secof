@@ -54,8 +54,9 @@ export default function ModalCierreTurno({
   const vasosVendidosSelladora = contadorCierre !== null && contadorApertura !== null && contadorApertura !== undefined
     ? contadorCierre - contadorApertura
     : null;
+  // merma = producidos (selladora) - vendidos (reporte). Positivo = vasos no cobrados.
   const mermaVasos = vasosVendidosSelladora !== null && vasosVendidosReporte !== null && vasosVendidosReporte !== undefined
-    ? vasosVendidosReporte - vasosVendidosSelladora
+    ? vasosVendidosSelladora - vasosVendidosReporte
     : null;
 
   async function capturarFotoSelladora() {

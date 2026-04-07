@@ -174,7 +174,14 @@ export default function Asistencia() {
         </CardContent>
       </Card>
 
-      {!sucursalId && (
+      {!sucursalId && sucursales.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <QrCode className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Sin sucursal asignada</p>
+          <p className="text-sm mt-1">Pide a tu manager o dueño que te asigne a una sucursal en la sección de Usuarios.</p>
+        </div>
+      )}
+      {!sucursalId && sucursales.length > 0 && (
         <div className="text-center py-16 text-muted-foreground">
           <QrCode className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p>Selecciona una sucursal para ver la asistencia del día</p>

@@ -377,13 +377,13 @@ export default function MiTurno() {
           >
             ✅ Registrar entrada
           </Button>
-          {miTurnoData?.turno && !miTurnoData.turno.cerrado && (
+          {(aperturaHoy || (miTurnoData?.turno && !miTurnoData.turno.cerrado)) && (
             <Button
               variant="outline"
               className="h-12 px-4 border-red-500/40 text-red-400 hover:bg-red-500/10 bg-transparent"
               onClick={() => setMostrarModalCierre(true)}
             >
-              Cerrar turno
+              🔒 Cerrar turno
             </Button>
           )}
         </div>
@@ -525,7 +525,7 @@ export default function MiTurno() {
                   className="shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 bg-transparent text-xs"
                   onClick={() => setMostrarModalCierre(true)}
                 >
-                  Cerrar turno
+                  🔒 Cerrar turno
                 </Button>
               )}
             </div>

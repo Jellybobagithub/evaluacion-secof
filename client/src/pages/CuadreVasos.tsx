@@ -83,9 +83,9 @@ export default function CuadreVasos() {
 
   // Estadísticas generales
   const totalCuadres = cuadres.length;
-  const cuadresOk = cuadres.filter((c: any) => c.diferencia === 0).length;
-  const cuadresConMerma = cuadres.filter((c: any) => c.diferencia > 0).length;
-  const totalMerma = cuadres.reduce((acc: number, c: any) => acc + (c.diferencia > 0 ? c.diferencia : 0), 0);
+  const cuadresOk = cuadres.filter((c: any) => (c.mermaVasos ?? 0) === 0).length;
+  const cuadresConMerma = cuadres.filter((c: any) => (c.mermaVasos ?? 0) > 0).length;
+  const totalMerma = cuadres.reduce((acc: number, c: any) => acc + ((c.mermaVasos ?? 0) > 0 ? (c.mermaVasos ?? 0) : 0), 0);
   const porcentajeCumplimiento = totalCuadres > 0 ? Math.round(cuadresOk / totalCuadres * 100) : 0;
 
   // Mapa de fotos por fecha+tipoTurno para lookup rápido
@@ -206,7 +206,7 @@ export default function CuadreVasos() {
               ) : (
                 <div className="space-y-3">
                   {cuadres.map((c: any) => {
-                    const diferencia = c.diferencia ?? 0;
+                    const diferencia = c.mermaVasos ?? 0;
                     const esOk = diferencia === 0;
                     const esMerma = diferencia > 0;
                     const fechaKey = `${c.fecha}-${c.tipoTurno}`;
@@ -240,15 +240,15 @@ export default function CuadreVasos() {
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">Cierre</p>
-                                  <p className="font-semibold">{c.contadorCierre ?? "—"}</p>
+                                  <p className="font-semibold">{c.contadorSelladoraCierre ?? "—"}</p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">Vendidos</p>
-                                  <p className="font-semibold">{c.vasosVendidos ?? "—"}</p>
+                                  <p className="font-semibold">{c.vasosVendidosSelladora ?? "—"}</p>
                                 </div>
                               </div>
-                              {c.novedades && (
-                                <p className="text-xs text-muted-foreground mt-2 italic">📝 {c.novedades}</p>
+                              {c.novedadesTurno && (
+                                <p className="text-xs text-muted-foreground mt-2 italic">📝 {c.novedadesTurno}</p>
                               )}
                             </div>
                             <div className="shrink-0 text-right flex flex-col items-end gap-1">

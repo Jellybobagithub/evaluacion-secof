@@ -909,11 +909,29 @@ export async function getCierreHoy(sucursalId: number, fecha: string, tipoTurno?
 export async function getCierresByRango(sucursalId: number, fechaInicio: string, fechaFin: string) {
   const db = await getDb();
   if (!db) return [];
-  const { turnoCierre } = await import('../drizzle/schema');
+  const { turnoCierre, turnoApertura, empleados: empTable } = await import('../drizzle/schema');
   const { eq, and, gte, lte } = await import('drizzle-orm');
-  return db.select().from(turnoCierre)
+  const cierres = await db.select().from(turnoCierre)
     .where(and(eq(turnoCierre.sucursalId, sucursalId), gte(turnoCierre.fecha, fechaInicio), lte(turnoCierre.fecha, fechaFin)))
     .orderBy(turnoCierre.fecha);
+  if (cierres.length === 0) return [];
+  // Cargar aperturas del mismo rango para cruzar contador de apertura
+  const aperturas = await db.select().from(turnoApertura)
+    .where(and(eq(turnoApertura.sucursalId, sucursalId), gte(turnoApertura.fecha, fechaInicio), lte(turnoApertura.fecha, fechaFin)));
+  const aperturaMap: Record<string, typeof aperturas[0]> = {};
+  for (const a of aperturas) aperturaMap[`${a.fecha}-${a.tipoTurno}`] = a;
+  // Cargar nombres de empleados
+  const emps = await db.select({ id: empTable.id, nombre: empTable.nombre }).from(empTable);
+  const empMap: Record<number, string> = {};
+  for (const e of emps) empMap[e.id] = e.nombre;
+  return cierres.map(c => {
+    const apertura = aperturaMap[`${c.fecha}-${c.tipoTurno}`];
+    return {
+      ...c,
+      empleadoNombre: empMap[c.empleadoId] ?? null,
+      contadorApertura: apertura?.contadorSelladora ?? null,
+    };
+  });
 }
 
 // ─── Avisos Generales ─────────────────────────────────────────────────────────

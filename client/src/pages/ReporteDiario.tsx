@@ -431,7 +431,7 @@ export default function ReporteDiario() {
                 <DollarSign className="w-4 h-4 text-green-600" />
                 Ventas del Día
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Ventas Efectivo ($)</Label>
                   <Input
@@ -494,7 +494,7 @@ export default function ReporteDiario() {
                 <Clock className="w-4 h-4 text-blue-600" />
                 Operación
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Hora apertura</Label>
                   <Input
@@ -636,7 +636,7 @@ export default function ReporteDiario() {
               </div>
 
               {/* Ventas */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {[
                   { label: "Ventas", value: viewingReporte.ventasTotales != null ? `$${viewingReporte.ventasTotales.toLocaleString("es-MX")}` : "—" },
                   { label: "Efectivo", value: viewingReporte.ventasEfectivo != null ? `$${viewingReporte.ventasEfectivo.toLocaleString('es-MX', { minimumFractionDigits: 2 })}` : "—" },
@@ -651,7 +651,7 @@ export default function ReporteDiario() {
               </div>
 
               {/* Operación */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 {[
                   { label: "Apertura", value: viewingReporte.apertura ?? "—" },
                   { label: "Cierre", value: viewingReporte.cierre ?? "—" },
