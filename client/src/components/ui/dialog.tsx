@@ -118,8 +118,10 @@ function DialogContent({
     [isComposing, onEscapeKeyDown]
   );
 
+  // Sin Portal: renderizar inline en el árbol DOM para evitar el crash removeChild
+  // en navegadores móviles (Chrome Android) al desmontar portales fuera del árbol
   return (
-    <DialogPortal data-slot="dialog-portal">
+    <>
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
@@ -141,7 +143,7 @@ function DialogContent({
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
-    </DialogPortal>
+    </>
   );
 }
 
