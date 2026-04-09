@@ -262,16 +262,7 @@ export default function MiTurno() {
       done: false,
       minRole: 'leader',
     },
-    {
-      icon: Users,
-      label: "Asistencia",
-      sublabel: entradas > 0 ? `${entradas} registros hoy` : "Sin registros",
-      color: entradas > 0 ? "text-green-600" : "text-purple-600",
-      bg: entradas > 0 ? "bg-green-50 border-green-200" : "bg-purple-50 border-purple-200",
-      path: "/asistencia",
-      done: entradas > 0,
-      minRole: 'leader',
-    },
+
     {
       icon: ClipboardCheck,
       label: "Evaluación SECOF",

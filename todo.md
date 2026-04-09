@@ -616,3 +616,9 @@
 - [ ] Exportación a Excel del comparativo
 - [ ] Alertas automáticas cuando variación supera umbral configurable
 - [ ] Mínimos y máximos en bodega para sugerir pedidos de compra
+
+## Mejoras v31 (Apr 9)
+- [ ] Horarios: navegación hacia adelante/atrás por semana (no solo semana actual)
+- [ ] Empleados: marcar día de descanso fijo por empleado (miércoles Emily, martes Luz)
+- [ ] Nueva ventana de supervisión: líder marca actividades diarias de los empleados
+- [ ] Mi Turno: quitar sección de asistencias duplicada (ya existe en Registrar entrada)

@@ -34,6 +34,7 @@ import VentasHistoricas from "./pages/VentasHistoricas";
 import AvisosGenerales from "./pages/AvisosGenerales";
 import CuadreVasos from "./pages/CuadreVasos";
 import Inventario from "./pages/Inventario";
+import Supervision from "./pages/Supervision";
 
 function Router() {
   return (
@@ -123,6 +124,11 @@ function Router() {
         {/* Horarios Semanales: leader y superior */}
         <Route path="/horarios">
           <ProtectedRoute component={Horarios} minRole="leader" />
+        </Route>
+
+        {/* Supervisión: líder y superior */}
+        <Route path="/supervision">
+          <ProtectedRoute component={Supervision} minRole="leader" />
         </Route>
 
         {/* Mi Turno: anfitrón y superior */}

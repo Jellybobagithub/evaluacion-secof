@@ -41,6 +41,7 @@ interface EmpleadoForm {
   notas: string;
   tipoContrato: "fulltime" | "finde_ext" | "finde" | "custom";
   diasDisponibles: number[]; // 0=dom, 1=lun, ..., 6=sáb
+  diaDescansoFijo: number | null; // 0=dom,1=lun,2=mar,3=mié,4=jue,5=vie,6=sáb
 }
 
 const defaultForm: EmpleadoForm = {
@@ -52,6 +53,7 @@ const defaultForm: EmpleadoForm = {
   notas: "",
   tipoContrato: "fulltime",
   diasDisponibles: [],
+  diaDescansoFijo: null,
 };
 
 export default function Empleados() {
@@ -137,6 +139,7 @@ export default function Empleados() {
       notas: emp.notas ?? "",
       tipoContrato: ((emp as any).tipoContrato ?? "fulltime") as EmpleadoForm["tipoContrato"],
       diasDisponibles: dias,
+      diaDescansoFijo: (emp as any).diaDescansoFijo ?? null,
     });
     setDialogOpen(true);
   }
@@ -146,9 +149,9 @@ export default function Empleados() {
     if (!sucursalId) { toast.error("Selecciona una sucursal"); return; }
     const diasJson = form.tipoContrato === "custom" ? JSON.stringify(form.diasDisponibles) : null;
     if (editId) {
-      updateMut.mutate({ id: editId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined });
+      updateMut.mutate({ id: editId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined, diaDescansoFijo: form.diaDescansoFijo });
     } else {
-      createMut.mutate({ sucursalId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, fechaIngreso: form.fechaIngreso, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined });
+      createMut.mutate({ sucursalId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, fechaIngreso: form.fechaIngreso, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined, diaDescansoFijo: form.diaDescansoFijo });
     }
   }
 
@@ -375,6 +378,31 @@ export default function Empleados() {
             <div>
               <Label>Notas internas</Label>
               <Input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" />
+            </div>
+
+            {/* Día de descanso fijo */}
+            <div className="border-t pt-4">
+              <Label className="text-sm font-semibold">Día de descanso fijo</Label>
+              <p className="text-xs text-muted-foreground mb-2">El día que siempre descansa este empleado</p>
+              <div className="flex gap-2 flex-wrap">
+                {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((dia, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, diaDescansoFijo: f.diaDescansoFijo === idx ? null : idx }))}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      form.diaDescansoFijo === idx
+                        ? "bg-red-500 text-white border-red-500"
+                        : "bg-background text-muted-foreground border-border hover:border-red-300"
+                    }`}
+                  >
+                    {dia}
+                  </button>
+                ))}
+              </div>
+              {form.diaDescansoFijo !== null && (
+                <p className="text-xs text-red-600 mt-1">Descanso fijo: {["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][form.diaDescansoFijo]}</p>
+              )}
             </div>
 
             {/* Disponibilidad para horarios */}

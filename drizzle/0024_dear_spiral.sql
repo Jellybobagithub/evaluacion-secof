@@ -1,0 +1,1 @@
+ALTER TABLE `empleados` ADD `diaDescansoFijo` int;

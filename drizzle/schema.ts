@@ -69,6 +69,8 @@ export const empleados = mysqlTable("empleados", {
   tipoContrato: mysqlEnum("tipoContrato", ["fulltime", "finde_ext", "finde", "custom"]).default("fulltime").notNull(),
   // JSON array de números 0-6 (0=dom,1=lun,2=mar,3=mié,4=jue,5=vie,6=sáb) — solo para tipo 'custom'
   diasDisponibles: text("diasDisponibles"),
+  // Día de descanso fijo: 0=dom,1=lun,2=mar,3=mié,4=jue,5=vie,6=sáb — null = rotativo
+  diaDescansoFijo: int("diaDescansoFijo"),
   userId: int("userId"),  // Vínculo con la tabla users (opcional, para anfitriones con cuenta)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

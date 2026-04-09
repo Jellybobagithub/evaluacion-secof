@@ -47,6 +47,7 @@ import {
   Scale,
   ClockAlert,
   Package,
+  Eye,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -120,6 +121,7 @@ const ALL_NAV_GROUPS = [
       { icon: DollarSign, label: "KPIs Admin (Nivel 3)", path: "/kpi-admin", minRole: "manager" },
       { icon: Scale, label: "Cuadre de Vasos", path: "/cuadre-vasos", minRole: "leader" },
       { icon: Package, label: "Inventario", path: "/inventario", minRole: "leader" },
+      { icon: Eye, label: "Supervisión de Actividades", path: "/supervision", minRole: "leader" },
     ],
   },
   {

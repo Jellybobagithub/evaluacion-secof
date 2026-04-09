@@ -803,6 +803,7 @@ export const appRouter = router({
         notas: z.string().optional(),
         tipoContrato: z.enum(['fulltime', 'finde_ext', 'finde', 'custom']).optional(),
         diasDisponibles: z.string().optional(), // JSON array
+        diaDescansoFijo: z.number().nullable().optional(), // 0=dom,1=lun,...,6=sáb
       }))
       .mutation(async ({ ctx, input }) => {
         if (!['owner', 'superadmin', 'manager', 'leader'].includes(ctx.user.role)) {
@@ -819,6 +820,7 @@ export const appRouter = router({
           notas: input.notas,
           tipoContrato: input.tipoContrato ?? 'fulltime',
           diasDisponibles: input.diasDisponibles,
+          diaDescansoFijo: input.diaDescansoFijo ?? null,
         });
         return { success: true };
       }),
@@ -833,6 +835,7 @@ export const appRouter = router({
         notas: z.string().optional(),
         tipoContrato: z.enum(['fulltime', 'finde_ext', 'finde', 'custom']).optional(),
         diasDisponibles: z.string().optional(), // JSON array
+        diaDescansoFijo: z.number().nullable().optional(), // 0=dom,1=lun,...,6=sáb
         userId: z.number().nullable().optional(), // vincular con usuario del sistema
       }))
       .mutation(async ({ ctx, input }) => {
