@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -310,13 +310,13 @@ export default function MiTurno() {
           <div className="w-full space-y-3">
             <Button
               className="w-full bg-amber-600 hover:bg-amber-700 text-white h-14 text-base font-semibold"
-              onClick={() => { setTipoTurnoSeleccionado("vespertino"); setMostrarSeleccionTurno(false); setMostrarModalBienvenida(true); }}
+              onClick={() => { setTipoTurnoSeleccionado("vespertino"); setMostrarSeleccionTurno(false); setTimeout(() => setMostrarModalBienvenida(true), 80); }}
             >
               🌆 Turno Vespertino
             </Button>
             <Button
               className="w-full bg-blue-600 hover:bg-blue-700 text-white h-14 text-base font-semibold"
-              onClick={() => { setTipoTurnoSeleccionado("matutino"); setMostrarSeleccionTurno(false); setMostrarModalBienvenida(true); }}
+              onClick={() => { setTipoTurnoSeleccionado("matutino"); setMostrarSeleccionTurno(false); setTimeout(() => setMostrarModalBienvenida(true), 80); }}
             >
               🌅 Turno Matutino (continuación)
             </Button>
