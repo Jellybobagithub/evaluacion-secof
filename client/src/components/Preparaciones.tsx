@@ -294,23 +294,32 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {historial.map((p: any) => (
-                  <div key={p.id} className={`flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0 ${p.incidenciaTipo ? "text-red-600" : "text-slate-600"}`}>
-                    <div className="flex items-center gap-2">
-                      {p.incidenciaTipo
-                        ? <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                        : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      }
-                      <div>
-                        <span className="font-medium">{p.nombreReceta}</span>
-                        <span className="text-slate-400 ml-1">({p.cantidadLabel})</span>
-                        {p.incidenciaTipo && (
-                          <span className="ml-1 text-red-500">— {INCIDENCIA_LABELS[p.incidenciaTipo]}</span>
-                        )}
+                  <div key={p.id} className={`text-xs py-2 border-b border-slate-100 last:border-0 ${p.incidenciaTipo ? "text-red-600" : "text-slate-600"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        {p.incidenciaTipo
+                          ? <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                          : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                        }
+                        <div>
+                          <span className="font-medium">{p.nombreReceta}</span>
+                          <span className="text-slate-400 ml-1">({p.cantidadLabel})</span>
+                          {p.incidenciaTipo && (
+                            <span className="ml-1 text-red-500">— {INCIDENCIA_LABELS[p.incidenciaTipo]}</span>
+                          )}
+                          {/* Usuario que registró */}
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-slate-400">Por:</span>
+                            <span className="font-medium text-slate-600">
+                              {p.empleadoNombre ?? p.registradoPorNombre ?? "—"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
+                      <span className="text-slate-400 shrink-0 ml-2 text-right">
+                        {new Date(p.preparadaAt).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}<br />{formatHora(p.preparadaAt)}
+                      </span>
                     </div>
-                    <span className="text-slate-400 shrink-0 ml-2">
-                      {new Date(p.preparadaAt).toLocaleDateString("es-MX", { day: "numeric", month: "short" })} {formatHora(p.preparadaAt)}
-                    </span>
                   </div>
                 ))}
               </div>

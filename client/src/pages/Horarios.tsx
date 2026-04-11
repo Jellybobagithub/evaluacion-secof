@@ -41,8 +41,9 @@ function semanaLabel(anio: number, semana: number) {
 
 function navSemana(anio: number, semana: number, delta: number): { anio: number; semana: number } {
   const lunes = getLunesDeSemana(anio, semana);
-  lunes.setUTCDate(lunes.getUTCDate() + delta * 7);
-  return getSemanaISO(lunes);
+  // Usar fecha UTC+12 para evitar que la conversión a hora local retroceda un día
+  const siguiente = new Date(lunes.getTime() + delta * 7 * 86400000 + 12 * 3600000);
+  return getSemanaISO(siguiente);
 }
 
 function getDiasFecha(anio: number, semana: number): { fecha: string; dia: string; label: string }[] {

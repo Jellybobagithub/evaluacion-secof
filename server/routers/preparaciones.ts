@@ -280,7 +280,31 @@ export const preparacionesRouter = router({
         conditions.push(eq(preparaciones.receta, input.receta));
       }
 
-      const rows = await db.select().from(preparaciones)
+      const { users, empleados } = await import("../../drizzle/schema");
+
+      const rows = await db.select({
+        id: preparaciones.id,
+        sucursalId: preparaciones.sucursalId,
+        turnoId: preparaciones.turnoId,
+        empleadoId: preparaciones.empleadoId,
+        registradoPorId: preparaciones.registradoPorId,
+        receta: preparaciones.receta,
+        cantidad: preparaciones.cantidad,
+        unidad: preparaciones.unidad,
+        preparadaAt: preparaciones.preparadaAt,
+        venceAt: preparaciones.venceAt,
+        estado: preparaciones.estado,
+        incidenciaTipo: preparaciones.incidenciaTipo,
+        incidenciaAt: preparaciones.incidenciaAt,
+        incidenciaNota: preparaciones.incidenciaNota,
+        createdAt: preparaciones.createdAt,
+        updatedAt: preparaciones.updatedAt,
+        registradoPorNombre: users.name,
+        empleadoNombre: empleados.nombre,
+      })
+        .from(preparaciones)
+        .leftJoin(users, eq(users.id, preparaciones.registradoPorId))
+        .leftJoin(empleados, eq(empleados.id, preparaciones.empleadoId))
         .where(and(...conditions))
         .orderBy(desc(preparaciones.preparadaAt))
         .limit(200);
