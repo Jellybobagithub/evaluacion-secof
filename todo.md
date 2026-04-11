@@ -622,3 +622,7 @@
 - [ ] Empleados: marcar día de descanso fijo por empleado (miércoles Emily, martes Luz)
 - [ ] Nueva ventana de supervisión: líder marca actividades diarias de los empleados
 - [ ] Mi Turno: quitar sección de asistencias duplicada (ya existe en Registrar entrada)
+- [ ] Quitar página /asistencia del menú lateral
+- [ ] Control de Asistencias: status en tiempo real (quién entró, turno activo, quién faltó)
+- [ ] Control de Asistencias: galería de miniaturas de fotos de uniforme (líder+)
+- [ ] Control de Asistencias: reporte de nómina exportable (CSV con horas trabajadas)

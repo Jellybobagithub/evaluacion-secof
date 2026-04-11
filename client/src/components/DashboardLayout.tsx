@@ -114,7 +114,6 @@ const ALL_NAV_GROUPS = [
       { icon: FlaskConical, label: "Preparaciones", path: "/preparaciones", minRole: "host" },
       { icon: Users, label: "Empleados", path: "/empleados", minRole: "leader" },
       { icon: Calendar, label: "Horarios", path: "/horarios", minRole: "leader" },
-      { icon: ClipboardCheck, label: "Asistencia", path: "/asistencia", minRole: "host" },
       { icon: ClockAlert, label: "Control de Asistencias", path: "/control-asistencias", minRole: "leader" },
       { icon: BarChart3, label: "KPIs Anfitriones", path: "/kpi-anfitriones", minRole: "host" },
       { icon: TrendingUp, label: "KPIs Líder (Nivel 2)", path: "/kpi-lider", minRole: "leader" },
