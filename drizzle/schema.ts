@@ -358,18 +358,19 @@ export const gastosOperativos = mysqlTable("gastos_operativos", {
 export type GastoOperativo = typeof gastosOperativos.$inferSelect;
 export type InsertGastoOperativo = typeof gastosOperativos.$inferInsert;
 
-// Catálogo de Actividades de Limpieza (D1-D13, S1-S20, B1-B4, M1-M3)
+// Catálogo de Actividades de Limpieza (D1-D18, S1-S15, M1-M4)
 export const actividadesCatalogo = mysqlTable("actividades_catalogo", {
   id: int("id").autoincrement().primaryKey(),
-  clave: varchar("clave", { length: 10 }).notNull().unique(), // D1, S3, B2, M1...
+  clave: varchar("clave", { length: 10 }).notNull().unique(), // D1, S3, M1...
   descripcion: text("descripcion").notNull(),
   categoria: mysqlEnum("categoria", ["D", "S", "B", "M"]).notNull(), // Diaria, Semanal, Bodega, Mensual
   orden: int("orden").default(0), // para ordenar dentro de la categoría
   activa: boolean("activa").default(true).notNull(),
   // Área que puede realizar esta actividad
-  // 'comodin' = solo comodín (actividades pesadas o que requieren tiempo libre)
-  // 'leve' = caja, barra o comodín (actividades rápidas en tiempos muertos)
-  // 'todas' = cualquier área puede hacerla
+  // 'caja'        = actividades asignadas al área de caja
+  // 'preparacion' = actividades asignadas al área de preparación
+  // 'comodin'     = comodín (puede hacer todo, incluyendo actividades de caja y preparación)
+  // 'todas'       = cualquier área puede hacerla (semanales y mensuales)
   areaCompatible: varchar("area_compatible", { length: 20 }).default("todas").notNull(),
 });
 export type ActividadCatalogo = typeof actividadesCatalogo.$inferSelect;
@@ -682,3 +683,14 @@ export const invCategoria = mysqlTable("inv_categoria", {
 });
 export type InvCategoria = typeof invCategoria.$inferSelect;
 export type InsertInvCategoria = typeof invCategoria.$inferInsert;
+
+/** Permisos extra de menú por usuario (acceso adicional más allá del rol base) */
+export const menuPermisosExtra = mysqlTable("menu_permisos_extra", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  menuItemId: varchar("menuItemId", { length: 60 }).notNull(),
+  otorgadoPor: int("otorgadoPor"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MenuPermisoExtra = typeof menuPermisosExtra.$inferSelect;
+export type InsertMenuPermisoExtra = typeof menuPermisosExtra.$inferInsert;

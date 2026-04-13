@@ -176,6 +176,13 @@
       "when": 1775772663760,
       "tag": "0024_dear_spiral",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1776087479602,
+      "tag": "0025_superb_thundra",
+      "breakpoints": true
     }
   ]
 }

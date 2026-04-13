@@ -184,6 +184,11 @@ export default function MiTurno() {
     fileInput.click();
   }
 
+  const salidaSimpleMut = trpc.turno.registrarSalidaSimple.useMutation({
+    onSuccess: () => { refetchTurno(); },
+    onError: (e) => alert('Error al registrar salida: ' + e.message),
+  });
+
   const cerrarTurno = trpc.horarios.cerrarTurno.useMutation({
     onSuccess: (data) => {
       refetchTurno();
@@ -201,8 +206,13 @@ export default function MiTurno() {
     return Math.round(cumplidos / kpisSemanales.length * 100);
   }, [kpisSemanales]);
 
-  // Asistencia: cuántos entraron hoy
+  // Asistencia: cuántos entraron hoy y cuántos ya salieron
   const entradas = asistenciaHoy.filter((a: any) => a.tipo === "entrada").length;
+  const salidas = asistenciaHoy.filter((a: any) => a.tipo === "salida").length;
+  // esPrimerEmpleado: nadie ha registrado entrada aún → flujo de APERTURA (conteo + selladora + inventario)
+  const esPrimerEmpleado = entradas === 0;
+  // esUltimoEmpleado: al salir este empleado la tienda queda sin nadie → flujo de CIERRE completo
+  const esUltimoEmpleado = entradas > 0 && (entradas - salidas) <= 1;
 
   // Checklist: cuántos completados
   const checklistCompletados = registrosChecklist.filter((r: any) => r.firmado).length;
@@ -327,7 +337,7 @@ export default function MiTurno() {
           nombreEmpleado={user?.name ?? "Colaborador"}
           sucursalNombre={sucursalNombre}
           actividades={(miTurnoData?.actividades ?? []).map((a: any) => ({ id: a.id, nombre: a.descripcion ?? a.actividadClave ?? 'Actividad', descripcion: a.descripcion, categoria: a.categoria, clave: a.actividadClave }))}
-          esApertura={entradas === 0}
+          esApertura={esPrimerEmpleado}
           onComplete={() => { setMostrarModalBienvenida(false); refetchTurno(); }}
           onCancel={() => setMostrarModalBienvenida(false)}
         />
@@ -361,21 +371,66 @@ export default function MiTurno() {
         </div>
 
         {/* Botón Registrar Entrada */}
-        <div className="mt-4 flex gap-2">
-          <Button
-            className="flex-1 bg-teal-600 hover:bg-teal-700 text-white h-12 font-semibold"
-            onClick={handleRegistrarEntrada}
-          >
-            ✅ Registrar entrada
-          </Button>
-          {(aperturaHoy || (miTurnoData?.turno && !miTurnoData.turno.cerrado)) && (
+        <div className="mt-4 space-y-2">
+          {/* Indicador de tipo de entrada */}
+          {esPrimerEmpleado ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-500/10 border border-teal-500/30 rounded-lg">
+              <span className="text-teal-400 text-xs font-semibold">🌅 Apertura de tienda</span>
+              <span className="text-slate-400 text-xs ml-auto">Eres el primero en llegar</span>
+            </div>
+          ) : entradas > 0 ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <span className="text-blue-400 text-xs font-semibold">👥 Continuación de turno</span>
+              <span className="text-slate-400 text-xs ml-auto">{entradas} ya registrado{entradas !== 1 ? 's' : ''}</span>
+            </div>
+          ) : null}
+
+          <div className="flex gap-2">
             <Button
-              variant="outline"
-              className="h-12 px-4 border-red-500/40 text-red-400 hover:bg-red-500/10 bg-transparent"
-              onClick={() => setMostrarModalCierre(true)}
+              className="flex-1 bg-teal-600 hover:bg-teal-700 text-white h-12 font-semibold"
+              onClick={handleRegistrarEntrada}
             >
-              🔒 Cerrar turno
+              {esPrimerEmpleado ? '🌅 Apertura' : '✅ Registrar entrada'}
             </Button>
+            {(aperturaHoy || (miTurnoData?.turno && !miTurnoData.turno.cerrado)) && (
+              esUltimoEmpleado ? (
+                <Button
+                  variant="outline"
+                  className="h-12 px-4 border-red-500/40 text-red-400 hover:bg-red-500/10 bg-transparent"
+                  onClick={() => setMostrarModalCierre(true)}
+                >
+                  🔒 Cierre
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="h-12 px-4 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 bg-transparent"
+                  onClick={() => {
+                    if (!empleadoActual || !sucursalId) return;
+                    if (!confirm('¿Registrar tu salida? La tienda sigue abierta con otros empleados.')) return;
+                    salidaSimpleMut.mutate({ empleadoId: empleadoActual.id, sucursalId });
+                  }}
+                  disabled={salidaSimpleMut.isPending}
+                >
+                  🚪 Salida
+                </Button>
+              )
+            )}
+          </div>
+
+          {/* Indicador de tipo de salida */}
+          {(aperturaHoy || (miTurnoData?.turno && !miTurnoData.turno.cerrado)) && (
+            esUltimoEmpleado ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <span className="text-red-400 text-xs font-semibold">🔒 Cierre de tienda</span>
+                <span className="text-slate-400 text-xs ml-auto">Eres el último en salir</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                <span className="text-amber-400 text-xs font-semibold">🚪 Salida sin cierre</span>
+                <span className="text-slate-400 text-xs ml-auto">{entradas - salidas - 1 > 0 ? `${entradas - salidas - 1} quedan en turno` : 'Tú cierras'}</span>
+              </div>
+            )
           )}
         </div>
 
@@ -568,11 +623,16 @@ export default function MiTurno() {
                             onClick={() => setActividadExpandida(isExpanded ? null : act.id)}
                           >
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`text-xs font-bold font-mono ${
-                                act.completada ? 'text-green-400 line-through' :
-                                act.esPendiente ? 'text-orange-400' : 'text-teal-400'
-                              }`}>{act.actividadClave}</span>
-                              <span className={`text-xs truncate ${
+                              {act.areaCompatible && act.areaCompatible !== 'todas' && (
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+                                  act.areaCompatible === 'caja' ? 'bg-sky-500/20 text-sky-300' :
+                                  act.areaCompatible === 'preparacion' ? 'bg-emerald-500/20 text-emerald-300' :
+                                  'bg-violet-500/20 text-violet-300'
+                                }`}>
+                                  {act.areaCompatible === 'caja' ? 'Caja' : act.areaCompatible === 'preparacion' ? 'Prep.' : 'Comodín'}
+                                </span>
+                              )}
+                              <span className={`text-xs ${
                                 act.completada ? 'text-slate-500 line-through' : 'text-slate-300'
                               }`}>{act.descripcion}</span>
                             </div>
@@ -607,7 +667,15 @@ export default function MiTurno() {
                                   act.categoria === 'B' ? 'bg-amber-500/20 text-amber-300' :
                                   'bg-rose-500/20 text-rose-300'
                                 }`}>{catLabel}</span>
-                                <span className="text-[10px] text-slate-500 font-mono">{act.actividadClave}</span>
+                                {act.areaCompatible && act.areaCompatible !== 'todas' && (
+                                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                    act.areaCompatible === 'caja' ? 'bg-sky-500/20 text-sky-300' :
+                                    act.areaCompatible === 'preparacion' ? 'bg-emerald-500/20 text-emerald-300' :
+                                    'bg-violet-500/20 text-violet-300'
+                                  }`}>
+                                    {act.areaCompatible === 'caja' ? 'Caja' : act.areaCompatible === 'preparacion' ? 'Preparación' : 'Comodín'}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-xs text-slate-200 leading-relaxed">{act.descripcion}</p>
                               {act.completadaAt && (

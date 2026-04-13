@@ -18,6 +18,7 @@ import { horariosRouter } from "./routers/horarios";
 import { preparacionesRouter } from "./routers/preparaciones";
 import { observacionRouter } from "./routers/observacion";
 import { inventarioRouter } from "./routers/inventario";
+import { menuPermisosRouter } from "./routers/menuPermisos";
 import { storagePut } from "./storage";
 
 export const appRouter = router({
@@ -25,6 +26,7 @@ export const appRouter = router({
   preparaciones: preparacionesRouter,
   observacion: observacionRouter,
   inventario: inventarioRouter,
+  menuPermisos: menuPermisosRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -1803,6 +1805,33 @@ export const appRouter = router({
         return getRegistrosTurnoConFotos(input.sucursalId, input.fechaInicio, input.fechaFin);
       }),
 
+    // Registrar salida simple (sin proceso de cierre) cuando no es el último empleado en turno
+    registrarSalidaSimple: protectedProcedure
+      .input(z.object({
+        empleadoId: z.number(),
+        sucursalId: z.number(),
+        notas: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { registrarAsistencia, getUltimoRegistroAsistencia } = await import('./db');
+        const now = Date.now();
+        // Verificar que no haya una salida reciente (evitar duplicados)
+        const ultimo = await getUltimoRegistroAsistencia(input.empleadoId);
+        const dosHoras = 2 * 60 * 60 * 1000;
+        if (ultimo && ultimo.tipo === 'salida' && (now - ultimo.timestamp) < dosHoras) {
+          return { success: true, message: 'Ya se registró una salida recientemente' };
+        }
+        await registrarAsistencia({
+          empleadoId: input.empleadoId,
+          sucursalId: input.sucursalId,
+          tipo: 'salida',
+          timestamp: now,
+          metodo: 'manual',
+          registradoPorId: ctx.user.id,
+          notas: input.notas ?? 'Salida sin cierre de turno',
+        });
+        return { success: true };
+      }),
     // Detectar número en foto de selladora via LLM vision
     detectarContadorSelladora: protectedProcedure
       .input(z.object({ imageUrl: z.string() }))

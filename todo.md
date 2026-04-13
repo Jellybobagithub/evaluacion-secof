@@ -626,3 +626,13 @@
 - [ ] Control de Asistencias: status en tiempo real (quién entró, turno activo, quién faltó)
 - [ ] Control de Asistencias: galería de miniaturas de fotos de uniforme (líder+)
 - [ ] Control de Asistencias: reporte de nómina exportable (CSV con horas trabajadas)
+
+## Mejoras Pendientes (Abr 13, 2026)
+- [x] Actividades: reemplazar lista BD con D1-D18, S1-S15, M1-M4 con áreas correctas
+- [x] Actividades: quitar código (D1, D2...) de la UI, mostrar solo descripción
+- [x] Actividades: mostrar badge de área (Caja/Preparación/Comodín) en lugar del código
+- [x] Actividades: actualizar lógica de asignación en horarios (leve/comodin → caja/preparacion/comodin)
+- [x] Configuración: nueva sección Gestión de Actividades (CRUD con área, tipo, descripción)
+- [x] Configuración: nueva sección Permisos de Menú por usuario (solo superadmin)
+- [x] Mi Turno: rediseño flujo entrada (Apertura si eres el primero, Continuación si ya hay otros)
+- [x] Mi Turno: rediseño flujo salida (Cierre completo si eres el último, Salida simple si quedan otros)

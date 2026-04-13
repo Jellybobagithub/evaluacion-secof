@@ -62,9 +62,8 @@ export const horariosRouter = router({
       const { getDb } = await import("../db");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-      const { turnosSemana, turnoActividades, empleados } = await import("../../drizzle/schema");
+         const { turnosSemana, turnoActividades, empleados, actividadesCatalogo } = await import("../../drizzle/schema");
       const { eq, and, inArray } = await import("drizzle-orm");
-
       const turnos = await db.select().from(turnosSemana)
         .where(and(
           eq(turnosSemana.sucursalId, input.sucursalId),
@@ -72,19 +71,26 @@ export const horariosRouter = router({
           eq(turnosSemana.semana, input.semana),
         ))
         .orderBy(turnosSemana.fecha, turnosSemana.horaInicio);
-
       if (turnos.length === 0) return { turnos: [], actividades: [], empleados: [] };
-
       const turnoIds = turnos.map(t => t.id);
-      const actividades = await db.select().from(turnoActividades)
+      const actividadesRaw = await db.select().from(turnoActividades)
         .where(inArray(turnoActividades.turnoId, turnoIds));
-
       const empleadoIds = Array.from(new Set(turnos.map(t => t.empleadoId)));
       const emps = await db.select().from(empleados)
         .where(inArray(empleados.id, empleadoIds));
-
+      // Enriquecer actividades con descripción y área del catálogo
+      const catalogo = await db.select().from(actividadesCatalogo);
+      const catMap: Record<string, { descripcion: string; categoria: string; areaCompatible: string }> = {};
+      for (const c of catalogo) {
+        catMap[c.clave] = { descripcion: c.descripcion, categoria: c.categoria, areaCompatible: c.areaCompatible ?? 'todas' };
+      }
+      const actividades = actividadesRaw.map(a => ({
+        ...a,
+        descripcion: catMap[a.actividadClave]?.descripcion ?? a.actividadClave,
+        categoria: catMap[a.actividadClave]?.categoria ?? 'D',
+        areaCompatible: catMap[a.actividadClave]?.areaCompatible ?? 'todas',
+      }));
       const rango = getWeekRange(input.anio, input.semana);
-
       return { turnos, actividades, empleados: emps, rango };
     }),
 
@@ -339,15 +345,16 @@ export const horariosRouter = router({
       // Enriquecer con descripción del catálogo
       const { actividadesCatalogo } = await import("../../drizzle/schema");
       const catalogo = await db.select().from(actividadesCatalogo);
-      const catalogoMap: Record<string, { descripcion: string; categoria: string }> = {};
+      const catalogoMap: Record<string, { descripcion: string; categoria: string; areaCompatible: string }> = {};
       for (const c of catalogo) {
-        catalogoMap[c.clave] = { descripcion: c.descripcion, categoria: c.categoria };
+        catalogoMap[c.clave] = { descripcion: c.descripcion, categoria: c.categoria, areaCompatible: c.areaCompatible ?? 'todas' };
       }
 
       const actividadesEnriquecidas = actividades.map(a => ({
         ...a,
         descripcion: catalogoMap[a.actividadClave]?.descripcion ?? a.actividadClave,
         categoria: catalogoMap[a.actividadClave]?.categoria ?? 'D',
+        areaCompatible: catalogoMap[a.actividadClave]?.areaCompatible ?? 'todas',
       }));
 
       return { turno, actividades: actividadesEnriquecidas };
@@ -521,11 +528,16 @@ export const horariosRouter = router({
       const catalogo = await db.select().from(actividadesCatalogo)
         .where(eq(actividadesCatalogo.activa, true));
 
-      // Separar actividades por tipo y área
-      // 'leve'    = caja, barra y comodín pueden hacer (tiempos muertos, rápidas)
-      // 'comodin' = solo comodín o líder (requieren más tiempo libre)
-      const actividadesDLeve    = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'leve').map(a => a.clave);
-      const actividadesDComodin = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'comodin').map(a => a.clave);
+      // Separar actividades diarias por área
+      // 'caja'        = solo área de caja
+      // 'preparacion' = solo área de preparación
+      // 'comodin'     = comodín (puede hacer todo: caja + preparación + comodín)
+      // 'todas'       = cualquier área (semanales/mensuales)
+      const actividadesDCaja       = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'caja').map(a => a.clave);
+      const actividadesDPreparacion = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'preparacion').map(a => a.clave);
+      const actividadesDComodin    = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'comodin').map(a => a.clave);
+      // Para compatibilidad con valores legacy 'leve'
+      const actividadesDLeve       = catalogo.filter(a => a.categoria === "D" && (a.areaCompatible ?? 'todas') === 'leve').map(a => a.clave);
       const actividadesSBPendientes = catalogo
         .filter(a => ["S", "B"].includes(a.categoria) && !actividadesCompletadasSB.includes(a.clave));
       const actividadesM = catalogo.filter(a => a.categoria === "M").map(a => a.clave);
@@ -613,24 +625,26 @@ export const horariosRouter = router({
 
           if (esComodin && hayComodinHoy) {
             // COMODÍN (fin de semana con 3 personas):
-            // Todas las D-leve + D-comodin + S/B de hoy + M si aplica
-            actsTurno = [...actividadesDLeve, ...actividadesDComodin, ...sbHoy, ...mHoy];
+            // Todas las actividades D + S/B de hoy + M si aplica
+            actsTurno = [...actividadesDCaja, ...actividadesDPreparacion, ...actividadesDComodin, ...actividadesDLeve, ...sbHoy, ...mHoy];
           } else if (!hayComodinHoy && tIdx === 0) {
-            // PRIMER TURNO sin comodín (entre semana o finde con 2 personas):
-            // D-leve + mitad de D-comodin + mitad de S/B de hoy
+            // PRIMER TURNO sin comodín (entre semana): Caja
+            // Actividades de caja + mitad de comodín + mitad de S/B
             const mitadComodin = actividadesDComodin.slice(0, Math.ceil(actividadesDComodin.length / 2));
             const mitadSB = sbHoy.slice(0, Math.ceil(sbHoy.length / 2));
-            actsTurno = [...actividadesDLeve, ...mitadComodin, ...mitadSB, ...mHoy];
+            actsTurno = [...actividadesDCaja, ...actividadesDLeve, ...mitadComodin, ...mitadSB, ...mHoy];
           } else if (!hayComodinHoy && tIdx === 1) {
-            // SEGUNDO TURNO sin comodín (entre semana o finde con 2 personas):
-            // D-leve + otra mitad de D-comodin + otra mitad de S/B de hoy
+            // SEGUNDO TURNO sin comodín (entre semana): Preparación
+            // Actividades de preparación + otra mitad de comodín + otra mitad de S/B
             const mitadComodin = actividadesDComodin.slice(Math.ceil(actividadesDComodin.length / 2));
             const mitadSB = sbHoy.slice(Math.ceil(sbHoy.length / 2));
-            actsTurno = [...actividadesDLeve, ...mitadComodin, ...mitadSB];
+            actsTurno = [...actividadesDPreparacion, ...actividadesDLeve, ...mitadComodin, ...mitadSB];
+          } else if (areaReal === "Caja") {
+            // CAJA con comodín presente (fin de semana):
+            actsTurno = [...actividadesDCaja, ...actividadesDLeve];
           } else {
-            // CAJA o BARRA con comodín presente:
-            // Solo actividades leves (tiempos muertos entre clientes)
-            actsTurno = [...actividadesDLeve];
+            // BARRA/PREPARACIÓN con comodín presente (fin de semana):
+            actsTurno = [...actividadesDPreparacion, ...actividadesDLeve];
           }
 
           // Crear el turno
@@ -758,5 +772,86 @@ export const horariosRouter = router({
         actividadesPendientesSB: pendientesSB.map(a => a.clave),
         totalEmpleados: emps.length,
       };
+    }),
+
+  /** CRUD de catálogo de actividades (solo superadmin) */
+  getCatalogoAdmin: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== 'superadmin') throw new TRPCError({ code: 'FORBIDDEN' });
+    const { getDb } = await import('../db');
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+    const { actividadesCatalogo } = await import('../../drizzle/schema');
+    const { asc } = await import('drizzle-orm');
+    return db.select().from(actividadesCatalogo)
+      .orderBy(actividadesCatalogo.categoria, asc(actividadesCatalogo.orden));
+  }),
+
+  crearActividad: protectedProcedure
+    .input(z.object({
+      clave: z.string().min(1).max(10),
+      descripcion: z.string().min(1),
+      categoria: z.enum(['D', 'S', 'B', 'M']),
+      orden: z.number().int().default(0),
+      areaCompatible: z.enum(['todas', 'caja', 'preparacion', 'comodin']).default('todas'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== 'superadmin') throw new TRPCError({ code: 'FORBIDDEN' });
+      const { getDb } = await import('../db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      const { actividadesCatalogo } = await import('../../drizzle/schema');
+      await db.insert(actividadesCatalogo).values({
+        clave: input.clave.toUpperCase(),
+        descripcion: input.descripcion,
+        categoria: input.categoria,
+        orden: input.orden,
+        areaCompatible: input.areaCompatible,
+        activa: true,
+      });
+      return { ok: true };
+    }),
+
+  actualizarActividad: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      descripcion: z.string().min(1),
+      categoria: z.enum(['D', 'S', 'B', 'M']),
+      orden: z.number().int(),
+      areaCompatible: z.enum(['todas', 'caja', 'preparacion', 'comodin']),
+      activa: z.boolean(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== 'superadmin') throw new TRPCError({ code: 'FORBIDDEN' });
+      const { getDb } = await import('../db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      const { actividadesCatalogo } = await import('../../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      await db.update(actividadesCatalogo)
+        .set({
+          descripcion: input.descripcion,
+          categoria: input.categoria,
+          orden: input.orden,
+          areaCompatible: input.areaCompatible,
+          activa: input.activa,
+        })
+        .where(eq(actividadesCatalogo.id, input.id));
+      return { ok: true };
+    }),
+
+  eliminarActividad: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== 'superadmin') throw new TRPCError({ code: 'FORBIDDEN' });
+      const { getDb } = await import('../db');
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      const { actividadesCatalogo } = await import('../../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      // Soft delete: marcar como inactiva
+      await db.update(actividadesCatalogo)
+        .set({ activa: false })
+        .where(eq(actividadesCatalogo.id, input.id));
+      return { ok: true };
     }),
 });

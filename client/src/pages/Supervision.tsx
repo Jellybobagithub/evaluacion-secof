@@ -270,14 +270,16 @@ export default function Supervision() {
                             <Circle className={`w-5 h-5 shrink-0 ${act.esPendiente ? "text-orange-400" : "text-slate-300"}`} />
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs font-bold font-mono ${
-                                act.completada ? "text-green-700" :
-                                act.esPendiente ? "text-orange-700" :
-                                "text-slate-500"
-                              }`}>
-                                {act.actividadClave}
-                              </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {act.areaCompatible && act.areaCompatible !== 'todas' && (
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
+                                  act.areaCompatible === 'caja' ? 'bg-sky-100 text-sky-700' :
+                                  act.areaCompatible === 'preparacion' ? 'bg-emerald-100 text-emerald-700' :
+                                  'bg-violet-100 text-violet-700'
+                                }`}>
+                                  {act.areaCompatible === 'caja' ? 'Caja' : act.areaCompatible === 'preparacion' ? 'Prep.' : 'Comodín'}
+                                </span>
+                              )}
                               <span className={`text-sm ${act.completada ? "text-green-800 line-through" : "text-slate-700"}`}>
                                 {act.descripcion ?? act.actividadClave}
                               </span>

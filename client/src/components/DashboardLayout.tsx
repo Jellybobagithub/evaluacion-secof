@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -143,6 +144,8 @@ const ALL_NAV_GROUPS = [
       { icon: History, label: "Ventas Históricas", path: "/ventas-historicas", minRole: "manager" },
       { icon: Bell, label: "Avisos Generales", path: "/avisos-generales", minRole: "manager" },
       { icon: ClipboardList, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
+      { icon: ClipboardList, label: "Actividades de Limpieza", path: "/admin/actividades", minRole: "superadmin" },
+      { icon: ShieldCheck, label: "Permisos de Menú", path: "/admin/menu-permisos", minRole: "superadmin" },
     ],
   },
 ];
@@ -288,6 +291,9 @@ function DashboardLayoutContent({
   const roleLabel = ROLE_LABELS[role] ?? role;
   const roleColor = ROLE_COLORS[role] ?? ROLE_COLORS.user;
 
+  // Permisos extra del usuario (acceso adicional más allá del rol base)
+  const { data: permisosExtra = [] } = trpc.menuPermisos.getMisPermisos.useQuery();
+
   // Determinar qué grupos están activos según la ruta actual
   const getGroupActive = (group: typeof ALL_NAV_GROUPS[0]) => {
     if (group.path === "/" && location === "/") return true;
@@ -313,12 +319,12 @@ function DashboardLayoutContent({
     });
   }, [location]);
 
-  // Filtrar grupos según rol
+  // Filtrar grupos según rol O permisos extra
   const navGroups = ALL_NAV_GROUPS
-    .filter(group => hasRoleAccess(role, group.minRole))
+    .filter(group => hasRoleAccess(role, group.minRole) || permisosExtra.includes(group.id))
     .map(group => ({
       ...group,
-      items: group.items.filter(item => hasRoleAccess(role, item.minRole)),
+      items: group.items.filter(item => hasRoleAccess(role, item.minRole) || permisosExtra.includes(item.path ?? item.label)),
     }));
 
   const activeLabel = navGroups

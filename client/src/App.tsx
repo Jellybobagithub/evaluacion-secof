@@ -15,6 +15,8 @@ import PlanAccion from "./pages/PlanAccion";
 import Comparativa from "./pages/Comparativa";
 import AdminPreguntas from "./pages/AdminPreguntas";
 import AdminUsuarios from "./pages/AdminUsuarios";
+import AdminActividades from "./pages/AdminActividades";
+import AdminMenuPermisos from "./pages/AdminMenuPermisos";
 import ReporteDiario from "./pages/ReporteDiario";
 import Ventas from "./pages/Ventas";
 import MetasVentas from "./pages/MetasVentas";
@@ -154,6 +156,16 @@ function Router() {
         {/* Configuración: solo superadmin */}
         <Route path="/admin/preguntas">
           <ProtectedRoute component={AdminPreguntas} minRole="superadmin" />
+        </Route>
+
+        {/* Actividades de Limpieza: solo superadmin */}
+        <Route path="/admin/actividades">
+          <ProtectedRoute component={AdminActividades} minRole="superadmin" />
+        </Route>
+
+        {/* Permisos de Menú: solo superadmin */}
+        <Route path="/admin/menu-permisos">
+          <ProtectedRoute component={AdminMenuPermisos} minRole="superadmin" />
         </Route>
 
         {/* Avisos generales: manager y superior */}
