@@ -175,12 +175,8 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("xlsx"))                            return "vendor-xlsx";
-          if (id.includes("recharts") || id.includes("d3-")) return "vendor-charts";
-          if (id.includes("@radix-ui"))                       return "vendor-radix";
-          if (id.includes("react-dom") || id.includes("/react/")) return "vendor-react";
-          if (id.includes("@trpc") || id.includes("@tanstack")) return "vendor-trpc";
-          return "vendor";
+          if (id.includes("xlsx")) return "vendor-xlsx";
+          return undefined;
         },
       },
     },
