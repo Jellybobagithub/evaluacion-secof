@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { PlusCircle, Target, Search, Lightbulb, Wrench, CheckCircle2, Clock, Pencil, Trash2, Calendar, User, Building2 } from "lucide-react";
+import { PlusCircle, Target, Search, Lightbulb, Wrench, CheckCircle2, Clock, Pencil, Trash2, Calendar, User, Building2, Download, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const ESTADO_COLORS = {
@@ -67,6 +67,8 @@ export default function PlanAccion() {
   const sucursalIdParam = params.get("sucursalId");
 
   const [showDialog, setShowDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<FormData>({
     ...EMPTY_FORM,
@@ -95,6 +97,36 @@ export default function PlanAccion() {
   const deleteMutation = trpc.planAccion.delete.useMutation({
     onSuccess: () => { toast.success("Acción eliminada"); refetch(); },
     onError: () => toast.error("Error al eliminar"),
+  });
+
+  const importarMutation = trpc.planAccion.importarDesdeEvaluacion.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Se crearon ${data.creados} acción${data.creados !== 1 ? "es" : ""} de mejora`);
+      refetch();
+      setShowImportDialog(false);
+      setSeleccionados(new Set());
+    },
+    onError: () => toast.error("Error al importar"),
+  });
+
+  const sucursalParaImportar = filtroSucursal !== "all" ? parseInt(filtroSucursal) : undefined;
+
+  const { data: previewData, isLoading: previewLoading } = trpc.planAccion.previewImportacion.useQuery(
+    { sucursalId: sucursalParaImportar! },
+    { enabled: showImportDialog && !!sucursalParaImportar }
+  );
+
+  const togglePunto = (id: string) => setSeleccionados(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleTodos = (ids: string[]) => setSeleccionados(prev => {
+    const todosSelec = ids.every(id => prev.has(id));
+    const next = new Set(prev);
+    ids.forEach(id => todosSelec ? next.delete(id) : next.add(id));
+    return next;
   });
 
   function resetForm() {
@@ -320,7 +352,120 @@ export default function PlanAccion() {
         </div>
       )}
 
-      {/* Dialog */}
+      {/* Dialog Importar desde Evaluación */}
+      <Dialog open={showImportDialog} onOpenChange={open => { if (!open) { setShowImportDialog(false); setSeleccionados(new Set()); } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5 text-primary" />
+              Importar puntos fallidos como Plan de Acción
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {previewLoading && <p className="text-sm text-muted-foreground animate-pulse">Cargando evaluación...</p>}
+            {!previewLoading && previewData && (
+              <>
+                {!previewData.evaluacion ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm flex gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-amber-700">No hay evaluaciones completadas para esta sucursal.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border bg-muted/30 p-3 text-sm flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">
+                          Evaluación del {new Date(previewData.evaluacion.fecha!).toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}
+                        </p>
+                        <p className="text-muted-foreground mt-0.5">
+                          {(previewData.evaluacion.porcentajeGeneral ?? 0).toFixed(1)}% · {previewData.evaluacion.calificacion}
+                        </p>
+                      </div>
+                      <Badge variant="outline">{previewData.puntosFallidos.length} puntos fallidos</Badge>
+                    </div>
+
+                    {previewData.puntosFallidos.length === 0 ? (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm flex gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <p className="text-emerald-700">¡Sin puntos fallidos! Esta evaluación no tiene áreas de mejora.</p>
+                      </div>
+                    ) : (() => {
+                      const porSeccion: Record<string, typeof previewData.puntosFallidos> = {};
+                      for (const p of previewData.puntosFallidos) {
+                        if (!porSeccion[p.seccion]) porSeccion[p.seccion] = [];
+                        porSeccion[p.seccion].push(p);
+                      }
+                      const todasIds = previewData.puntosFallidos.map(p => p.puntoId);
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">Selecciona los puntos a convertir en acciones de mejora</p>
+                            <button onClick={() => toggleTodos(todasIds)} className="text-xs text-primary hover:underline">
+                              {todasIds.every(id => seleccionados.has(id)) ? "Deseleccionar todos" : "Seleccionar todos"}
+                            </button>
+                          </div>
+                          {Object.entries(porSeccion).map(([seccion, puntos]) => {
+                            const idsSeccion = puntos.map(p => p.puntoId);
+                            const todosSeccion = idsSeccion.every(id => seleccionados.has(id));
+                            return (
+                              <div key={seccion} className="rounded-lg border overflow-hidden">
+                                <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{seccion}</span>
+                                  <button onClick={() => toggleTodos(idsSeccion)} className="text-xs text-primary hover:underline">
+                                    {todosSeccion ? "Quitar" : "Todos"}
+                                  </button>
+                                </div>
+                                <div className="divide-y">
+                                  {puntos.map(p => (
+                                    <label key={p.puntoId} className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/20">
+                                      <input
+                                        type="checkbox"
+                                        checked={seleccionados.has(p.puntoId)}
+                                        onChange={() => togglePunto(p.puntoId)}
+                                        className="mt-0.5 rounded"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-mono font-bold text-muted-foreground">{p.puntoId}</span>
+                                          <Badge variant="outline" className="text-[10px] px-1 py-0">{p.categoria}</Badge>
+                                        </div>
+                                        <p className="text-sm mt-0.5">{p.descripcion}</p>
+                                        {p.observacion && <p className="text-xs text-muted-foreground mt-0.5 italic">Obs: {p.observacion}</p>}
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowImportDialog(false); setSeleccionados(new Set()); }}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!previewData?.evaluacion || seleccionados.size === 0) return;
+                importarMutation.mutate({
+                  evaluacionId: previewData.evaluacion.id,
+                  sucursalId: sucursalParaImportar!,
+                  puntosIds: Array.from(seleccionados),
+                });
+              }}
+              disabled={seleccionados.size === 0 || importarMutation.isPending || previewLoading || !previewData?.evaluacion}
+            >
+              {importarMutation.isPending ? "Importando..." : `Crear ${seleccionados.size} acción${seleccionados.size !== 1 ? "es" : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+            {/* Dialog */}
       <Dialog open={showDialog} onOpenChange={open => { if (!open) { setShowDialog(false); resetForm(); } }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

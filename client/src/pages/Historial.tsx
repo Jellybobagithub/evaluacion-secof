@@ -2,10 +2,11 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, ClipboardList, Calendar, User, Trash2, Eye, TrendingUp, TrendingDown, Minus, PlayCircle, Download, Loader2 } from "lucide-react";
+import { Building2, ClipboardList, Calendar, User, Trash2, Eye, TrendingUp, TrendingDown, Minus, PlayCircle, Download, Loader2, Target, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { getCalificacion } from "../../../shared/evaluacionData";
 import { toast } from "sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -24,6 +25,31 @@ export default function Historial() {
   const deleteMutation = trpc.evaluaciones.delete.useMutation({
     onSuccess: () => { toast.success("Evaluación eliminada"); refetch(); },
     onError: () => toast.error("Error al eliminar"),
+  });
+
+  const [evalImport, setEvalImport] = useState<{ id: number; sucursalId: number } | null>(null);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+
+  const { data: previewData, isLoading: previewLoading } = trpc.planAccion.previewImportacion.useQuery(
+    { sucursalId: evalImport?.sucursalId! },
+    { enabled: !!evalImport }
+  );
+
+  const importarMutation = trpc.planAccion.importarDesdeEvaluacion.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.creados} acción${data.creados !== 1 ? "es" : ""} creadas en Plan de Acción`);
+      setEvalImport(null);
+      setSeleccionados(new Set());
+    },
+    onError: () => toast.error("Error al importar"),
+  });
+
+  const togglePunto = (id: string) => setSeleccionados(prev => {
+    const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next;
+  });
+  const toggleTodos = (ids: string[]) => setSeleccionados(prev => {
+    const all = ids.every(id => prev.has(id));
+    const next = new Set(prev); ids.forEach(id => all ? next.delete(id) : next.add(id)); return next;
   });
 
   // Cargar detalle de evaluación para exportar PDF
@@ -69,6 +95,7 @@ export default function Historial() {
     }));
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -232,6 +259,15 @@ export default function Historial() {
                                 : <Download className="h-3.5 w-3.5" />
                               }
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                              title="Crear Plan de Acción"
+                              onClick={() => { setEvalImport({ id: ev.id, sucursalId: ev.sucursalId }); setSeleccionados(new Set()); }}
+                            >
+                              <Target className="h-3.5 w-3.5" />
+                            </Button>
                           </>
                         )}
                         {ev.estado === "borrador" && (
@@ -265,5 +301,115 @@ export default function Historial() {
         </CardContent>
       </Card>
     </div>
+
+      {/* Dialog Plan de Acción desde evaluación */}
+      <Dialog open={!!evalImport} onOpenChange={open => { if (!open) { setEvalImport(null); setSeleccionados(new Set()); } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-teal-600" />
+              Crear Plan de Acción desde evaluación
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {previewLoading && <p className="text-sm text-muted-foreground animate-pulse">Cargando puntos fallidos...</p>}
+            {!previewLoading && previewData && (
+              <>
+                {!previewData.evaluacion ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm flex gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-amber-700">No se encontró la evaluación.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border bg-muted/30 p-3 text-sm flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">
+                          {new Date(previewData.evaluacion.fecha!).toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}
+                        </p>
+                        <p className="text-muted-foreground mt-0.5">
+                          {(previewData.evaluacion.porcentajeGeneral ?? 0).toFixed(1)}% · {previewData.evaluacion.calificacion}
+                        </p>
+                      </div>
+                      <Badge variant="outline">{previewData.puntosFallidos.length} puntos fallidos</Badge>
+                    </div>
+                    {previewData.puntosFallidos.length === 0 ? (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm flex gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <p className="text-emerald-700">Sin puntos fallidos — esta evaluación no tiene áreas de mejora.</p>
+                      </div>
+                    ) : (() => {
+                      const porSeccion: Record<string, typeof previewData.puntosFallidos> = {};
+                      for (const p of previewData.puntosFallidos) {
+                        if (!porSeccion[p.seccion]) porSeccion[p.seccion] = [];
+                        porSeccion[p.seccion].push(p);
+                      }
+                      const todasIds = previewData.puntosFallidos.map(p => p.puntoId);
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">Selecciona los puntos a convertir en acciones</p>
+                            <button onClick={() => toggleTodos(todasIds)} className="text-xs text-primary hover:underline">
+                              {todasIds.every(id => seleccionados.has(id)) ? "Deseleccionar todos" : "Seleccionar todos"}
+                            </button>
+                          </div>
+                          {Object.entries(porSeccion).map(([seccion, puntos]) => {
+                            const idsSeccion = puntos.map(p => p.puntoId);
+                            const todosSeccion = idsSeccion.every(id => seleccionados.has(id));
+                            return (
+                              <div key={seccion} className="rounded-lg border overflow-hidden">
+                                <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b">
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{seccion}</span>
+                                  <button onClick={() => toggleTodos(idsSeccion)} className="text-xs text-primary hover:underline">
+                                    {todosSeccion ? "Quitar" : "Todos"}
+                                  </button>
+                                </div>
+                                <div className="divide-y">
+                                  {puntos.map(p => (
+                                    <label key={p.puntoId} className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/20">
+                                      <input type="checkbox" checked={seleccionados.has(p.puntoId)}
+                                        onChange={() => togglePunto(p.puntoId)} className="mt-0.5 rounded" />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-mono font-bold text-muted-foreground">{p.puntoId}</span>
+                                          <Badge variant="outline" className="text-[10px] px-1 py-0">{p.categoria}</Badge>
+                                        </div>
+                                        <p className="text-sm mt-0.5">{p.descripcion}</p>
+                                        {p.observacion && <p className="text-xs text-muted-foreground mt-0.5 italic">Obs: {p.observacion}</p>}
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEvalImport(null); setSeleccionados(new Set()); }}>Cancelar</Button>
+            <Button
+              className="bg-teal-600 hover:bg-teal-700 text-white"
+              onClick={() => {
+                if (!evalImport || seleccionados.size === 0) return;
+                importarMutation.mutate({
+                  evaluacionId: evalImport.id,
+                  sucursalId: evalImport.sucursalId,
+                  puntosIds: Array.from(seleccionados),
+                });
+              }}
+              disabled={seleccionados.size === 0 || importarMutation.isPending || previewLoading}
+            >
+              {importarMutation.isPending ? "Creando..." : `Crear ${seleccionados.size} acción${seleccionados.size !== 1 ? "es" : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

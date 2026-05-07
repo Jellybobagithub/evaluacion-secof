@@ -1017,7 +1017,55 @@ export const inventarioRouter = router({
             tapiocaGramos, 0);
         }
 
-        // ── Fuente 3: Perlas Explosivas → 46g por vaso vendido, distribuido entre sabores activos ──
+        // ── Fuente 3: Ingredientes de base_snowtea / jarabe_longan / sustituto_azucar desde preparaciones ──
+        const prepCounts = await db.execute(sql`
+          SELECT receta, cantidad, COUNT(*) as veces
+          FROM preparaciones
+          WHERE sucursalId=${input.sucursalId}
+            AND receta IN ('base_snowtea','jarabe_longan','sustituto_azucar')
+            AND preparadaAt >= ${fechaIni} AND preparadaAt <= CONCAT(${fechaFin},' 23:59:59')
+          GROUP BY receta, cantidad
+        `);
+
+        const subpRecipes = await db.execute(sql`
+          SELECT s.nombre as spNombre, sr.materiasPrimaId, sr.cantidadGramos,
+                 p.nombre as mpNombre, p.categoria, p.unidadConteo, p.unidadCompra,
+                 p.pesoNetoPorUnidad, p.factorConversion, p.piezasPorUnidadConteo
+          FROM inv_subproductos s
+          JOIN inv_subproductos_receta sr ON sr.subproductoId = s.id
+          JOIN inv_productos p ON p.id = sr.materiasPrimaId
+          WHERE s.nombre IN ('Base Snowtea','Base Snowtea Media Carga','Longan','Longan Media Carga','Sustituto de Azucar','Sustituto de Azucar Media Carga')
+        `);
+
+        const subpMap: Record<string, {materiasPrimaId:number;cantidadGramos:number;nombre:string;categoria:string;unidadConteo:string;unidadCompra:string;pesoNeto:number;fc:number;ppc:number}[]> = {};
+        for (const r of (subpRecipes[0] as any[])) {
+          if (!subpMap[r.spNombre]) subpMap[r.spNombre] = [];
+          subpMap[r.spNombre].push({
+            materiasPrimaId: Number(r.materiasPrimaId), cantidadGramos: Number(r.cantidadGramos),
+            nombre: r.mpNombre, categoria: r.categoria, unidadConteo: r.unidadConteo,
+            unidadCompra: r.unidadCompra, pesoNeto: Number(r.pesoNetoPorUnidad)||0,
+            fc: Number(r.factorConversion)||1, ppc: Number(r.piezasPorUnidadConteo)||1
+          });
+        }
+
+        const RECETA_TO_SP: Record<string, Record<string, string>> = {
+          base_snowtea:     { carga_completa: 'Base Snowtea',             media_carga: 'Base Snowtea Media Carga' },
+          jarabe_longan:    { carga_completa: 'Longan',                   media_carga: 'Longan Media Carga' },
+          sustituto_azucar: { carga_completa: 'Sustituto de Azucar',      media_carga: 'Sustituto de Azucar Media Carga' },
+        };
+
+        for (const row of (prepCounts[0] as any[])) {
+          const spNombre = RECETA_TO_SP[row.receta]?.[row.cantidad];
+          if (!spNombre) continue;
+          const ingredientes = subpMap[spNombre];
+          if (!ingredientes) continue;
+          for (const ing of ingredientes) {
+            add(ing.materiasPrimaId, ing.nombre, ing.categoria, ing.unidadConteo, ing.unidadCompra,
+              ing.pesoNeto, ing.fc, ing.ppc, ing.cantidadGramos * Number(row.veces), 0);
+          }
+        }
+
+        // ── Fuente 4: Perlas Explosivas → 46g por vaso vendido, distribuido entre sabores activos ──
         const GR_PERLAS_POR_VASO = 46;
         const gramosPerlasTotales = totalVasosHist * GR_PERLAS_POR_VASO;
         const perlasActRes = await db.execute(sql`

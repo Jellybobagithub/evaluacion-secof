@@ -1,3 +1,23 @@
+// Patch para Chrome: evitar crash removeChild cuando React desmonta portales
+if (typeof window !== "undefined") {
+  const _removeChild = Node.prototype.removeChild;
+  // @ts-ignore
+  Node.prototype.removeChild = function<T extends Node>(child: T): T {
+    if (child.parentNode !== this) {
+      return child;
+    }
+    return _removeChild.call(this, child) as T;
+  };
+  const _insertBefore = Node.prototype.insertBefore;
+  // @ts-ignore
+  Node.prototype.insertBefore = function<T extends Node>(newNode: T, ref: Node | null): T {
+    if (ref && ref.parentNode !== this) {
+      return newNode;
+    }
+    return _insertBefore.call(this, newNode, ref) as T;
+  };
+}
+
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

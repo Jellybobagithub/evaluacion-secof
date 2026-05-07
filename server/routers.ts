@@ -19,7 +19,7 @@ import {
   getPuntosEvaluacion, getPuntoById, createPunto, updatePunto, togglePuntoActivo, deletePunto,
   getSucursalesAsignadas, getEvaluacionesByUser,
 } from "./db";
-import { calcularPuntuacion } from "../shared/evaluacionData";
+import { calcularPuntuacion, SECCIONES } from "../shared/evaluacionData";
 import { horariosRouter } from "./routers/horarios";
 import { preparacionesRouter } from "./routers/preparaciones";
 import { observacionRouter } from "./routers/observacion";
@@ -253,6 +253,55 @@ export const appRouter = router({
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       await deletePlanAccion(input.id);
       return { success: true };
+    }),
+
+    previewImportacion: protectedProcedure.input(z.object({
+      sucursalId: z.number(),
+    })).query(async ({ input }) => {
+      const evals = await getEvaluaciones(input.sucursalId);
+      const ultimaEval = evals.find((e: any) => e.estado === "completada");
+      if (!ultimaEval) return { evaluacion: null, puntosFallidos: [] as any[] };
+      const respuestasData = await getRespuestasByEvaluacion(ultimaEval.id);
+      const fallidos = respuestasData.filter((r: any) => r.respuesta === "no");
+      const puntosFallidos = fallidos.map((r: any) => {
+        let descripcion = r.puntoId; let seccionNombre = ""; let categoria = "";
+        for (const sec of SECCIONES) {
+          const punto = sec.puntos.find((p: any) => p.id === r.puntoId);
+          if (punto) { descripcion = punto.descripcion; seccionNombre = sec.nombre; categoria = punto.categoria; break; }
+        }
+        return { puntoId: r.puntoId, descripcion, seccion: seccionNombre, categoria, observacion: r.observacion ?? "" };
+      });
+      return {
+        evaluacion: { id: ultimaEval.id, fecha: ultimaEval.fecha, porcentajeGeneral: ultimaEval.porcentajeGeneral, calificacion: ultimaEval.calificacion },
+        puntosFallidos,
+      };
+    }),
+
+    importarDesdeEvaluacion: protectedProcedure.input(z.object({
+      evaluacionId: z.number(),
+      sucursalId: z.number(),
+      puntosIds: z.array(z.string()),
+    })).mutation(async ({ input }) => {
+      const evaluacion = await getEvaluacionById(input.evaluacionId);
+      if (!evaluacion) throw new TRPCError({ code: "NOT_FOUND", message: "Evaluacion no encontrada" });
+      const respuestasData = await getRespuestasByEvaluacion(input.evaluacionId);
+      let creados = 0;
+      for (const puntoId of input.puntosIds) {
+        const respuesta = respuestasData.find((r: any) => r.puntoId === puntoId);
+        let descripcion = puntoId; let seccionNombre = "";
+        for (const sec of SECCIONES) {
+          const punto = sec.puntos.find((p: any) => p.id === puntoId);
+          if (punto) { descripcion = punto.descripcion; seccionNombre = sec.nombre; break; }
+        }
+        await createPlanAccion({
+          evaluacionId: input.evaluacionId, sucursalId: input.sucursalId,
+          area: seccionNombre || puntoId,
+          queMalEsta: "[" + puntoId + "] " + descripcion + (respuesta?.observacion ? " — Obs: " + respuesta.observacion : ""),
+          estado: "pendiente",
+        });
+        creados++;
+      }
+      return { creados };
     }),
   }),
 
