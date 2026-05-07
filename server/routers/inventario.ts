@@ -406,6 +406,20 @@ export const inventarioRouter = router({
           .where(eq(invConteoDetalle.conteoId, input.conteoId));
         return { conteo: conteo[0], detalles };
       }),
+
+    // Eliminar conteo físico (solo superadmin/owner/manager)
+    eliminar: protectedProcedure
+      .input(z.object({ conteoId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const role = ctx.user.role;
+        if (!["superadmin", "owner", "manager"].includes(role))
+          throw new TRPCError({ code: "FORBIDDEN", message: "Sin permiso para eliminar conteos" });
+        await db.delete(invConteoDetalle).where(eq(invConteoDetalle.conteoId, input.conteoId));
+        await db.delete(invConteoFisico).where(eq(invConteoFisico.id, input.conteoId));
+        return { ok: true };
+      }),
   },
 
   // ── Inventario Teórico ─────────────────────────────────────────────────────

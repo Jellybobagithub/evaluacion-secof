@@ -712,13 +712,32 @@ function ComparativaTab({ sucursalId, almacenId, semana }: { sucursalId: number;
 
 // ─── Tab: Historial ───────────────────────────────────────────────────────────
 function HistorialTab({ sucursalId, almacenId }: { sucursalId: number; almacenId: number }) {
-  const { data: historial } = trpc.inventario.conteoFisico.historial.useQuery({ sucursalId, almacenId });
+  const { data: historial, refetch: refetchHistorial } = trpc.inventario.conteoFisico.historial.useQuery({ sucursalId, almacenId });
   const [expandido, setExpandido] = useState<number | null>(null);
+  const [confirmEliminar, setConfirmEliminar] = useState<number | null>(null);
   const { data: conteoDetalle } = trpc.inventario.conteoFisico.getById.useQuery(
     { conteoId: expandido! },
     { enabled: !!expandido }
   );
   const { data: productos } = trpc.inventario.productos.list.useQuery();
+
+  const eliminarMutation = trpc.inventario.conteoFisico.eliminar.useMutation({
+    onSuccess: () => {
+      toast.success("Conteo eliminado");
+      setConfirmEliminar(null);
+      if (expandido === confirmEliminar) setExpandido(null);
+      refetchHistorial();
+    },
+    onError: (e: any) => toast.error(e.message ?? "Error al eliminar"),
+  });
+
+  function formatFechaHora(date: Date | string | null) {
+    if (!date) return "—";
+    return new Date(date).toLocaleString("es-MX", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hour12: true
+    });
+  }
 
   if (!historial || historial.length === 0) {
     return (
@@ -732,58 +751,106 @@ function HistorialTab({ sucursalId, almacenId }: { sucursalId: number; almacenId
   }
 
   return (
-    <div className="space-y-2">
-      {historial.map(conteo => (
-        <Card key={conteo.id} className="overflow-hidden">
-          <button
-            className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
-            onClick={() => setExpandido(expandido === conteo.id ? null : conteo.id)}
-          >
-            <div className="flex items-center gap-3">
-              <Badge variant={conteo.estado === "bloqueado" ? "secondary" : "outline"}>
-                {conteo.estado === "bloqueado" ? "Bloqueado" : conteo.estado === "enviado" ? "Enviado" : "Borrador"}
-              </Badge>
-              <span className="font-medium">{formatSemana(conteo.semana)}</span>
-              <span className="text-sm text-muted-foreground">{conteo.fechaConteo}</span>
+    <>
+      <div className="space-y-2">
+        {historial.map(conteo => (
+          <Card key={conteo.id} className="overflow-hidden">
+            <div className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+              <button
+                className="flex-1 flex items-start gap-3 text-left"
+                onClick={() => setExpandido(expandido === conteo.id ? null : conteo.id)}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={conteo.estado === "bloqueado" ? "secondary" : "outline"}>
+                    {conteo.estado === "bloqueado" ? "Bloqueado" : conteo.estado === "enviado" ? "Enviado" : "Borrador"}
+                  </Badge>
+                  <span className="font-medium">{formatSemana(conteo.semana)}</span>
+                  <span className="text-sm text-muted-foreground">Conteo del {conteo.fechaConteo}</span>
+                  <span className="text-xs text-muted-foreground/70 flex items-center gap-1">
+                    <History className="w-3 h-3" />
+                    Creado: {formatFechaHora(conteo.createdAt)}
+                  </span>
+                </div>
+              </button>
+              <div className="flex items-center gap-1 ml-2 shrink-0">
+                <button
+                  onClick={() => setExpandido(expandido === conteo.id ? null : conteo.id)}
+                  className="p-1.5 rounded hover:bg-muted text-muted-foreground"
+                >
+                  {expandido === conteo.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => setConfirmEliminar(conteo.id)}
+                  className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                  title="Eliminar conteo"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            {expandido === conteo.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          {expandido === conteo.id && conteoDetalle && (
-            <CardContent className="pt-0 pb-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="text-center">Piezas</TableHead>
-                    <TableHead className="text-center">Gramos</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {conteoDetalle.detalles.map(d => {
-                    const prod = productos?.find(p => p.id === d.productoId);
-                    return (
-                      <TableRow key={d.id}>
-                        <TableCell className="text-sm">{prod?.nombre ?? `Producto #${d.productoId}`}</TableCell>
-                        <TableCell className="text-center font-mono">{d.cantidadPiezas}</TableCell>
-                        <TableCell className="text-center font-mono text-muted-foreground">
-                          {d.cantidadGramos ? `${d.cantidadGramos}g` : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              {conteoDetalle.conteo.notas && (
-                <p className="text-sm text-muted-foreground mt-2 px-2">📝 {conteoDetalle.conteo.notas}</p>
-              )}
-            </CardContent>
-          )}
-        </Card>
-      ))}
-    </div>
+            {expandido === conteo.id && conteoDetalle && (
+              <CardContent className="pt-0 pb-4 border-t">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Producto</TableHead>
+                      <TableHead className="text-center">Piezas</TableHead>
+                      <TableHead className="text-center">Gramos</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {conteoDetalle.detalles.map(d => {
+                      const prod = productos?.find(p => p.id === d.productoId);
+                      return (
+                        <TableRow key={d.id}>
+                          <TableCell className="text-sm">{prod?.nombre ?? `Producto #${d.productoId}`}</TableCell>
+                          <TableCell className="text-center font-mono">{d.cantidadPiezas}</TableCell>
+                          <TableCell className="text-center font-mono text-muted-foreground">
+                            {d.cantidadGramos ? `${d.cantidadGramos}g` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {conteoDetalle.conteo.notas && (
+                  <p className="text-sm text-muted-foreground mt-2 px-2">📝 {conteoDetalle.conteo.notas}</p>
+                )}
+              </CardContent>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      {confirmEliminar !== null && (() => {
+        const c = historial.find(h => h.id === confirmEliminar);
+        return (
+          <Dialog open onOpenChange={open => { if (!open) setConfirmEliminar(null); }}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <Trash2 className="w-5 h-5" /> Eliminar conteo
+                </DialogTitle>
+              </DialogHeader>
+              <div className="py-2 space-y-2">
+                <p className="text-sm">¿Eliminar el conteo de la semana <strong>{c ? formatSemana(c.semana) : ""}</strong>?</p>
+                <p className="text-xs text-muted-foreground">Creado el {c ? formatFechaHora(c.createdAt) : ""}</p>
+                <p className="text-xs text-red-600 bg-red-50 rounded p-2">Esta acción es irreversible. Se borrarán el conteo y todos sus registros.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setConfirmEliminar(null)}>Cancelar</Button>
+                <Button variant="destructive" disabled={eliminarMutation.isPending}
+                  onClick={() => eliminarMutation.mutate({ conteoId: confirmEliminar! })}>
+                  {eliminarMutation.isPending ? "Eliminando..." : "Sí, eliminar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
+    </>
   );
 }
-
 // ─── Tab: Configuración ───────────────────────────────────────────────────────
 function ConfigTab({
   sucursalId, almacenes, productos, refetchAlmacenes, refetchProductos
