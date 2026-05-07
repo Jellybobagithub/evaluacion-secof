@@ -153,6 +153,10 @@ function vitePluginManusDebugCollector(): Plugin {
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(new Date().toISOString().slice(0,10)),
+    __APP_BUILD__: JSON.stringify(new Date().toLocaleString("es-MX", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })),
+  },
   plugins,
   resolve: {
     alias: {

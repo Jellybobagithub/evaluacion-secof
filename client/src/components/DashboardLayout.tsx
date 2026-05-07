@@ -470,6 +470,16 @@ function DashboardLayoutContent({
 
           {/* Footer */}
           <SidebarFooter className="p-3 border-t border-sidebar-border/50">
+            {!isCollapsed && (
+              <div className="px-2 pb-2 flex items-center justify-between">
+                <span className="text-[10px] text-sidebar-foreground/40 font-mono">
+                  SECOF v{(window as any).__APP_VERSION__ ?? "—"}
+                </span>
+                <span className="text-[10px] text-sidebar-foreground/30">
+                  {(window as any).__APP_BUILD__ ?? ""}
+                </span>
+              </div>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-sidebar-accent/50 transition-colors w-full text-left focus:outline-none">

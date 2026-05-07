@@ -108,11 +108,16 @@ export default function MiTurno() {
   // Buscar el empleado que corresponde al usuario actual
   const empleadoActual = useMemo(() => {
     if (!user) return null;
-    // Buscar por nombre (aproximado) o el primero si solo hay uno
-    return empleados.find((e: any) =>
-      e.nombre?.toLowerCase().includes(user.name?.split(' ')[0]?.toLowerCase() ?? '') ||
-      empleados.length === 1
-    ) ?? empleados[0] ?? null;
+    // 1. Buscar por userId (match exacto, más confiable)
+    const porUserId = empleados.find((e: any) => e.userId === user.id);
+    if (porUserId) return porUserId;
+    // 2. Fallback: buscar por nombre (aproximado)
+    const porNombre = empleados.find((e: any) =>
+      e.nombre?.toLowerCase().includes(user.name?.split(' ')[0]?.toLowerCase() ?? '')
+    );
+    if (porNombre) return porNombre;
+    // 3. Último recurso: primer empleado si solo hay uno
+    return empleados.length === 1 ? empleados[0] : null;
   }, [empleados, user]);
 
   const { data: miTurnoData, refetch: refetchTurno } = trpc.horarios.miTurnoHoy.useQuery(

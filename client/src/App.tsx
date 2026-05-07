@@ -27,8 +27,6 @@ import ControlAsistencias from "./pages/ControlAsistencias";
 import KpiAnfitriones from "./pages/KpiAnfitriones";
 import KpiLider from "./pages/KpiLider";
 import KpiAdmin from "./pages/KpiAdmin";
-import Horarios from "./pages/Horarios";
-import HorariosRotacion from "./pages/HorariosRotacion";
 import MiTurno from "./pages/MiTurno";
 import PreparacionesPage from "./pages/PreparacionesPage";
 import DashboardSecof from "./pages/DashboardSecof";
@@ -42,6 +40,7 @@ import Inventario from "./pages/Inventario";
 import Finanzas from "./pages/Finanzas";
 import EvaluacionesPeriodo from "./pages/EvaluacionesPeriodo";
 import Supervision from "./pages/Supervision";
+import HorariosRotacion from "./pages/HorariosRotacion";
 
 function Router() {
   return (
@@ -129,14 +128,10 @@ function Router() {
           <ProtectedRoute component={KpiAdmin} minRole="manager" />
         </Route>
 
-        {/* Horarios Semanales: leader y superior */}
+
         <Route path="/rotacion-areas">
           <ProtectedRoute component={HorariosRotacion} minRole="leader" />
         </Route>
-        <Route path="/horarios">
-          <ProtectedRoute component={Horarios} minRole="leader" />
-        </Route>
-
         {/* Supervisión: líder y superior */}
         <Route path="/supervision">
           <ProtectedRoute component={Supervision} minRole="leader" />
