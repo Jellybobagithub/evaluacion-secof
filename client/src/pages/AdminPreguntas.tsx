@@ -251,7 +251,7 @@ export default function AdminPreguntas() {
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="todas">Todas las categorías</SelectItem>
                   {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
@@ -260,7 +260,7 @@ export default function AdminPreguntas() {
                 <SelectTrigger className="w-52">
                   <SelectValue placeholder="Sección" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="todas">Todas las secciones</SelectItem>
                   {Object.entries(SECCIONES_NOMBRES).map(([n, nombre]) => (
                     <SelectItem key={n} value={n}>{n}. {nombre}</SelectItem>
@@ -271,7 +271,7 @@ export default function AdminPreguntas() {
                 <SelectTrigger className="w-36">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="todas">Todos</SelectItem>
                   <SelectItem value="activos">Solo activos</SelectItem>
                   <SelectItem value="inactivos">Solo inactivos</SelectItem>
@@ -441,7 +441,7 @@ export default function AdminPreguntas() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {Object.entries(SECCIONES_NOMBRES).map(([n, nombre]) => (
                       <SelectItem key={n} value={n}>{n}. {nombre}</SelectItem>
                     ))}
@@ -466,7 +466,7 @@ export default function AdminPreguntas() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {CATEGORIAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>

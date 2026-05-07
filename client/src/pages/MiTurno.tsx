@@ -144,14 +144,7 @@ export default function MiTurno() {
   // Registrar asistencia (se hace via el flujo del modal de bienvenida)
 
   function handleRegistrarEntrada() {
-    const h = new Date().getHours();
-    if (h >= 14) {
-      // Después de las 2pm: preguntar si es turno vespertino
-      setMostrarSeleccionTurno(true);
-    } else {
-      setTipoTurnoSeleccionado("matutino");
-      setMostrarModalBienvenida(true);
-    }
+    navigate("/asistencia-qr");
   }
 
   const subirEvidencia = trpc.horarios.subirEvidencia.useMutation({
@@ -373,25 +366,14 @@ export default function MiTurno() {
         {/* Botón Registrar Entrada */}
         <div className="mt-4 space-y-2">
           {/* Indicador de tipo de entrada */}
-          {esPrimerEmpleado ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-500/10 border border-teal-500/30 rounded-lg">
-              <span className="text-teal-400 text-xs font-semibold">🌅 Apertura de tienda</span>
-              <span className="text-slate-400 text-xs ml-auto">Eres el primero en llegar</span>
-            </div>
-          ) : entradas > 0 ? (
+          {entradas > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 rounded-lg">
               <span className="text-blue-400 text-xs font-semibold">👥 Continuación de turno</span>
               <span className="text-slate-400 text-xs ml-auto">{entradas} ya registrado{entradas !== 1 ? 's' : ''}</span>
             </div>
-          ) : null}
+          )}
 
           <div className="flex gap-2">
-            <Button
-              className="flex-1 bg-teal-600 hover:bg-teal-700 text-white h-12 font-semibold"
-              onClick={handleRegistrarEntrada}
-            >
-              {esPrimerEmpleado ? '🌅 Apertura' : '✅ Registrar entrada'}
-            </Button>
             {(aperturaHoy || (miTurnoData?.turno && !miTurnoData.turno.cerrado)) && (
               esUltimoEmpleado ? (
                 <Button

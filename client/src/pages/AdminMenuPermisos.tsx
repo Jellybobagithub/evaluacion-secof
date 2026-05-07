@@ -152,7 +152,7 @@ export default function AdminMenuPermisos() {
             <SelectTrigger className="w-64 bg-slate-800 border-slate-700 text-slate-200">
               <SelectValue placeholder="Filtrar por usuario" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="all">Todos los usuarios</SelectItem>
               {Object.entries(permisosAgrupados).map(([uid, ps]) => (
                 <SelectItem key={uid} value={uid}>
@@ -242,7 +242,7 @@ export default function AdminMenuPermisos() {
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar usuario..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {(usuarios as any[]).map((u: any) => (
                     <SelectItem key={u.id} value={String(u.id)}>
                       {u.name ?? u.email ?? `#${u.id}`}
@@ -262,7 +262,7 @@ export default function AdminMenuPermisos() {
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar sección..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {Object.entries(
                     MENU_ITEMS_OTORGABLES.reduce((acc, item) => {
                       if (!acc[item.grupo]) acc[item.grupo] = [];

@@ -259,7 +259,7 @@ export default function KpiAdmin() {
             <SelectTrigger className="w-52">
               <SelectValue placeholder="Selecciona sucursal" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               {(sucursales as any[]).map((s: any) => (
                 <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
               ))}
@@ -270,7 +270,7 @@ export default function KpiAdmin() {
             <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               {MESES.map((m, i) => (
                 <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>
               ))}
@@ -281,7 +281,7 @@ export default function KpiAdmin() {
             <SelectTrigger className="w-28">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               {[anioActual - 1, anioActual, anioActual + 1].map(y => (
                 <SelectItem key={y} value={String(y)}>{y}</SelectItem>
               ))}

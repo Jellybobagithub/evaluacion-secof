@@ -28,6 +28,7 @@ import KpiAnfitriones from "./pages/KpiAnfitriones";
 import KpiLider from "./pages/KpiLider";
 import KpiAdmin from "./pages/KpiAdmin";
 import Horarios from "./pages/Horarios";
+import HorariosRotacion from "./pages/HorariosRotacion";
 import MiTurno from "./pages/MiTurno";
 import PreparacionesPage from "./pages/PreparacionesPage";
 import DashboardSecof from "./pages/DashboardSecof";
@@ -35,7 +36,11 @@ import DashboardLayout from "./components/DashboardLayout";
 import VentasHistoricas from "./pages/VentasHistoricas";
 import AvisosGenerales from "./pages/AvisosGenerales";
 import CuadreVasos from "./pages/CuadreVasos";
+import PronosticoSurtido from "@/pages/PronosticoSurtido";
+import ImportarVentasOdoo from "@/pages/ImportarVentasOdoo";
 import Inventario from "./pages/Inventario";
+import Finanzas from "./pages/Finanzas";
+import EvaluacionesPeriodo from "./pages/EvaluacionesPeriodo";
 import Supervision from "./pages/Supervision";
 
 function Router() {
@@ -105,9 +110,10 @@ function Router() {
           <ProtectedRoute component={ControlAsistencias} minRole="leader" />
         </Route>
 
+
+
         {/* Página pública de registro QR (sin login) */}
         <Route path="/asistencia-qr" component={AsistenciaQR} />
-
         {/* KPIs Anfitriones: host y superior */}
         <Route path="/kpi-anfitriones">
           <ProtectedRoute component={KpiAnfitriones} minRole="host" />
@@ -124,6 +130,9 @@ function Router() {
         </Route>
 
         {/* Horarios Semanales: leader y superior */}
+        <Route path="/rotacion-areas">
+          <ProtectedRoute component={HorariosRotacion} minRole="leader" />
+        </Route>
         <Route path="/horarios">
           <ProtectedRoute component={Horarios} minRole="leader" />
         </Route>
@@ -179,10 +188,22 @@ function Router() {
         </Route>
 
         {/* Inventario de Tienda: leader y superior */}
+        <Route path="/pronostico-surtido">
+          <ProtectedRoute component={PronosticoSurtido} minRole="manager" />
+        </Route>
+        <Route path="/importar-ventas">
+          <ProtectedRoute component={ImportarVentasOdoo} minRole="manager" />
+        </Route>
         <Route path="/inventario">
           <ProtectedRoute component={Inventario} minRole="leader" />
         </Route>
 
+        <Route path="/evaluaciones-periodo">
+          <ProtectedRoute component={EvaluacionesPeriodo} minRole="manager" />
+        </Route>
+        <Route path="/finanzas">
+          <ProtectedRoute component={Finanzas} minRole="manager" />
+        </Route>
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

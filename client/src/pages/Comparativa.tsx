@@ -160,7 +160,7 @@ export default function Comparativa() {
           <SelectTrigger className="w-52">
             <SelectValue placeholder="Todas las sucursales" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="item-aligned">
             <SelectItem value="all">Todas las sucursales</SelectItem>
             {sucursales.map(s => (
               <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>

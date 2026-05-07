@@ -200,7 +200,7 @@ export default function PlanAccion() {
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Todas las sucursales" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="item-aligned">
             <SelectItem value="all">Todas las sucursales</SelectItem>
             {sucursales.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
           </SelectContent>
@@ -209,7 +209,7 @@ export default function PlanAccion() {
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Todos los estados" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="item-aligned">
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="pendiente">Pendiente</SelectItem>
             <SelectItem value="en_proceso">En Proceso</SelectItem>
@@ -332,7 +332,7 @@ export default function PlanAccion() {
                 <Label>Sucursal *</Label>
                 <Select value={form.sucursalId} onValueChange={v => setForm(f => ({ ...f, sucursalId: v, evaluacionId: "" }))}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {sucursales.filter(s => s.activa).map(s => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -341,7 +341,7 @@ export default function PlanAccion() {
                 <Label>Evaluación *</Label>
                 <Select value={form.evaluacionId} onValueChange={v => setForm(f => ({ ...f, evaluacionId: v }))}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {evalsByCurrentSucursal.map(e => (
                       <SelectItem key={e.id} value={String(e.id)}>
                         {new Date(e.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })} · {(e.porcentajeGeneral ?? 0).toFixed(1)}%
@@ -356,7 +356,7 @@ export default function PlanAccion() {
               <Label>Área de Mejora *</Label>
               <Select value={form.area} onValueChange={v => setForm(f => ({ ...f, area: v }))}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar área" /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {AREAS.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
                 </SelectContent>
               </Select>

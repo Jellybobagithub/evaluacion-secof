@@ -1220,13 +1220,26 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
       let horaEntradaEsperada: string | null = null;
       let horaSalidaEsperada: string | null = null;
 
-      if (turnoAsignado === "D") {
+      // Obtener horario del empleado desde horarioPersonal (nuevo sistema)
+      const horarioEmp = (() => {
+        try {
+          const raw = (emp as any).horarioPersonal;
+          const parsed = typeof raw === "string" ? JSON.parse(raw) : (raw ?? {});
+          const diaNum = new Date(fecha + "T12:00:00Z").getUTCDay();
+          return parsed[diaNum] ?? parsed[String(diaNum)] ?? null;
+        } catch { return null; }
+      })();
+
+      if (horarioEmp === null && turnoAsignado !== "D") {
+        // Dia de descanso segun horarioPersonal
         estado = "descanso";
-      } else if (turnoAsignado && TURNO_HORAS[turnoAsignado]) {
-        const horas = TURNO_HORAS[turnoAsignado];
-        horaEntradaEsperada = horas.entrada;
-        horaSalidaEsperada = horas.salida;
-        const tsEntradaEsperada = horaFechaToTs(fecha, horas.entrada);
+      } else if (turnoAsignado === "D") {
+        estado = "descanso";
+      } else if (horarioEmp?.entrada && horarioEmp?.salida) {
+        // Usar horarioPersonal del empleado
+        horaEntradaEsperada = horarioEmp.entrada;
+        horaSalidaEsperada = horarioEmp.salida;
+        const tsEntradaEsperada = horaFechaToTs(fecha, horarioEmp.entrada);
 
         if (!tsEntradaEfectiva) {
           estado = "ausente";

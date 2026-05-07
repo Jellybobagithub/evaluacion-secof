@@ -1,33 +1,21 @@
 import { useState, useMemo, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { ChevronDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { QrCode, RefreshCw, Clock, Download, UserCheck, UserX, Plus, Calendar, AlertTriangle } from "lucide-react";
+import { QrCode, RefreshCw, Download, ChevronDown } from "lucide-react";
 
-// Select nativo estilizado — evita el portal de Radix que crashea en navegadores móviles
-function NativeSelect({ value, onChange, placeholder, children, className }: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  children: React.ReactNode;
-  className?: string;
+const HOY_INICIO = () => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+const HOY_FIN   = () => { const d = new Date(); d.setHours(23,59,59,999); return d.getTime(); };
+
+function NativeSelect({ value, onChange, children }: {
+  value: string; onChange: (v: string) => void; children: React.ReactNode;
 }) {
   return (
-    <div className={`relative ${className ?? ""}`}>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full h-10 px-3 pr-9 text-sm rounded-md border border-input bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50"
-      >
-        {placeholder && <option value="">{placeholder}</option>}
+    <div className="relative">
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="w-full h-10 px-3 pr-9 text-sm rounded-md border border-input bg-background appearance-none focus:outline-none focus:ring-2 focus:ring-ring">
         {children}
       </select>
       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -35,411 +23,235 @@ function NativeSelect({ value, onChange, placeholder, children, className }: {
   );
 }
 
-const HOY_INICIO = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
-const HOY_FIN = () => {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-};
+function formatHora(ts: number) {
+  return new Date(ts).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+}
+
+function subtipoLabel(subtipo?: string) {
+  if (!subtipo) return "";
+  const map: Record<string,string> = {
+    apertura_tienda: "Apertura",
+    entrada_turno:   "Turno",
+    cierre_tienda:   "Cierre",
+    salida_turno:    "Salida",
+  };
+  return map[subtipo] ?? subtipo;
+}
 
 export default function Asistencia() {
-  const { user } = useAuth();
-  const [sucursalId, setSucursalId] = useState<number | null>(null);
+  const [sucursalId, setSucursalId]   = useState<number | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const [manualDialogOpen, setManualDialogOpen] = useState(false);
-  const [manualForm, setManualForm] = useState({ empleadoId: "", tipo: "entrada" as "entrada" | "salida", hora: new Date().toTimeString().slice(0, 5) });
-  const [fechaFiltro] = useState(() => new Date().toISOString().split("T")[0]);
-  // Estabilizar timestamps del día para evitar loop de re-renders (causa del crash removeChild)
   const [hoyInicio] = useState(() => HOY_INICIO());
-  const [hoyFin] = useState(() => HOY_FIN());
+  const [hoyFin]    = useState(() => HOY_FIN());
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
-  // Auto-seleccionar sucursal si el usuario solo tiene una asignada (evita el Select con 1 opción que causa error DOM)
-  useEffect(() => {
+  // Auto-seleccionar sucursal cuando el usuario solo tiene una asignada (lider 1 tienda)
+  useMemo(() => {
     if (sucursales.length === 1 && sucursalId === null) {
       setSucursalId(sucursales[0].id);
     }
+  }, [sucursales.length]);
+  useEffect(() => {
+    if (sucursales.length === 1 && sucursalId === null) setSucursalId(sucursales[0].id);
   }, [sucursales]);
+
   const { data: qrData, refetch: refetchQr } = trpc.asistencia.getQrToken.useQuery(
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId && qrDialogOpen }
   );
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
-    { sucursalId: sucursalId ?? 0 },
-    { enabled: !!sucursalId }
+    { sucursalId: sucursalId ?? 0 }, { enabled: !!sucursalId }
   );
   const { data: registros = [], refetch: refetchRegistros } = trpc.asistencia.listBySucursal.useQuery(
     { sucursalId: sucursalId ?? 0, fechaInicio: hoyInicio, fechaFin: hoyFin },
-    { enabled: !!sucursalId }
+    { enabled: !!sucursalId, refetchInterval: 30000 }
   );
 
-  const utils = trpc.useUtils();
-
   const generarQrMut = trpc.asistencia.generarQrToken.useMutation({
-    onSuccess: () => {
-      refetchQr();
-      toast.success("QR regenerado correctamente");
-    },
-    onError: (e) => toast.error(e.message),
+    onSuccess: () => { refetchQr(); toast.success("QR regenerado"); },
+    onError: e => toast.error(e.message),
   });
 
-  const manualMut = trpc.asistencia.registrarManual.useMutation({
-    onSuccess: () => {
-      utils.asistencia.listBySucursal.invalidate();
-      toast.success("Asistencia registrada manualmente");
-      setManualDialogOpen(false);
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const canEdit = ["owner", "superadmin", "manager", "leader"].includes(user?.role ?? "");
-
-  // URL pública para el QR (página de registro desde celular)
   const qrUrl = qrData?.token
     ? `${window.location.origin}/asistencia-qr?token=${qrData.token}&sucursalId=${sucursalId}`
     : null;
 
-  // Agrupar registros por empleado para mostrar entrada/salida
-  const resumenEmpleados = useMemo(() => {
-    const mapa: Record<number, { empleadoId: number; nombre: string; entrada?: number; salida?: number }> = {};
-    for (const r of registros) {
-      if (!mapa[r.empleadoId]) {
+  // Lista de todos los registros individuales del día con nombre del empleado
+  const registrosConNombre = useMemo(() => {
+    return [...registros]
+      .sort((a, b) => b.timestamp - a.timestamp) // más recientes primero
+      .map(r => {
         const emp = empleados.find(e => e.id === r.empleadoId);
-        mapa[r.empleadoId] = { empleadoId: r.empleadoId, nombre: emp ? `${emp.nombre} ${emp.apellido ?? ""}`.trim() : `Empleado #${r.empleadoId}` };
-      }
-      if (r.tipo === "entrada" && (!mapa[r.empleadoId].entrada || r.timestamp < mapa[r.empleadoId].entrada!)) {
-        mapa[r.empleadoId].entrada = r.timestamp;
-      }
-      if (r.tipo === "salida" && (!mapa[r.empleadoId].salida || r.timestamp > mapa[r.empleadoId].salida!)) {
-        mapa[r.empleadoId].salida = r.timestamp;
-      }
-    }
-    return Object.values(mapa).sort((a, b) => (a.entrada ?? 0) - (b.entrada ?? 0));
+        return {
+          ...r,
+          nombre: emp ? `${emp.nombre} ${emp.apellido ?? ""}`.trim() : `Empleado #${r.empleadoId}`,
+          subtipo: (r as any).subtipo as string | undefined,
+        };
+      });
   }, [registros, empleados]);
 
-  function formatHora(ts: number) {
-    return new Date(ts).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-  }
+  // Para los KPIs seguimos agrupando por empleado
+  const porEmpleado = useMemo(() => {
+    const mapa: Record<number, { entrada: boolean; salida: boolean }> = {};
+    for (const r of registros) {
+      if (!mapa[r.empleadoId]) mapa[r.empleadoId] = { entrada: false, salida: false };
+      if (r.tipo === "entrada") mapa[r.empleadoId].entrada = true;
+      if (r.tipo === "salida") mapa[r.empleadoId].salida = true;
+    }
+    return mapa;
+  }, [registros]);
 
-  function handleManualSubmit() {
-    if (!manualForm.empleadoId || !sucursalId) { toast.error("Selecciona un empleado"); return; }
-    const [h, m] = manualForm.hora.split(":").map(Number);
-    const ts = new Date();
-    ts.setHours(h, m, 0, 0);
-    manualMut.mutate({
-      empleadoId: Number(manualForm.empleadoId),
-      sucursalId,
-      tipo: manualForm.tipo,
-      timestamp: ts.getTime(),
-    });
-  }
+  const enTurno     = Object.values(porEmpleado).filter(e => e.entrada && !e.salida).length;
+  const salieron    = Object.values(porEmpleado).filter(e => e.salida).length;
+  const sinRegistro = empleados.filter(e => !porEmpleado[e.id]).length;
 
   function descargarQr() {
     const svg = document.getElementById("qr-svg");
     if (!svg) return;
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([svgData], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" });
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `qr-asistencia-${sucursalId}.svg`;
+    a.href = URL.createObjectURL(blob);
+    a.download = `qr-checador-${sucursalId}.svg`;
     a.click();
-    URL.revokeObjectURL(url);
   }
 
-  const sucursalActual = sucursales.find(s => s.id === sucursalId);
-
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
-            <QrCode className="w-5 h-5 text-violet-500" />
+          <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+            <QrCode className="w-5 h-5 text-violet-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Asistencia</h1>
-            <p className="text-sm text-muted-foreground">Registro por QR desde celular o manual</p>
+            <h1 className="text-xl font-bold">Asistencia</h1>
+            <p className="text-sm text-muted-foreground">Registro por QR desde celular</p>
           </div>
         </div>
-        {canEdit && sucursalId && (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setManualDialogOpen(true)} className="gap-1">
-              <Plus className="w-3.5 h-3.5" /> Manual
-            </Button>
-            <Button size="sm" onClick={() => setQrDialogOpen(true)} className="gap-1">
-              <QrCode className="w-3.5 h-3.5" /> Ver QR
-            </Button>
-          </div>
-        )}
+        <Button onClick={() => setQrDialogOpen(true)} className="bg-violet-600 hover:bg-violet-700">
+          <QrCode className="w-4 h-4 mr-2" /> Ver QR
+        </Button>
       </div>
 
-      {/* Selector de sucursal */}
-      <Card>
-        <CardContent className="pt-4 pb-4">
-          <div className="flex items-center gap-4">
-            <div className="flex-1 max-w-xs">
-              <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
-              <NativeSelect value={sucursalId?.toString() ?? ""} onChange={v => setSucursalId(Number(v))} placeholder="Selecciona una sucursal...">
-                {sucursales.map(s => <option key={s.id} value={s.id.toString()}>{s.nombre}</option>)}
-              </NativeSelect>
-            </div>
-            {sucursalId && (
-              <div className="flex items-center gap-2 mt-5 text-sm text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>{new Date().toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}</span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {!sucursalId && sucursales.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <QrCode className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">Sin sucursal asignada</p>
-          <p className="text-sm mt-1">Pide a tu manager o dueño que te asigne a una sucursal en la sección de Usuarios.</p>
-        </div>
-      )}
-      {!sucursalId && sucursales.length > 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <QrCode className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>Selecciona una sucursal para ver la asistencia del día</p>
+      {sucursales.length > 1 && (
+        <div className="max-w-xs">
+          <label className="text-sm font-medium mb-1.5 block">Sucursal</label>
+          <NativeSelect value={sucursalId?.toString() ?? ""} onChange={v => setSucursalId(Number(v))}>
+            <option value="">Selecciona...</option>
+            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </NativeSelect>
         </div>
       )}
 
       {sucursalId && (
         <>
-          {/* Resumen del día */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className="text-3xl font-bold text-violet-600">{resumenEmpleados.filter(e => e.entrada && !e.salida).length}</div>
-                <div className="text-xs text-muted-foreground mt-1">En turno ahora</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className="text-3xl font-bold text-blue-600">{resumenEmpleados.filter(e => e.entrada && e.salida).length}</div>
-                <div className="text-xs text-muted-foreground mt-1">Salieron hoy</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className="text-3xl font-bold text-green-600">{resumenEmpleados.filter(e => e.entrada).length}</div>
-                <div className="text-xs text-muted-foreground mt-1">Con entrada registrada</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className="text-3xl font-bold text-orange-600">{empleados.length - resumenEmpleados.length}</div>
-                <div className="text-xs text-muted-foreground mt-1">Sin registrar hoy</div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-card rounded-2xl border p-4 text-center">
+              <p className="text-3xl font-bold text-green-600">{enTurno}</p>
+              <p className="text-sm text-muted-foreground mt-1">En turno ahora</p>
+            </div>
+            <div className="bg-card rounded-2xl border p-4 text-center">
+              <p className="text-3xl font-bold text-blue-600">{salieron}</p>
+              <p className="text-sm text-muted-foreground mt-1">Salieron hoy</p>
+            </div>
+            <div className="bg-card rounded-2xl border p-4 text-center">
+              <p className="text-3xl font-bold text-orange-500">{sinRegistro}</p>
+              <p className="text-sm text-muted-foreground mt-1">Sin registrar hoy</p>
+            </div>
           </div>
 
-          {/* Alerta: empleados con turno prolongado (más de 9h sin salida) */}
-          {canEdit && resumenEmpleados.filter(e => e.entrada && !e.salida && (Date.now() - e.entrada) > 9 * 3600000).length > 0 && (
-            <Card className="border-amber-300 bg-amber-50">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">Turno prolongado — más de 9 horas sin registrar salida</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {resumenEmpleados
-                        .filter(e => e.entrada && !e.salida && (Date.now() - e.entrada) > 9 * 3600000)
-                        .map(e => (
-                          <div key={e.empleadoId} className="flex items-center gap-2 bg-amber-100 border border-amber-200 rounded-md px-2 py-1">
-                            <span className="text-xs font-medium text-amber-900">{e.nombre}</span>
-                            <span className="text-xs text-amber-700">{Math.floor((Date.now() - e.entrada!) / 3600000)}h {Math.floor(((Date.now() - e.entrada!) % 3600000) / 60000)}min</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-5 px-1.5 text-[10px] text-orange-600 border-orange-300 hover:bg-orange-50"
-                              onClick={() => {
-                                const ahora = new Date().toTimeString().slice(0, 5);
-                                setManualForm({ empleadoId: String(e.empleadoId), tipo: "salida", hora: ahora });
-                                setManualDialogOpen(true);
-                              }}
-                            >
-                              Registrar salida
-                            </Button>
-                          </div>
-                        ))}
+          <div className="bg-card rounded-2xl border">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="font-semibold">Registros de hoy</h2>
+              <button onClick={() => refetchRegistros()}
+                className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground">
+                <RefreshCw className="w-3 h-3" /> Actualizar
+              </button>
+            </div>
+            {registrosConNombre.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground text-sm">
+                Ningún empleado ha registrado asistencia hoy
+              </div>
+            ) : (
+              <div className="divide-y">
+                {registrosConNombre.map(r => (
+                  <div key={r.id} className="flex items-center gap-4 px-5 py-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm shrink-0 ${
+                      r.tipo === "entrada" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-600"
+                    }`}>
+                      {r.nombre.charAt(0).toUpperCase()}
                     </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Tabla de asistencia del día */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Registros de hoy
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {resumenEmpleados.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <UserX className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Aún no hay registros de asistencia hoy</p>
-                  <p className="text-xs mt-1">Los empleados pueden escanear el QR para registrar su entrada</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {resumenEmpleados.map(emp => (
-                    <div key={emp.empleadoId} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-semibold text-sm shrink-0">
-                          {emp.nombre.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-medium text-sm">{emp.nombre}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm flex-wrap ml-11 sm:ml-0">
-                        <div className="flex items-center gap-1">
-                          <UserCheck className="w-3.5 h-3.5 text-green-500" />
-                          <span className={emp.entrada ? "text-green-600 font-medium" : "text-muted-foreground"}>
-                            {emp.entrada ? formatHora(emp.entrada) : "—"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <UserX className="w-3.5 h-3.5 text-orange-500" />
-                          <span className={emp.salida ? "text-orange-600 font-medium" : "text-muted-foreground"}>
-                            {emp.salida ? formatHora(emp.salida) : "—"}
-                          </span>
-                        </div>
-                        {emp.entrada && emp.salida && (
-                          <Badge className="bg-blue-100 text-blue-800 text-xs" variant="outline">
-                            {Math.round((emp.salida - emp.entrada) / 3600000 * 10) / 10}h
-                          </Badge>
-                        )}
-                        {emp.entrada && !emp.salida && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge className={`text-xs ${(Date.now() - (emp.entrada ?? 0)) > 9 * 3600000 ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-green-100 text-green-800'}`} variant="outline">
-                              {(Date.now() - (emp.entrada ?? 0)) > 9 * 3600000 ? '⚠ En turno' : 'En turno'}
-                            </Badge>
-                            {canEdit && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs text-orange-600 border-orange-200 hover:bg-orange-50"
-                                onClick={() => {
-                                  const ahora = new Date().toTimeString().slice(0, 5);
-                                  setManualForm({ empleadoId: String(emp.empleadoId), tipo: "salida", hora: ahora });
-                                  setManualDialogOpen(true);
-                                }}
-                              >
-                                Registrar salida
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{r.nombre}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatHora(r.timestamp)} · {subtipoLabel(r.subtipo)}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Empleados sin registro */}
-              {empleados.filter(e => !resumenEmpleados.find(r => r.empleadoId === e.id)).length > 0 && (
-                <div className="mt-4 pt-4 border-t">
-                  <p className="text-xs text-muted-foreground mb-2">Sin registro hoy:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {empleados
-                      .filter(e => !resumenEmpleados.find(r => r.empleadoId === e.id))
-                      .map(e => (
-                        <Badge key={e.id} variant="outline" className="text-xs text-muted-foreground">
-                          {e.nombre} {e.apellido ?? ""}
-                        </Badge>
-                      ))}
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                      r.tipo === "salida"
+                        ? "bg-orange-100 text-orange-600"
+                        : (r.subtipo === "apertura_tienda" ? "bg-violet-100 text-violet-700" : "bg-green-100 text-green-700")
+                    }`}>
+                      {r.tipo === "salida" ? (r.subtipo === "cierre_tienda" ? "Cierre" : "Salida") :
+                       r.subtipo === "apertura_tienda" ? "Apertura" : "Entrada"}
+                    </span>
                   </div>
+                ))}
+              </div>
+            )}
+            {sinRegistro > 0 && (
+              <div className="px-5 py-3 border-t bg-orange-50/50">
+                <p className="text-xs text-orange-600 font-medium mb-2">Sin registrar hoy:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {empleados
+                    .filter(e => !registrosConNombre.find(r => r.empleadoId === e.id))
+                    .map(e => (
+                      <span key={e.id} className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                        {e.nombre}
+                      </span>
+                    ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            )}
+          </div>
         </>
       )}
 
-      {/* Dialog QR */}
       <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>QR de Asistencia — {sucursalActual?.nombre}</DialogTitle>
+            <DialogTitle>QR de Asistencia</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4">
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground text-center">
+              El empleado escanea este código con su celular para registrar su asistencia.
+            </p>
             {qrUrl ? (
-              <>
-                <div className="p-4 bg-white rounded-xl border-2 border-violet-200">
-                  <QRCodeSVG
-                    id="qr-svg"
-                    value={qrUrl}
-                    size={200}
-                    level="M"
-                    includeMargin={false}
-                  />
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-4 bg-white rounded-2xl border shadow-sm">
+                  <QRCodeSVG id="qr-svg" value={qrUrl} size={220} level="M" />
                 </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Los empleados escanean este QR con su celular para registrar entrada o salida
-                </p>
                 <div className="flex gap-2 w-full">
-                  <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={descargarQr}>
-                    <Download className="w-3.5 h-3.5" /> Descargar
+                  <Button variant="outline" className="flex-1" onClick={descargarQr}>
+                    <Download className="w-4 h-4 mr-2" /> Descargar
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={() => generarQrMut.mutate({ sucursalId: sucursalId! })}>
-                    <RefreshCw className="w-3.5 h-3.5" /> Regenerar
+                  <Button variant="outline" className="flex-1"
+                    onClick={() => generarQrMut.mutate({ sucursalId: sucursalId! })}
+                    disabled={generarQrMut.isPending}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${generarQrMut.isPending ? "animate-spin" : ""}`} />
+                    Regenerar
                   </Button>
                 </div>
-              </>
+              </div>
             ) : (
-              <div className="text-center py-6">
-                <p className="text-sm text-muted-foreground mb-3">No hay QR generado para esta sucursal</p>
-                <Button onClick={() => generarQrMut.mutate({ sucursalId: sucursalId! })} disabled={generarQrMut.isPending}>
-                  Generar QR
+              <div className="flex flex-col items-center gap-3 py-6">
+                <p className="text-sm text-muted-foreground">Esta sucursal no tiene QR aún.</p>
+                <Button onClick={() => generarQrMut.mutate({ sucursalId: sucursalId! })}
+                  disabled={generarQrMut.isPending}>
+                  {generarQrMut.isPending ? "Generando..." : "Generar QR"}
                 </Button>
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog registro manual */}
-      <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Registro manual de asistencia</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Empleado</Label>
-              <NativeSelect value={manualForm.empleadoId} onChange={v => setManualForm(f => ({ ...f, empleadoId: v }))} placeholder="Selecciona empleado...">
-                {empleados.map(e => (
-                  <option key={e.id} value={e.id.toString()}>{e.nombre} {e.apellido ?? ""}</option>
-                ))}
-              </NativeSelect>
-            </div>
-            <div>
-              <Label>Tipo</Label>
-              <NativeSelect value={manualForm.tipo} onChange={v => setManualForm(f => ({ ...f, tipo: v as "entrada" | "salida" }))}>
-                <option value="entrada">Entrada</option>
-                <option value="salida">Salida</option>
-              </NativeSelect>
-            </div>
-            <div>
-              <Label>Hora</Label>
-              <Input type="time" value={manualForm.hora} onChange={e => setManualForm(f => ({ ...f, hora: e.target.value }))} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setManualDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleManualSubmit} disabled={manualMut.isPending}>Registrar</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -125,7 +125,7 @@ function ModalJustificacion({
               <Label>Nuevo estado</Label>
               <Select value={estado} onValueChange={(v) => setEstado(v as any)}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="ausencia_justificada">Ausencia justificada</SelectItem>
                   <SelectItem value="presente">Presente</SelectItem>
                   <SelectItem value="retardo">Retardo</SelectItem>
@@ -136,7 +136,7 @@ function ModalJustificacion({
               <Label>Tipo de justificación</Label>
               <Select value={tipo} onValueChange={setTipo}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {Object.entries(TIPO_JUSTIFICACION_LABELS).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
                   ))}
@@ -297,225 +297,306 @@ const TURNO_LABEL: Record<string, { label: string; color: string; bg: string }> 
 
 function TabHoy({ sucursalId }: { sucursalId: number }) {
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
-  const today = getTodayLocal();
 
-  const aperturasQ = trpc.turno.getAperturasByFecha.useQuery(
-    { sucursalId, fecha: today },
-    { staleTime: 30_000, refetchInterval: 60_000 }
+  const hoyInicio = new Date(); hoyInicio.setHours(0,0,0,0);
+  const hoyFin = new Date(); hoyFin.setHours(23,59,59,999);
+
+  const { data: registros = [], isLoading, refetch } = trpc.asistencia.listBySucursal.useQuery(
+    { sucursalId, fechaInicio: hoyInicio.getTime(), fechaFin: hoyFin.getTime() },
+    { refetchInterval: 30000 }
+  );
+  const { data: empleados = [] } = trpc.empleados.list.useQuery({ sucursalId });
+  const { data: evidencias = [] } = trpc.asistencia.getEvidencias.useQuery(
+    { sucursalId, fechaInicio: hoyInicio.getTime(), fechaFin: hoyFin.getTime() }
   );
 
-  // Turnos programados del día para saber quién debería haber entrado
-  const { anio, semana } = useMemo(() => {
-    const d = new Date();
-    const jan4 = new Date(Date.UTC(d.getFullYear(), 0, 4));
-    const dayOfWeek = jan4.getUTCDay() || 7;
-    const lunes = new Date(jan4.getTime() - (dayOfWeek - 1) * 86400000);
-    const diff = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - lunes.getTime()) / (7 * 86400000));
-    const semanaNum = diff + 1;
-    return { anio: d.getFullYear(), semana: semanaNum };
-  }, []);
+  // IDs de empleados con registro hoy
+  const idsConRegistro = new Set(registros.map((r: any) => r.empleadoId));
+  const sinRegistro = empleados.filter((e: any) => !idsConRegistro.has(e.id));
 
-  const semanaQ = trpc.horarios.getSemana.useQuery(
-    { sucursalId, anio, semana },
-    { staleTime: 60_000 }
-  );
-
-  const aperturas: any[] = aperturasQ.data ?? [];
-  const turnosHoy: any[] = useMemo(() => {
-    if (!semanaQ.data) return [];
-    return (semanaQ.data.turnos as any[]).filter(t => t.fecha === today);
-  }, [semanaQ.data, today]);
-
-  const empleadosMap = useMemo(() => {
-    const m: Record<number, string> = {};
-    (semanaQ.data?.empleados ?? []).forEach((e: any) => {
-      m[e.id] = `${e.nombre}${e.apellido ? ' ' + e.apellido : ''}`;
+  // Lista individual de todos los registros del día
+  const registrosConNombre = [...(registros as any[])]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .map(r => {
+      const emp = empleados.find((e: any) => e.id === r.empleadoId);
+      return { ...r, nombre: emp ? (emp.nombre + " " + (emp.apellido ?? "")).trim() : "Empleado #" + r.empleadoId };
     });
-    return m;
-  }, [semanaQ.data]);
 
-  // Cruzar turnos programados con aperturas reales
-  const statusTurnos = useMemo(() => {
-    return turnosHoy.map(turno => {
-      const apertura = aperturas.find(a => a.tipoTurno === turno.turno && a.empleadoId === turno.empleadoId);
-      return {
-        turno,
-        empleadoNombre: empleadosMap[turno.empleadoId] ?? `#${turno.empleadoId}`,
-        apertura: apertura ?? null,
-        entro: !!apertura,
-        tieneFoto: !!(apertura?.fotoUniformeUrl),
-      };
-    });
-  }, [turnosHoy, aperturas, empleadosMap]);
+  // KPIs — por empleado único
+  const porEmpUnico: Record<number, { entrada: boolean; salida: boolean }> = {};
+  for (const r of registros as any[]) {
+    if (!porEmpUnico[r.empleadoId]) porEmpUnico[r.empleadoId] = { entrada: false, salida: false };
+    if (r.tipo === "entrada") porEmpUnico[r.empleadoId].entrada = true;
+    if (r.tipo === "salida") porEmpUnico[r.empleadoId].salida = true;
+  }
+  const enTurno = Object.values(porEmpUnico).filter(e => e.entrada && !e.salida).length;
+  const salieron = Object.values(porEmpUnico).filter(e => e.salida).length;
+  const sinFoto = evidencias.filter((e: any) => !e.fotoUniformeUrl && e.tipo === "entrada").length;
 
-  // Aperturas sin turno programado (registros manuales o extra)
-  const aperturasExtra = useMemo(() => {
-    const empIdsConTurno = new Set(turnosHoy.map(t => `${t.empleadoId}-${t.turno}`));
-    return aperturas.filter(a => !empIdsConTurno.has(`${a.empleadoId}-${a.tipoTurno}`));
-  }, [aperturas, turnosHoy]);
-
-  const sinEntrada = statusTurnos.filter(s => !s.entro);
-  const conEntrada = statusTurnos.filter(s => s.entro);
-  const sinFoto = statusTurnos.filter(s => s.entro && !s.tieneFoto);
-
-  if (aperturasQ.isLoading || semanaQ.isLoading) {
-    return <div className="py-12 text-center text-muted-foreground text-sm">Cargando status del día...</div>;
+  function tsHora(ts?: number) {
+    if (!ts) return "—";
+    return new Date(ts).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
   }
 
-  return (
-    <div className="space-y-5">
-      {/* Foto ampliada */}
-      {fotoAmpliada && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setFotoAmpliada(null)}
-        >
-          <div className="relative max-w-sm w-full">
-            <button
-              onClick={() => setFotoAmpliada(null)}
-              className="absolute -top-3 -right-3 bg-white rounded-full p-1 shadow-lg z-10"
-            >
-              <X className="w-4 h-4 text-gray-700" />
-            </button>
-            <img src={fotoAmpliada} alt="Foto uniforme" className="w-full rounded-xl shadow-2xl" />
-          </div>
-        </div>
-      )}
+  if (isLoading) return <div className="py-12 text-center text-muted-foreground text-sm">Cargando...</div>;
 
-      {/* KPIs del día */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-green-700">{conEntrada.length}</p>
-          <p className="text-xs text-green-600 mt-0.5">Entraron</p>
+  return (
+    <div className="space-y-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-center">
+          <p className="text-3xl font-bold text-green-600">{enTurno}</p>
+          <p className="text-sm text-green-700 mt-1">En turno</p>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-red-700">{sinEntrada.length}</p>
-          <p className="text-xs text-red-600 mt-0.5">Sin entrada</p>
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
+          <p className="text-3xl font-bold text-red-500">{sinRegistro.length}</p>
+          <p className="text-sm text-red-600 mt-1">Sin entrada</p>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-amber-700">{sinFoto.length}</p>
-          <p className="text-xs text-amber-600 mt-0.5">Sin foto</p>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center">
+          <p className="text-3xl font-bold text-yellow-600">{sinFoto}</p>
+          <p className="text-sm text-yellow-700 mt-1">Sin foto</p>
         </div>
       </div>
 
-      {/* Alertas */}
-      {sinEntrada.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <UserX className="w-4 h-4 text-red-600" />
-            <span className="text-sm font-semibold text-red-700">Sin entrada registrada</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {sinEntrada.map(s => {
-              const tc = TURNO_LABEL[s.turno.turno as string] ?? TURNO_LABEL.matutino;
-              return (
-                <span key={s.turno.id} className={`text-xs px-2 py-1 rounded-full border ${tc.bg} ${tc.color}`}>
-                  {s.empleadoNombre} · {tc.label} {s.turno.horaInicio}–{s.turno.horaFin}
-                </span>
-              );
-            })}
-          </div>
+      {/* Lista registros */}
+      <div className="bg-card rounded-2xl border">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h3 className="font-semibold text-sm">Registros de hoy</h3>
+          <button onClick={() => refetch()} className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground">
+            <RefreshCw className="w-3 h-3" /> Actualizar
+          </button>
         </div>
-      )}
-
-      {sinFoto.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-2">
-            <CameraOff className="w-4 h-4 text-amber-600" />
-            <span className="text-sm font-semibold text-amber-700">Entraron sin foto de uniforme</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {sinFoto.map(s => (
-              <span key={s.turno.id} className="text-xs px-2 py-1 rounded-full border bg-amber-100 text-amber-800">
-                {s.empleadoNombre}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Turnos con entrada */}
-      {conEntrada.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
-            <LogIn className="w-4 h-4 text-green-600" />
-            Entradas registradas hoy
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {conEntrada.map(s => {
-              const tc = TURNO_LABEL[s.turno.turno as string] ?? TURNO_LABEL.matutino;
-              const hora = s.apertura?.timestamp
-                ? new Date(s.apertura.timestamp).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })
-                : "—";
+        {registrosConNombre.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground text-sm">Sin registros hoy</div>
+        ) : (
+          <div className="divide-y">
+            {registrosConNombre.map((r: any) => {
+              const ev = evidencias.find((e: any) => e.id === r.id);
               return (
-                <div key={s.turno.id} className={`rounded-xl border p-3 ${tc.bg} flex items-center gap-3`}>
-                  {/* Foto miniatura */}
-                  {s.tieneFoto ? (
-                    <button
-                      onClick={() => setFotoAmpliada(s.apertura.fotoUniformeUrl)}
-                      className="shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 border-white shadow-sm hover:scale-105 transition-transform"
-                    >
-                      <img
-                        src={s.apertura.fotoUniformeUrl}
-                        alt="Uniforme"
-                        className="w-full h-full object-cover"
-                      />
+                <div key={r.id} className="flex items-center gap-3 px-5 py-3">
+                  {ev?.fotoUniformeUrl ? (
+                    <button onClick={() => setFotoAmpliada(ev.fotoUniformeUrl)} className="shrink-0 w-12 h-12 rounded-xl overflow-hidden border shadow-sm hover:scale-105 transition-transform">
+                      <img src={ev.fotoUniformeUrl} alt="Uniforme" className="w-full h-full object-cover" />
                     </button>
                   ) : (
-                    <div className="shrink-0 w-14 h-14 rounded-lg bg-white/50 border-2 border-dashed border-current/30 flex items-center justify-center">
-                      <CameraOff className={`w-5 h-5 opacity-40 ${tc.color}`} />
+                    <div className="shrink-0 w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
+                      <CameraOff className="w-5 h-5 text-muted-foreground" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-slate-800 truncate">{s.empleadoNombre}</p>
-                    <p className={`text-xs ${tc.color}`}>{tc.label} · {s.turno.horaInicio}–{s.turno.horaFin}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Entró: {hora}</p>
+                    <p className="font-medium text-sm truncate">{r.nombre}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {tsHora(r.timestamp)}
+                      {r.subtipo && <span className="ml-1 opacity-70">· {r.subtipo.replace(/_/g, " ")}</span>}
+                    </p>
                   </div>
-                  <div className="shrink-0">
-                    <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                      <CheckCircle className="w-3 h-3" /> Activo
-                    </span>
-                  </div>
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                    r.subtipo === "cierre_tienda" ? "bg-red-100 text-red-600" :
+                    r.subtipo === "salida_turno" ? "bg-orange-100 text-orange-600" :
+                    r.subtipo === "apertura_tienda" ? "bg-violet-100 text-violet-700" :
+                    "bg-green-100 text-green-700"
+                  }`}>
+                    {r.subtipo === "apertura_tienda" ? "Apertura" :
+                     r.subtipo === "cierre_tienda" ? "Cierre" :
+                     r.subtipo === "entrada_turno" ? "Entrada" : "Salida"}
+                  </span>
                 </div>
               );
             })}
           </div>
+        )}
+
+        {/* Sin registro */}
+        {sinRegistro.length > 0 && (
+          <div className="px-5 py-3 border-t bg-red-50/50">
+            <p className="text-xs text-red-600 font-medium mb-2 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> Sin entrada registrada
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {sinRegistro.map((e: any) => (
+                <span key={e.id} className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                  {e.nombre}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal foto ampliada */}
+      {fotoAmpliada && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setFotoAmpliada(null)}>
+          <img src={fotoAmpliada} alt="Evidencia" className="max-w-full max-h-full rounded-xl" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Pestaña Evidencias ───────────────────────────────────────────────────────
+function subtipoLabel(s?: string) {
+  const m: Record<string,string> = {
+    apertura_tienda: "Apertura", entrada_turno: "Entrada turno",
+    cierre_tienda: "Cierre", salida_turno: "Salida turno",
+  };
+  return s ? (m[s] ?? s) : "";
+}
+
+function TabEvidencias({ sucursalId }: { sucursalId: number }) {
+  const [fecha, setFecha] = useState(() => new Date().toISOString().split("T")[0]);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
+
+  const fechaInicio = new Date(fecha + "T00:00:00").getTime();
+  const fechaFin    = new Date(fecha + "T23:59:59").getTime();
+
+  const { data: evidencias = [], isLoading } = trpc.asistencia.getEvidencias.useQuery(
+    { sucursalId, fechaInicio, fechaFin },
+    { enabled: !!sucursalId }
+  );
+
+  function formatHora(ts: number) {
+    return new Date(ts).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Filtro fecha */}
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium">Fecha:</label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          className="h-9 px-3 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <span className="text-sm text-muted-foreground">{evidencias.length} registros</span>
+      </div>
+
+      {isLoading && (
+        <div className="text-center py-12 text-muted-foreground text-sm">Cargando evidencias...</div>
+      )}
+
+      {!isLoading && evidencias.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          No hay registros para esta fecha
         </div>
       )}
 
-      {/* Aperturas extra (no programadas) */}
-      {aperturasExtra.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-slate-500 mb-2">Registros adicionales</h3>
-          <div className="space-y-2">
-            {aperturasExtra.map((a: any) => {
-              const hora = new Date(a.timestamp).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
-              return (
-                <div key={a.id} className="flex items-center gap-3 bg-white border rounded-xl p-3">
-                  {a.fotoUniformeUrl ? (
-                    <button onClick={() => setFotoAmpliada(a.fotoUniformeUrl)} className="shrink-0 w-12 h-12 rounded-lg overflow-hidden border shadow-sm hover:scale-105 transition-transform">
-                      <img src={a.fotoUniformeUrl} alt="Uniforme" className="w-full h-full object-cover" />
-                    </button>
-                  ) : (
-                    <div className="shrink-0 w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                      <Camera className="w-4 h-4 text-gray-400" />
+      {evidencias.length > 0 && (
+        <div className="space-y-3">
+          {evidencias.map((ev: any) => {
+            const hayDescuadre = ev.motivoDiferencia && ev.motivoDiferencia.trim();
+            return (
+              <div key={ev.id} className={`bg-card rounded-2xl border p-4 space-y-3 ${hayDescuadre ? "border-orange-300" : ""}`}>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm ${
+                      ev.tipo === "entrada" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-600"
+                    }`}>
+                      {(ev.empleadoNombre ?? "?").charAt(0).toUpperCase()}
                     </div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">Empleado #{a.empleadoId}</p>
-                    <p className="text-xs text-slate-500">{TURNO_LABEL[a.tipoTurno]?.label ?? a.tipoTurno} · Entró: {hora}</p>
+                    <div>
+                      <p className="font-semibold text-sm">{ev.empleadoNombre} {ev.empleadoApellido ?? ""}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatHora(ev.timestamp)} · {subtipoLabel(ev.subtipo)}
+                        {ev.metodo === "manual" && <span className="ml-1 text-yellow-600">(manual)</span>}
+                      </p>
+                    </div>
                   </div>
+                  {hayDescuadre && (
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> Descuadre
+                    </span>
+                  )}
+                  {ev.latitud && (
+                    <a
+                      href={"https://maps.google.com/?q=" + ev.latitud + "," + ev.longitud}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      📍 Ver ubicación
+                    </a>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Conteos selladora */}
+                {(ev.contadorSelladora !== null || ev.vasosConteo !== null) && (
+                  <div className="grid grid-cols-3 gap-2 bg-muted/50 rounded-xl p-3 text-sm">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Selladora</p>
+                      <p className="font-bold">{ev.contadorSelladora ?? "—"}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Vasos</p>
+                      <p className="font-bold">{ev.vasosConteo ?? "—"}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">Popotes</p>
+                      <p className="font-bold">{ev.popotesConteo ?? "—"}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Selladora status */}
+                {ev.selladuroOk === 0 && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>Selladora con problema reportado</span>
+                  </div>
+                )}
+
+                {/* Motivo descuadre */}
+                {hayDescuadre && (
+                  <div className="bg-orange-50 rounded-xl px-3 py-2 text-sm text-orange-800">
+                    <span className="font-medium">Motivo: </span>{ev.motivoDiferencia}
+                  </div>
+                )}
+
+                {/* Foto */}
+                {(ev.fotoUrl || ev.fotoUniformeUrl) && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Evidencia fotográfica:</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {ev.fotoUrl && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Selladora</p>
+                          <img
+                            src={ev.fotoUrl}
+                            alt="Selladora"
+                            className="w-32 h-32 object-cover rounded-xl border cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setFotoAmpliada(ev.fotoUrl)}
+                          />
+                        </div>
+                      )}
+                      {ev.fotoUniformeUrl && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Uniforme</p>
+                          <img
+                            src={ev.fotoUniformeUrl}
+                            alt="Uniforme"
+                            className="w-32 h-32 object-cover rounded-xl border cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setFotoAmpliada(ev.fotoUniformeUrl)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {turnosHoy.length === 0 && aperturas.length === 0 && (
-        <div className="py-12 text-center text-muted-foreground">
-          <Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Sin turnos programados para hoy</p>
+      {/* Modal foto ampliada */}
+      {fotoAmpliada && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setFotoAmpliada(null)}
+        >
+          <img src={fotoAmpliada} alt="Evidencia ampliada" className="max-w-full max-h-full rounded-xl" />
         </div>
       )}
     </div>
@@ -527,7 +608,7 @@ export default function ControlAsistencias() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [sucursalId, setSucursalId] = useState<number | null>(null);
   const [editando, setEditando] = useState<RegistroRow | null>(null);
-  const [tab, setTab] = useState<"hoy" | "semana">("hoy");
+  const [tab, setTab] = useState<"hoy" | "semana" | "evidencias">("hoy");
 
   const semana = useMemo(() => getWeekRange(weekOffset), [weekOffset]);
 
@@ -635,7 +716,7 @@ export default function ControlAsistencias() {
         {sucursales.length > 1 && (
           <Select value={String(sucursalSeleccionada)} onValueChange={v => setSucursalId(Number(v))}>
             <SelectTrigger className="w-44"><SelectValue placeholder="Sucursal" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               {sucursales.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -660,6 +741,14 @@ export default function ControlAsistencias() {
         >
           Semana / Nómina
         </button>
+        <button
+          onClick={() => setTab("evidencias")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            tab === "evidencias" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Evidencias
+        </button>
       </div>
 
       {/* Contenido pestaña Hoy */}
@@ -667,6 +756,10 @@ export default function ControlAsistencias() {
         <TabHoy sucursalId={sucursalSeleccionada} />
       )}
 
+      {/* Contenido pestaña Evidencias */}
+      {tab === "evidencias" && sucursalSeleccionada && (
+        <TabEvidencias sucursalId={sucursalSeleccionada} />
+      )}
       {/* Contenido pestaña Semana */}
       {tab === "semana" && (
         <>

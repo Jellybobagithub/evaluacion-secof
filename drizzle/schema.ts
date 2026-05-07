@@ -71,6 +71,8 @@ export const empleados = mysqlTable("empleados", {
   diasDisponibles: text("diasDisponibles"),
   // Día de descanso fijo: 0=dom,1=lun,2=mar,3=mié,4=jue,5=vie,6=sáb — null = rotativo
   diaDescansoFijo: int("diaDescansoFijo"),
+  horarioPersonal: json("horarioPersonal"),
+  areaPreferida: mysqlEnum("areaPreferida", ["caja","preparacion","comodin"]),
   userId: int("userId"),  // Vínculo con la tabla users (opcional, para anfitriones con cuenta)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -123,12 +125,20 @@ export const asistencia = mysqlTable("asistencia", {
   empleadoId: int("empleadoId").notNull(),
   sucursalId: int("sucursalId").notNull(),
   tipo: mysqlEnum("tipo", ["entrada", "salida"]).notNull(),
+  subtipo: mysqlEnum("subtipo", ["apertura_tienda", "entrada_turno", "cierre_tienda", "salida_turno"]).notNull().default("entrada_turno"),
   timestamp: bigint("timestamp", { mode: "number" }).notNull(), // Unix ms UTC
   metodo: mysqlEnum("metodo", ["qr", "manual"]).default("qr").notNull(),
   latitud: float("latitud"),
   longitud: float("longitud"),
   registradoPorId: int("registradoPorId"), // userId del líder si es manual
   notas: text("notas"),
+  fotoUrl: text("fotoUrl"),
+  fotoUniformeUrl: text("fotoUniformeUrl"),
+  contadorSelladora: int("contadorSelladora"),
+  vasosConteo: int("vasosConteo"),
+  popotesConteo: int("popotesConteo"),
+  selladuroOk: int("selladuroOk").default(1),
+  motivoDiferencia: text("motivoDiferencia"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -694,3 +704,21 @@ export const menuPermisosExtra = mysqlTable("menu_permisos_extra", {
 });
 export type MenuPermisoExtra = typeof menuPermisosExtra.$inferSelect;
 export type InsertMenuPermisoExtra = typeof menuPermisosExtra.$inferInsert;
+
+// Rotación de áreas por empleado y fecha
+export const rotacionAreas = mysqlTable("rotacion_areas", {
+  id: int("id").autoincrement().primaryKey(),
+  sucursalId: int("sucursalId").notNull(),
+  empleadoId: int("empleadoId").notNull(),
+  fecha: varchar("fecha", { length: 10 }).notNull(), // YYYY-MM-DD
+  area: mysqlEnum("area", ["caja","preparacion","comodin","caja_y_preparacion"]).notNull(),
+  horaInicio: varchar("horaInicio", { length: 5 }),
+  horaFin: varchar("horaFin", { length: 5 }),
+  esManual: boolean("esManual").default(false).notNull(),
+  notas: text("notas"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type RotacionArea = typeof rotacionAreas.$inferSelect;
+export type InsertRotacionArea = typeof rotacionAreas.$inferInsert;
+

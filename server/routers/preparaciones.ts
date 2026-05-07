@@ -43,6 +43,7 @@ export const RECETAS_CONFIG = {
     alertaMinutos: 0,
     tiempoPreparacionMinutos: 0,
     cantidades: [
+      { valor: "media_carga",    etiqueta: "½ carga (rinde 1 kg tapioca)", unidad: "carga" },
       { valor: "carga_completa", etiqueta: "1 carga (rinde 2 kg tapioca)", unidad: "carga" },
     ],
     alertaActiva: false, // Solo informativo
@@ -133,7 +134,16 @@ export const preparacionesRouter = router({
         estado: "activa",
       });
 
-      return { id: (result as any).insertId, venceAt };
+      const prepId = (result as any).insertId;
+      // Descontar insumos del inventario automáticamente
+      void descontarInventarioPorPreparacion({
+        sucursalId: input.sucursalId,
+        receta: input.receta,
+        cantidad: input.cantidad,
+        preparacionId: prepId,
+        registradoPorId: ctx.user.id,
+      });
+      return { id: prepId, venceAt };
     }),
 
   /** Preparaciones activas de una sucursal (con countdown) */
@@ -386,3 +396,77 @@ export const preparacionesRouter = router({
       return Object.values(porEmpleado).sort((a, b) => b.total - a.total);
     }),
 });
+
+// ─── Mapa receta+cantidad → subproductoId ────────────────────────────────────
+// Cada clave apunta al subproducto exacto en inv_subproductos
+const PREP_SUBPRODUCTO_MAP: Record<string, { subproductoId: number }> = {
+  "tapioca|200":                     { subproductoId: 3 },
+  "tapioca|500":                     { subproductoId: 4 },
+  "tapioca|700":                     { subproductoId: 5 },
+  "base_snowtea|media_carga":        { subproductoId: 7 },
+  "base_snowtea|carga_completa":     { subproductoId: 1 },
+  "jarabe_longan|media_carga":       { subproductoId: 8 },
+  "jarabe_longan|carga_completa":    { subproductoId: 2 },
+  "sustituto_azucar|media_carga":    { subproductoId: 9 },
+  "sustituto_azucar|carga_completa": { subproductoId: 6 },
+};
+
+/**
+ * Descuenta insumos del almacen Isla al registrar una preparación.
+ * Usa la receta del subproducto correspondiente.
+ * Falla silenciosamente para no bloquear el registro.
+ */
+async function descontarInventarioPorPreparacion(params: {
+  sucursalId: number;
+  receta: string;
+  cantidad: string;
+  preparacionId: number;
+  registradoPorId: number;
+}) {
+  const key = `${params.receta}|${params.cantidad}`;
+  const mapping = PREP_SUBPRODUCTO_MAP[key];
+  if (!mapping) return;
+  try {
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) return;
+    const { sql } = await import("drizzle-orm");
+
+    const almRows = await db.execute(sql`
+      SELECT id FROM inv_almacenes
+      WHERE sucursalId = ${params.sucursalId}
+        AND nombre = 'Isla' AND activo = 1 LIMIT 1
+    `);
+    const almacenId = (almRows[0] as any[])[0]?.id ?? null;
+
+    const recRows = await db.execute(sql`
+      SELECT materiasPrimaId, cantidadGramos, cantidadPiezas
+      FROM inv_subproductos_receta
+      WHERE subproductoId = ${mapping.subproductoId}
+    `);
+    const lineas = recRows[0] as any[];
+    if (!lineas?.length) return;
+
+    for (const linea of lineas) {
+      const gramos = Number(linea.cantidadGramos ?? 0);
+      const piezas = Number(linea.cantidadPiezas ?? 0);
+      if (gramos === 0 && piezas === 0) continue;
+      await db.execute(sql`
+        INSERT INTO inv_movimientos
+          (sucursalId, almacenId, productoId, tipo,
+           cantidadGramos, cantidadPiezas,
+           referenciaId, referenciaTipo, notas, registradoPorId)
+        VALUES (
+          ${params.sucursalId}, ${almacenId}, ${linea.materiasPrimaId},
+          'consumo_preparacion',
+          ${gramos}, ${piezas},
+          ${params.preparacionId}, 'preparacion',
+          ${`${params.receta} ${params.cantidad}`},
+          ${params.registradoPorId}
+        )
+      `);
+    }
+  } catch (e) {
+    console.error("[inv] Error descontando inventario preparacion:", e);
+  }
+}

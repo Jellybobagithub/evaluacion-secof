@@ -26,6 +26,12 @@ export default function PreparacionesPage() {
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const [sucursalId, setSucursalId] = useState<number | null>(null);
+  // Auto-seleccionar sucursal cuando el usuario solo tiene una asignada (lider 1 tienda)
+  useMemo(() => {
+    if (sucursales.length === 1 && sucursalId === null) {
+      setSucursalId(sucursales[0].id);
+    }
+  }, [sucursales.length]);
 
   // Para el host: usar la primera sucursal disponible automáticamente
   const sucursalEfectiva = useMemo(() => {
@@ -85,7 +91,7 @@ export default function PreparacionesPage() {
             <SelectTrigger className="w-44 h-9 text-sm">
               <SelectValue placeholder="Selecciona tienda" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               {(sucursales as any[]).map((s: any) => (
                 <SelectItem key={s.id} value={String(s.id)}>
                   {s.nombre}

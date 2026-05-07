@@ -329,27 +329,6 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* Cumplimiento de reportes */}
-          {reportesCumplimiento !== null && (
-            <Card className={`border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow ${reportesCumplimiento < 80 ? "bg-amber-50" : "bg-white"}`}
-              onClick={() => setLocation("/kpi-lider")}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Reportes a tiempo</p>
-                    <p className={`text-3xl font-bold mt-1 ${reportesCumplimiento >= 90 ? "text-green-600" : reportesCumplimiento >= 70 ? "text-amber-600" : "text-red-600"}`}>
-                      {reportesCumplimiento.toFixed(0)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Meta: 100% del mes</p>
-                  </div>
-                  <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${reportesCumplimiento >= 90 ? "bg-green-50" : reportesCumplimiento >= 70 ? "bg-amber-50" : "bg-red-100"}`}>
-                    <FileText className={`h-5 w-5 ${reportesCumplimiento >= 90 ? "text-green-600" : reportesCumplimiento >= 70 ? "text-amber-600" : "text-red-600"}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Rappi + Tarjeta */}
           {resumenVentas && resumenVentas.reportesEnviados > 0 && (
@@ -637,82 +616,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Panel de módulos: Equipo + Checklist + Reportes */}
-        <div className="space-y-4">
-          {/* Equipo */}
-          <Card className="border-0 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/empleados")}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
-                  <Users className="h-5 w-5 text-teal-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">Equipo</p>
-                  <p className="text-xs text-muted-foreground">Empleados · Horarios · Asistencia</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">
-                    Ver <ChevronRight className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Horarios (reemplaza Checklist) */}
-          <Card className="border-0 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/horarios")}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                  <ClipboardList className="h-5 w-5 text-orange-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">Horarios y Actividades</p>
-                  <p className="text-xs text-muted-foreground">Turnos · Limpieza · Checklist</p>
-                </div>
-                <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 shrink-0">
-                  Ver <ChevronRight className="h-3 w-3" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* KPIs */}
-          <Card className="border-0 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/kpi-anfitriones")}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
-                  <Activity className="h-5 w-5 text-purple-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">KPIs del Equipo</p>
-                  <p className="text-xs text-muted-foreground">Servicio · Puntualidad · Caja</p>
-                </div>
-                <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 shrink-0">
-                  Ver <ChevronRight className="h-3 w-3" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Plan de Acción */}
-          <Card className="border-0 shadow-sm bg-white cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/plan-accion")}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                  <Target className="h-5 w-5 text-amber-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">Plan de Acción</p>
-                  <p className="text-xs text-muted-foreground">Seguimiento de mejoras SECOF</p>
-                </div>
-                <Button variant="ghost" size="sm" className="text-xs gap-1 h-7 shrink-0">
-                  Ver <ChevronRight className="h-3 w-3" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
 
       {/* ── FILA 5: Avance vs Meta Mensual (solo si hay metas configuradas) ── */}

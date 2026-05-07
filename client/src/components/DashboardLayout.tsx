@@ -1,4 +1,5 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { ClipboardCheck,
+ useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import {
+import { CalendarClock, ScanLine,
   LayoutDashboard,
   LogOut,
   PanelLeft,
@@ -49,7 +50,7 @@ import {
   ClockAlert,
   Package,
   Eye,
-} from "lucide-react";
+  Layers, FileSpreadsheet, PackageCheck} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
@@ -69,16 +70,7 @@ const ALL_NAV_GROUPS = [
     path: "/",
     items: [],
   },
-  {
-    id: "tiendas",
-    label: "Tiendas",
-    icon: Store,
-    minRole: "manager",
-    path: "/sucursales",
-    items: [
-      { icon: Building2, label: "Lista de Sucursales", path: "/sucursales", minRole: "manager" },
-    ],
-  },
+
   {
     id: "secof",
     label: "SECOF",
@@ -101,7 +93,9 @@ const ALL_NAV_GROUPS = [
     path: null,
     items: [
       { icon: FileText, label: "Reporte Diario", path: "/reporte-diario", minRole: "leader" },
+      { icon: PackageCheck, label: "Pronóstico de Surtido", path: "/pronostico-surtido", minRole: "manager" },
       { icon: TrendingUp, label: "Evolución de Ventas", path: "/ventas", minRole: "manager" },
+      { icon: FileSpreadsheet, label: "Importar Ventas Odoo", path: "/importar-ventas", minRole: "manager" },
     ],
   },
   {
@@ -113,14 +107,15 @@ const ALL_NAV_GROUPS = [
     items: [
       { icon: Smartphone, label: "Mi Turno", path: "/mi-turno", minRole: "host" },
       { icon: FlaskConical, label: "Preparaciones", path: "/preparaciones", minRole: "host" },
-      { icon: Users, label: "Empleados", path: "/empleados", minRole: "leader" },
-      { icon: Calendar, label: "Horarios", path: "/horarios", minRole: "leader" },
+      { icon: Layers, label: "Rotacion de Areas", path: "/rotacion-areas", minRole: "leader" },
+      { icon: CalendarClock, label: "Checador QR", path: "/asistencia", minRole: "leader" },
       { icon: ClockAlert, label: "Control de Asistencias", path: "/control-asistencias", minRole: "leader" },
       { icon: BarChart3, label: "KPIs Anfitriones", path: "/kpi-anfitriones", minRole: "host" },
       { icon: TrendingUp, label: "KPIs Líder (Nivel 2)", path: "/kpi-lider", minRole: "leader" },
       { icon: DollarSign, label: "KPIs Admin (Nivel 3)", path: "/kpi-admin", minRole: "manager" },
       { icon: Scale, label: "Cuadre de Vasos", path: "/cuadre-vasos", minRole: "leader" },
       { icon: Package, label: "Inventario", path: "/inventario", minRole: "leader" },
+      { icon: DollarSign, label: "Rentabilidad", path: "/finanzas", minRole: "manager" },
       { icon: Eye, label: "Supervisión de Actividades", path: "/supervision", minRole: "leader" },
     ],
   },
@@ -141,6 +136,9 @@ const ALL_NAV_GROUPS = [
     minRole: "manager",
     path: null,
     items: [
+      { icon: Building2, label: "Sucursales", path: "/sucursales", minRole: "manager" },
+      { icon: Users, label: "Empleados", path: "/empleados", minRole: "manager" },
+      { icon: ClipboardCheck, label: "Evaluaciones", path: "/evaluaciones-periodo", minRole: "manager" },
       { icon: History, label: "Ventas Históricas", path: "/ventas-historicas", minRole: "manager" },
       { icon: Bell, label: "Avisos Generales", path: "/avisos-generales", minRole: "manager" },
       { icon: ClipboardList, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
@@ -184,7 +182,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) return <DashboardLayoutSkeleton />;
+  // Rutas públicas — sin autenticación
+  const [location] = useLocation();
+  if (location.startsWith("/asistencia-qr")) {
+    return <>{children}</>;
+  }
+
+    if (loading) return <DashboardLayoutSkeleton />;
   if (user && (user as any).role === 'user') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-950 via-green-900 to-green-800">

@@ -344,7 +344,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Selecciona receta..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {catalogo.map((c: any) => (
                     <SelectItem key={c.clave} value={c.clave}>
                       {c.nombre}
@@ -362,7 +362,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecciona cantidad..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {recetaConfig.cantidades.map((c: any) => (
                       <SelectItem key={c.valor} value={c.valor}>{c.etiqueta}</SelectItem>
                     ))}
@@ -433,7 +433,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecciona receta..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {catalogo.map((c: any) => (
                       <SelectItem key={c.clave} value={c.clave}>{c.nombre}</SelectItem>
                     ))}
@@ -448,7 +448,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Selecciona tipo..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {Object.entries(INCIDENCIA_LABELS).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
                   ))}

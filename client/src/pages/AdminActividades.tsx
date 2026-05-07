@@ -197,7 +197,7 @@ export default function AdminActividades() {
             <SelectTrigger className="w-44 bg-slate-800 border-slate-700 text-slate-200">
               <SelectValue placeholder="Categoría" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="all">Todas las categorías</SelectItem>
               <SelectItem value="D">Diarias</SelectItem>
               <SelectItem value="S">Semanales isla</SelectItem>
@@ -209,7 +209,7 @@ export default function AdminActividades() {
             <SelectTrigger className="w-36 bg-slate-800 border-slate-700 text-slate-200">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="activas">Activas</SelectItem>
               <SelectItem value="inactivas">Inactivas</SelectItem>
               <SelectItem value="all">Todas</SelectItem>
@@ -323,7 +323,7 @@ export default function AdminActividades() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     <SelectItem value="D">Diaria</SelectItem>
                     <SelectItem value="S">Semanal isla</SelectItem>
                     <SelectItem value="B">Bodega</SelectItem>
@@ -340,7 +340,7 @@ export default function AdminActividades() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     <SelectItem value="todas">Todas</SelectItem>
                     <SelectItem value="caja">Caja</SelectItem>
                     <SelectItem value="preparacion">Preparación</SelectItem>

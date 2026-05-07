@@ -294,7 +294,7 @@ export default function Ventas() {
               <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 {PERIODOS.map(p => (
                   <SelectItem key={p.value} value={String(p.value)}>{p.label}</SelectItem>
                 ))}
@@ -350,7 +350,7 @@ export default function Ventas() {
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todas las tiendas" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="todas">Todas las tiendas</SelectItem>
               {sucursales.map(s => (
                 <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>

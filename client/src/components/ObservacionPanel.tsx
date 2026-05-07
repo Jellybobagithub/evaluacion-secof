@@ -296,7 +296,7 @@ export default function ObservacionPanel({ sucursalId }: ObservacionPanelProps) 
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Selecciona actividad..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {ACTIVIDADES_CATALOGO.map((a) => (
                     <SelectItem key={a.clave} value={a.clave}>
                       <span className="font-mono text-xs text-slate-400 mr-2">{a.clave}</span>

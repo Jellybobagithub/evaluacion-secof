@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { InventarioRecetas } from "./InventarioRecetas";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Package, Warehouse, ClipboardList, BarChart3, History,
+  Package, Warehouse, ClipboardList, BarChart3, History, ShoppingCart, Trash2, BookOpen,
   Plus, Save, Send, AlertTriangle, CheckCircle, Settings,
   ChevronDown, ChevronUp, Download, Edit, Trash2, Copy, Tag
 } from "lucide-react";
@@ -113,7 +114,7 @@ export default function Inventario() {
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Sucursal" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               {sucursalesDisponibles.map(s => (
                 <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>
               ))}
@@ -125,7 +126,7 @@ export default function Inventario() {
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="Almacén" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 {almacenes.map(a => (
                   <SelectItem key={a.id} value={a.id.toString()}>
                     {a.nombre}
@@ -163,12 +164,18 @@ export default function Inventario() {
                 <BarChart3 className="w-4 h-4" /> Teórico
               </TabsTrigger>
             )}
+
             <TabsTrigger value="comparativa" className="gap-1">
               <BarChart3 className="w-4 h-4" /> Comparativa
             </TabsTrigger>
             <TabsTrigger value="historial" className="gap-1">
               <History className="w-4 h-4" /> Historial
             </TabsTrigger>
+            {isSupervisor && (
+              <TabsTrigger value="recetas" className="gap-1">
+                <BookOpen className="w-4 h-4" /> Recetas
+              </TabsTrigger>
+            )}
             {isSupervisor && (
               <TabsTrigger value="config" className="gap-1">
                 <Settings className="w-4 h-4" /> Configuración
@@ -197,7 +204,7 @@ export default function Inventario() {
               /> : <div className="py-10 text-center text-muted-foreground">Selecciona o crea un almacén en la tab Configuración.</div>}
             </TabsContent>
           )}
-          {/* Comparativa */}
+          {/* Tab Ventas eliminada — usar Importar Ventas Odoo */}
           <TabsContent value="comparativa">
             {almacenId && <ComparativaTab
               sucursalId={sucursalId}
@@ -213,6 +220,12 @@ export default function Inventario() {
             />}
           </TabsContent>
 
+          {/* Recetas */}
+          {isSupervisor && (
+            <TabsContent value="recetas">
+              <InventarioRecetas />
+            </TabsContent>
+          )}
           {/* Configuración */}
           {isSupervisor && (
             <TabsContent value="config">
@@ -238,6 +251,7 @@ function ConteoFisicoTab({
   sucursalId: number; almacenId: number; almacen?: Almacen;
   productos: Producto[]; semana: string;
 }) {
+  const [fechaConteo, setFechaConteo] = useState(new Date().toISOString().split("T")[0]);
   const [conteoId, setConteoId] = useState<number | null>(null);
   const [lineas, setLineas] = useState<Record<number, { piezas: string; gramos: string }>>({});
   const [notas, setNotas] = useState("");
@@ -274,8 +288,9 @@ function ConteoFisicoTab({
     onError: (e) => toast.error(e.message),
   });
 
-  const handleIniciar = () => {
-    getOrCreate.mutate({ sucursalId, almacenId, semana });
+  const [forzarNuevo, setForzarNuevo] = useState(false);
+  const handleIniciar = (forzar = false) => {
+    getOrCreate.mutate({ sucursalId, almacenId, semana, fechaConteo, forzarNuevo: forzar } as any);
   };
 
   const handleGuardar = async () => {
@@ -314,7 +329,21 @@ function ConteoFisicoTab({
               Almacén: <strong>{almacen?.nombre}</strong> ({almacen?.tipo === "piezas_gramos" ? "Piezas + Gramos" : "Solo Piezas"})
             </p>
           </div>
-          <Button onClick={handleIniciar} disabled={getOrCreate.isPending} className="bg-emerald-600 hover:bg-emerald-700">
+          <div className="flex flex-col gap-1 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Fecha del conteo:</span>
+              <Input type="date" value={fechaConteo}
+                max={new Date().toISOString().split("T")[0]}
+                onChange={e => setFechaConteo(e.target.value)}
+                className="w-40 h-8 text-sm" />
+            </div>
+            {fechaConteo > new Date().toISOString().split("T")[0] && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                ⚠️ La fecha es futura — el pronóstico usará este conteo sobre otros más recientes
+              </p>
+            )}
+          </div>
+          <Button onClick={() => handleIniciar(forzarNuevo)} disabled={getOrCreate.isPending} className="bg-emerald-600 hover:bg-emerald-700">
             <ClipboardList className="w-4 h-4 mr-2" />
             {getOrCreate.isPending ? "Iniciando..." : "Iniciar Conteo"}
           </Button>
@@ -346,9 +375,21 @@ function ConteoFisicoTab({
       </div>
 
       {bloqueado && (
-        <div className="flex items-center gap-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm">
-          <CheckCircle className="w-4 h-4 text-gray-500" />
-          <span className="text-muted-foreground">Este conteo está bloqueado y no puede modificarse.</span>
+        <div className="flex items-center justify-between gap-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-gray-500" />
+            <span className="text-muted-foreground">Este conteo está bloqueado y no puede modificarse.</span>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => {
+            setIniciado(false);
+            setConteoId(null);
+            setLineas({});
+            setBloqueado(false);
+            setForzarNuevo(true);
+            setFechaConteo(new Date().toISOString().split("T")[0]);
+          }}>
+            + Nuevo conteo
+          </Button>
         </div>
       )}
 
@@ -404,7 +445,7 @@ function ConteoFisicoTab({
                               value={lineas[prod.id]?.gramos ?? ""}
                               onChange={e => setLineas(prev => ({
                                 ...prev,
-                                [prod.id]: { ...prev[prod.id], gramos: e.target.value }
+                                [prod.id]: { piezas: prev[prod.id]?.piezas ?? "0", ...prev[prod.id], gramos: e.target.value }
                               }))}
                               disabled={bloqueado}
                             />
@@ -447,134 +488,87 @@ function TeoricoTab({
 }: {
   sucursalId: number; almacenId: number; productos: Producto[]; semana: string;
 }) {
-  const [teoricoId, setTeoricoId] = useState<number | null>(null);
-  const [lineas, setLineas] = useState<Record<number, string>>({});
-  const [publicado, setPublicado] = useState(false);
-  const [iniciado, setIniciado] = useState(false);
+  const hoy = new Date().toISOString().split("T")[0];
+  const lunes = (() => {
+    const d = new Date(); const dia = d.getDay();
+    d.setDate(d.getDate() - (dia === 0 ? 6 : dia - 1));
+    return d.toISOString().split("T")[0];
+  })();
+  const [fechaInicio, setFechaInicio] = useState(lunes);
+  const [fechaFin, setFechaFin] = useState(hoy);
 
-  const getOrCreate = trpc.inventario.teorico.getOrCreate.useMutation({
-    onSuccess: (data) => {
-      setTeoricoId(data.teorico.id);
-      setPublicado(data.teorico.estado === "publicado");
-      const lineasExistentes: Record<number, string> = {};
-      data.detalles.forEach(d => { lineasExistentes[d.productoId] = d.cantidadEsperada.toString(); });
-      setLineas(lineasExistentes);
-      setIniciado(true);
-    },
-    onError: () => toast.error("Error al iniciar el teórico"),
-  });
+  const { data: teorico = [], isLoading, refetch } = trpc.inventario.ventas.calcularTeorico.useQuery(
+    { sucursalId, fechaInicio, fechaFin },
+    { enabled: !!sucursalId }
+  );
 
-  const guardar = trpc.inventario.teorico.guardarDetalle.useMutation({
-    onSuccess: (_, vars) => {
-      if (vars.publicar) { setPublicado(true); toast.success("Inventario teórico publicado"); }
-      else toast.success("Teórico guardado como borrador");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const handleGuardar = (publicar = false) => {
-    if (!teoricoId) return;
-    const lineasData = productos
-      .filter(p => lineas[p.id] !== undefined)
-      .map(p => ({
-        productoId: p.id,
-        cantidadEsperada: parseFloat(lineas[p.id] ?? "0") || 0,
-      }));
-    guardar.mutate({ teoricoId, lineas: lineasData, publicar });
-  };
-
-  const categorias = useMemo(() => Array.from(new Set(productos.map(p => p.categoria))).sort(), [productos]);
-
-  if (!iniciado) {
-    return (
-      <Card>
-        <CardContent className="py-10 text-center space-y-4">
-          <BarChart3 className="w-12 h-12 mx-auto text-muted-foreground" />
-          <div>
-            <p className="font-medium">Inventario Teórico — {formatSemana(semana)}</p>
-            <p className="text-sm text-muted-foreground mt-1">Ingresa las cantidades esperadas basadas en ventas Odoo</p>
-          </div>
-          <Button onClick={() => getOrCreate.mutate({ sucursalId, almacenId, semana })} disabled={getOrCreate.isPending} className="bg-blue-600 hover:bg-blue-700">
-            <BarChart3 className="w-4 h-4 mr-2" />
-            {getOrCreate.isPending ? "Iniciando..." : "Iniciar Teórico"}
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  const totalVasos = (() => {
+    // No hay forma directa, pero mostramos el total de gramos de toppings
+    const t = (teorico as any[]).find(r => r.nombre?.includes('Toppings Pool'));
+    return t ? Math.round(t.consumoGramos / 46) : 0;
+  })();
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <Badge variant={publicado ? "secondary" : "default"} className={publicado ? "bg-blue-600 text-white" : ""}>
-          {publicado ? "Publicado" : "Borrador"}
-        </Badge>
-        {!publicado && (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleGuardar(false)} disabled={guardar.isPending}>
-              <Save className="w-4 h-4 mr-1" /> Guardar borrador
-            </Button>
-            <Button size="sm" onClick={() => handleGuardar(true)} disabled={guardar.isPending} className="bg-blue-600 hover:bg-blue-700">
-              <Send className="w-4 h-4 mr-1" /> Publicar
-            </Button>
-          </div>
-        )}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Del:</span>
+          <Input type="date" value={fechaInicio} onChange={e => setFechaInicio(e.target.value)} className="w-36 h-8 text-sm" />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Al:</span>
+          <Input type="date" value={fechaFin} onChange={e => setFechaFin(e.target.value)} className="w-36 h-8 text-sm" />
+        </div>
+        <Button size="sm" variant="outline" onClick={() => refetch()}>
+          <BarChart3 className="w-3.5 h-3.5 mr-1" /> Calcular
+        </Button>
+        {totalVasos > 0 && <span className="text-sm text-muted-foreground">~{totalVasos} vasos vendidos</span>}
       </div>
 
-      {publicado && (
-        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg text-sm">
-          <CheckCircle className="w-4 h-4 text-blue-500" />
-          <span>Teórico publicado. El líder puede ver la comparativa.</span>
+      {isLoading && <div className="py-8 text-center text-sm text-muted-foreground">Calculando...</div>}
+
+      {!isLoading && (teorico as any[]).length === 0 && (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No hay ventas registradas en este período.
         </div>
       )}
 
-      {categorias.map(cat => {
-        const prods = productos.filter(p => p.categoria === cat && p.activo);
-        if (prods.length === 0) return null;
-        return (
-          <Card key={cat}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{cat}</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="w-32 text-center">Cantidad esperada</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {prods.map(prod => (
-                    <TableRow key={prod.id}>
-                      <TableCell>
-                        <div className="font-medium text-sm">{prod.nombre}</div>
-                        <div className="text-xs text-muted-foreground">{prod.unidadConteo}</div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Input
-                          type="number" min="0" step="0.01"
-                          className="w-24 mx-auto text-center h-8"
-                          value={lineas[prod.id] ?? ""}
-                          onChange={e => setLineas(prev => ({ ...prev, [prod.id]: e.target.value }))}
-                          disabled={publicado}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        );
-      })}
+      {!isLoading && (teorico as any[]).length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted text-muted-foreground text-xs">
+                <th className="text-left px-3 py-2">Materia Prima</th>
+                <th className="text-right px-3 py-2">Consumo (g)</th>
+                <th className="text-right px-3 py-2">Consumo (pzas)</th>
+                <th className="text-right px-3 py-2">Unidades</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {(teorico as any[]).map((r: any, i: number) => (
+                <tr key={i} className={r.nombre?.includes('Toppings Pool') ? 'bg-orange-50 dark:bg-orange-950 font-medium' : ''}>
+                  <td className="px-3 py-2">{r.nombre}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.consumoGramos > 0 ? r.consumoGramos.toFixed(1) : '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.consumoPiezas > 0 ? r.consumoPiezas.toFixed(2) : '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-medium">{r.consumoUnidades > 0 ? r.consumoUnidades.toFixed(3) : '—'} {r.unidad}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
 
+
 // ─── Tab: Comparativa ─────────────────────────────────────────────────────────
 function ComparativaTab({ sucursalId, almacenId, semana }: { sucursalId: number; almacenId: number; semana: string }) {
-  const { data, isLoading } = trpc.inventario.comparativa.useQuery({ sucursalId, almacenId, semana });
+  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split("T")[0]);
+  const { data, isLoading, refetch } = trpc.inventario.comparativa.useQuery(
+    { sucursalId, almacenId, semana, fechaHasta },
+    { enabled: !!sucursalId && !!almacenId }
+  );
 
   const exportarExcel = () => {
     if (!data) return;
@@ -595,7 +589,7 @@ function ComparativaTab({ sucursalId, almacenId, semana }: { sucursalId: number;
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Comparativa");
-    XLSX.writeFile(wb, `inventario-comparativa-${semana}.xlsx`);
+    XLSX.writeFile(wb, `inventario-comparativa-${fechaHasta}.xlsx`);
   };
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Cargando comparativa...</div>;
@@ -607,6 +601,17 @@ function ComparativaTab({ sucursalId, almacenId, semana }: { sucursalId: number;
   return (
     <div className="space-y-4">
       {/* Resumen */}
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Teórico al día:</span>
+          <Input type="date" value={fechaHasta} onChange={e => setFechaHasta(e.target.value)} className="w-36 h-8 text-sm" />
+        </div>
+        {data?.conteo && (
+          <span className="text-xs text-muted-foreground">
+            Conteo físico base: {(data.conteo as any).fechaConteo}
+          </span>
+        )}
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="p-3">
           <div className="text-xs text-muted-foreground">Total productos</div>
@@ -635,12 +640,7 @@ function ComparativaTab({ sucursalId, almacenId, semana }: { sucursalId: number;
           <span>No hay conteo físico para esta semana. El líder debe realizarlo primero.</span>
         </div>
       )}
-      {!resumen.hayTeorico && (
-        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-300 rounded-lg text-sm">
-          <AlertTriangle className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>No hay inventario teórico publicado para esta semana.</span>
-        </div>
-      )}
+
 
       {/* Botón exportar */}
       <div className="flex justify-end">
@@ -797,6 +797,17 @@ function ConfigTab({
   // Duplicar producto
   const [duplicarProducto, setDuplicarProducto] = useState<Producto | null>(null);
   const [nombreDuplicado, setNombreDuplicado] = useState("");
+  const eliminarProducto = trpc.inventario.productos.delete.useMutation({
+    onSuccess: () => { refetchProductos(); toast.success("Producto eliminado"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const eliminarProducto_confirm = (id: number, nombre: string) => {
+    if (confirm(`¿Eliminar "${nombre}"? Esta acción lo desactivará del catálogo.`)) {
+      eliminarProducto.mutate({ id });
+    }
+  };
+
   const duplicar = trpc.inventario.productos.duplicate.useMutation({
     onSuccess: () => { refetchProductos(); setDuplicarProducto(null); setNombreDuplicado(""); toast.success("Producto duplicado"); },
     onError: (e) => toast.error(e.message),
@@ -932,6 +943,9 @@ function ConfigTab({
                         <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" onClick={() => abrirEditar(p)}>
                           <Edit className="w-3 h-3" />
                         </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" title="Eliminar" onClick={() => eliminarProducto_confirm(p.id, p.nombre)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" title="Duplicar" onClick={() => { setDuplicarProducto(p); setNombreDuplicado(p.nombre + " (copia)"); }}>
                           <Copy className="w-3 h-3" />
                         </Button>
@@ -1058,7 +1072,7 @@ function ConfigTab({
               <Label>Tipo de conteo</Label>
               <Select value={nuevoAlmacen.tipo} onValueChange={v => setNuevoAlmacen(p => ({ ...p, tipo: v as any }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="piezas">Solo Piezas (bodega)</SelectItem>
                   <SelectItem value="piezas_gramos">Piezas + Gramos (tienda)</SelectItem>
                 </SelectContent>
@@ -1094,7 +1108,7 @@ function ConfigTab({
                 {categoriasDB && categoriasDB.length > 0 ? (
                   <Select value={formProd.categoria} onValueChange={v => setFormProd(p => ({ ...p, categoria: v }))}>
                     <SelectTrigger><SelectValue placeholder="Selecciona categoría" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="item-aligned">
                       {categoriasDB.filter(c => c.activa).map(c => (
                         <SelectItem key={c.id} value={c.nombre}>
                           <div className="flex items-center gap-2">
@@ -1148,6 +1162,89 @@ function ConfigTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─── Componente Captura de Ventas ─────────────────────────────────────────────
+function VentasCaptura({ sucursalId }: { sucursalId: number }) {
+  const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [cantidades, setCantidades] = useState<Record<number, number>>({});
+  const [busqueda, setBusqueda] = useState("");
+  const utils = trpc.useUtils();
+
+  const { data: productos = [] } = trpc.inventario.ventas.listProductos.useQuery();
+  const { data: ventasGuardadas = [] } = trpc.inventario.ventas.getByFecha.useQuery(
+    { sucursalId, fecha }, { enabled: !!sucursalId && !!fecha }
+  );
+
+  // Cargar cantidades guardadas
+  useEffect(() => {
+    const map: Record<number, number> = {};
+    for (const v of ventasGuardadas) map[v.productoVentaId] = v.cantidad;
+    setCantidades(map);
+  }, [ventasGuardadas]);
+
+  const guardar = trpc.inventario.ventas.guardar.useMutation({
+    onSuccess: () => { toast.success("Ventas guardadas"); utils.inventario.ventas.getByFecha.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const productosFiltrados = productos.filter((p: any) =>
+    busqueda === "" || `${p.nombre} ${p.sabor}`.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  // Agrupar por nombre de producto
+  const grupos = productosFiltrados.reduce((acc: any, p: any) => {
+    if (!acc[p.nombre]) acc[p.nombre] = [];
+    acc[p.nombre].push(p);
+    return acc;
+  }, {});
+
+  const total = Object.values(cantidades).reduce((a: number, b) => a + (b || 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold text-sm">Captura de Ventas</h3>
+          <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-40 h-8 text-sm" />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Total: <strong>{total}</strong> bebidas</span>
+          <Button size="sm" className="bg-green-600 hover:bg-green-700"
+            onClick={() => guardar.mutate({ sucursalId, fecha, lineas: Object.entries(cantidades).map(([id, cantidad]) => ({ productoVentaId: Number(id), cantidad: cantidad || 0 })) })}
+            disabled={guardar.isPending}>
+            {guardar.isPending ? "Guardando..." : "Guardar ventas"}
+          </Button>
+        </div>
+      </div>
+
+      <Input placeholder="Buscar producto o sabor..." value={busqueda} onChange={e => setBusqueda(e.target.value)} className="h-8 text-sm" />
+
+      <div className="space-y-4">
+        {Object.entries(grupos).map(([nombre, items]: [string, any]) => (
+          <div key={nombre} className="border rounded-lg overflow-hidden">
+            <div className="bg-muted px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{nombre}</div>
+            <div className="divide-y">
+              {items.map((p: any) => (
+                <div key={p.id} className="flex items-center justify-between px-3 py-2">
+                  <span className="text-sm">{p.sabor || p.nombre}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setCantidades(c => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))}
+                      className="w-7 h-7 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center text-sm font-bold">−</button>
+                    <input type="number" min="0" value={cantidades[p.id] || 0}
+                      onChange={e => setCantidades(c => ({ ...c, [p.id]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                      className="w-14 h-7 text-center text-sm border rounded" />
+                    <button onClick={() => setCantidades(c => ({ ...c, [p.id]: (c[p.id] || 0) + 1 }))}
+                      className="w-7 h-7 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center text-sm font-bold">+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

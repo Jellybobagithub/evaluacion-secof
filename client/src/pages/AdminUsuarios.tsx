@@ -219,7 +219,7 @@ export default function AdminUsuarios() {
             <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="Filtrar por rol" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="all">Todos los roles</SelectItem>
               {ROLES.map(r => (
                 <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
@@ -390,7 +390,7 @@ export default function AdminUsuarios() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {rolesAsignables.map(r => (
                       <SelectItem key={r.value} value={r.value}>
                         <div className="flex flex-col">

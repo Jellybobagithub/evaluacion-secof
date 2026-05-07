@@ -104,6 +104,12 @@ export default function KpiLider() {
   const [metaManualRappi, setMetaManualRappi] = useState("");
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+  // Auto-seleccionar sucursal cuando el usuario solo tiene una asignada (lider 1 tienda)
+  useMemo(() => {
+    if (sucursales.length === 1 && sucursalId === null) {
+      setSucursalId(sucursales[0].id);
+    }
+  }, [sucursales.length]);
   const activeSucursalId = sucursalId ?? sucursales[0]?.id ?? null;
 
   const mesRango = useMemo(() => {
@@ -247,7 +253,7 @@ export default function KpiLider() {
           {sucursales.length > 1 && (
             <Select value={String(activeSucursalId ?? "")} onValueChange={v => setSucursalId(Number(v))}>
               <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sucursal..." /></SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 {sucursales.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
               </SelectContent>
             </Select>

@@ -256,7 +256,7 @@ function TurnoModal({ open, onClose, sucursalId, empleados, catalogo, editTurno,
             <Label className="text-xs">Empleado</Label>
             <Select value={String(form.empleadoId || "")} onValueChange={v => setForm(f => ({ ...f, empleadoId: Number(v) }))}>
               <SelectTrigger><SelectValue placeholder="Seleccionar empleado" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 {empleados.map(e => (
                   <SelectItem key={e.id} value={String(e.id)}>
                     {e.nombre} {e.apellido ?? ""}
@@ -277,7 +277,7 @@ function TurnoModal({ open, onClose, sucursalId, empleados, catalogo, editTurno,
             <Label className="text-xs">Turno</Label>
             <Select value={form.turno} onValueChange={v => setForm(f => ({ ...f, turno: v as any }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 {Object.entries(TURNO_CONFIG).map(([k, v]) => (
                   <SelectItem key={k} value={k}>{v.label}</SelectItem>
                 ))}
@@ -302,7 +302,7 @@ function TurnoModal({ open, onClose, sucursalId, empleados, catalogo, editTurno,
             <Label className="text-xs">Puesto</Label>
             <Select value={form.puesto} onValueChange={v => setForm(f => ({ ...f, puesto: v }))}>
               <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 {["Caja", "Barista", "Caja y barista", "Barista y Caja", "Comodín y Barista", "Comodín y Caja", "Comodín"].map(p => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
                 ))}
@@ -315,7 +315,7 @@ function TurnoModal({ open, onClose, sucursalId, empleados, catalogo, editTurno,
             <Label className="text-xs">Área del turno</Label>
             <Select value={form.rolPrincipal} onValueChange={v => setForm(f => ({ ...f, rolPrincipal: v }))}>
               <SelectTrigger><SelectValue placeholder="Seleccionar área" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 <SelectItem value="Caja">💰 Caja — Atención al cliente y cobro</SelectItem>
                 <SelectItem value="Barra">🥤 Barra — Preparación de bebidas</SelectItem>
                 <SelectItem value="Comodín">⚡ Comodín — Soporte, insumos y actividades</SelectItem>
@@ -423,6 +423,12 @@ export default function Horarios() {
   const [fechaDefault, setFechaDefault] = useState<string | undefined>();
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+  // Auto-seleccionar sucursal cuando el usuario solo tiene una asignada (lider 1 tienda)
+  useMemo(() => {
+    if (sucursales.length === 1 && sucursalId === null) {
+      setSucursalId(sucursales[0].id);
+    }
+  }, [sucursales.length]);
   const activeSucursalId = sucursalId ?? sucursales[0]?.id ?? null;
 
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
@@ -556,7 +562,7 @@ export default function Horarios() {
           {sucursales.length > 1 && (
             <Select value={String(activeSucursalId ?? "")} onValueChange={v => setSucursalId(Number(v))}>
               <SelectTrigger className="w-44"><SelectValue placeholder="Sucursal" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent position="item-aligned">
                 {sucursales.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
               </SelectContent>
             </Select>

@@ -266,7 +266,7 @@ export default function ReporteDiario() {
             <SelectTrigger className="w-full sm:w-56">
               <SelectValue placeholder="Todas las sucursales" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="all">Todas las sucursales</SelectItem>
               {(sucursales as any[]).map((s: any) => (
                 <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
@@ -408,7 +408,7 @@ export default function ReporteDiario() {
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona sucursal" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {(sucursales as any[]).map((s: any) => (
                       <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
                     ))}

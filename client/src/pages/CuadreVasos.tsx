@@ -123,7 +123,7 @@ export default function CuadreVasos() {
                 <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
                 <Select value={sucursalId?.toString() ?? ""} onValueChange={v => setSucursalId(Number(v))}>
                   <SelectTrigger><SelectValue placeholder="Selecciona sucursal..." /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned">
                     {sucursales.map((s: any) => (
                       <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>
                     ))}
@@ -135,7 +135,7 @@ export default function CuadreVasos() {
               <Label className="text-xs text-muted-foreground mb-1 block">Período</Label>
               <Select value={dias.toString()} onValueChange={v => setDias(Number(v))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="7">Últimos 7 días</SelectItem>
                   <SelectItem value="14">Últimos 14 días</SelectItem>
                   <SelectItem value="30">Últimos 30 días</SelectItem>

@@ -221,7 +221,7 @@ export default function KpiAnfitriones() {
               <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
               <Select value={sucursalId?.toString() ?? ""} onValueChange={v => setSucursalId(Number(v))}>
                 <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {sucursales.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -521,7 +521,7 @@ export default function KpiAnfitriones() {
               <Label>Empleado observado</Label>
               <Select value={empleadoSelId} onValueChange={setEmpleadoSelId}>
                 <SelectTrigger><SelectValue placeholder="Selecciona empleado..." /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {empleados.map(e => (
                     <SelectItem key={e.id} value={e.id.toString()}>
                       {e.nombre} {e.apellido ?? ""}

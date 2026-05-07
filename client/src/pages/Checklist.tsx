@@ -193,7 +193,7 @@ export default function Checklist() {
               <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
               <Select value={sucursalId?.toString() ?? ""} onValueChange={v => { setSucursalId(Number(v)); setPlantillaId(null); setChecks({}); }}>
                 <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {sucursales.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -202,7 +202,7 @@ export default function Checklist() {
               <Label className="text-xs text-muted-foreground mb-1 block">Plantilla</Label>
               <Select value={plantillaId?.toString() ?? ""} onValueChange={v => { setPlantillaId(Number(v)); setChecks({}); }}>
                 <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {plantillas.map(p => (
                     <SelectItem key={p.id} value={p.id.toString()}>
                       {p.nombre}
@@ -215,7 +215,7 @@ export default function Checklist() {
               <Label className="text-xs text-muted-foreground mb-1 block">Turno</Label>
               <Select value={turno} onValueChange={v => setTurno(v as "matutino" | "vespertino")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="matutino">Matutino (10am - 4pm)</SelectItem>
                   <SelectItem value="vespertino">Vespertino (4pm - 9:30pm)</SelectItem>
                 </SelectContent>

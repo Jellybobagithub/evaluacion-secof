@@ -282,7 +282,7 @@ export default function NuevaEvaluacion() {
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona una sucursal" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   {sucursales.filter(s => s.activa).map(s => (
                     <SelectItem key={s.id} value={String(s.id)}>{s.nombre} {s.ciudad ? `· ${s.ciudad}` : ""}</SelectItem>
                   ))}

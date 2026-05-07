@@ -80,7 +80,7 @@ export default function Historial() {
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todas las sucursales" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="all">Todas las sucursales</SelectItem>
               {sucursales.map(s => (
                 <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>

@@ -86,7 +86,11 @@ export default function DashboardSecof() {
   // Resumen por sucursal (global)
   const resumenPorSucursal = useMemo(() => {
     const map: Record<number, { nombre: string; ultima: any; count: number }> = {};
-    for (const ev of historial) {
+    // Ordenar por fecha DESC para que la primera sea siempre la más reciente
+    const historialOrdenado = [...historial].sort((a: any, b: any) =>
+      new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    );
+    for (const ev of historialOrdenado) {
       if (!map[ev.sucursalId]) {
         const suc = sucursales.find((s: any) => s.id === ev.sucursalId);
         map[ev.sucursalId] = { nombre: suc?.nombre ?? `Tienda ${ev.sucursalId}`, ultima: ev, count: 0 };
@@ -139,7 +143,7 @@ export default function DashboardSecof() {
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todas las tiendas" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="item-aligned">
               <SelectItem value="all">Todas las tiendas</SelectItem>
               {sucursalesDisponibles.map((s: any) => (
                 <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>

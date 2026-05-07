@@ -56,6 +56,12 @@ export default function Supervision() {
 
   // Sucursales disponibles
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
+  // Auto-seleccionar sucursal cuando el usuario solo tiene una asignada (lider 1 tienda)
+  useMemo(() => {
+    if (sucursales.length === 1 && sucursalId === null) {
+      setSucursalId(sucursales[0].id);
+    }
+  }, [sucursales.length]);
 
   // Auto-seleccionar primera sucursal
   useMemo(() => {

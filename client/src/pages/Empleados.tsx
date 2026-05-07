@@ -10,27 +10,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Users, Plus, Pencil, UserX, Phone, Calendar, ChevronDown, ChevronUp, Link2 } from "lucide-react";
-
 const ROL_LABELS: Record<string, string> = {
-  anfitrion: "Anfitrión",
-  lider: "Líder",
+  anfitrion: "Anfitrion",
+  lider: "Lider",
   administrador: "Administrador",
 };
-
 const ROL_COLORS: Record<string, string> = {
   anfitrion: "bg-blue-100 text-blue-800",
   lider: "bg-purple-100 text-purple-800",
   administrador: "bg-orange-100 text-orange-800",
 };
 
-const TIPO_CONTRATO_LABELS: Record<string, string> = {
-  fulltime:  "Tiempo completo (Lun–Dom, descanso rotativo Lun–Mié)",
-  finde_ext: "Fin de semana extendido (Vie, Sáb, Dom)",
-  finde:     "Solo fin de semana (Sáb, Dom)",
-  custom:    "Personalizado",
-};
+const DIAS_LABELS = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+const DIAS_NOMBRES_COMPLETOS = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
-const DIAS_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+type HorarioDia = { entrada: string; salida: string } | null;
+type HorarioPersonal = Record<number, HorarioDia>;
 
 interface EmpleadoForm {
   nombre: string;
@@ -39,10 +34,19 @@ interface EmpleadoForm {
   telefono: string;
   fechaIngreso: string;
   notas: string;
-  tipoContrato: "fulltime" | "finde_ext" | "finde" | "custom";
-  diasDisponibles: number[]; // 0=dom, 1=lun, ..., 6=sáb
-  diaDescansoFijo: number | null; // 0=dom,1=lun,2=mar,3=mié,4=jue,5=vie,6=sáb
+  diaDescansoFijo: number | null;
+  horarioPersonal: HorarioPersonal;
 }
+
+const defaultHorario: HorarioPersonal = {
+  0: null,
+  1: { entrada: "09:00", salida: "17:00" },
+  2: { entrada: "09:00", salida: "17:00" },
+  3: { entrada: "09:00", salida: "17:00" },
+  4: { entrada: "09:00", salida: "17:00" },
+  5: { entrada: "09:00", salida: "17:00" },
+  6: { entrada: "09:00", salida: "17:00" },
+};
 
 const defaultForm: EmpleadoForm = {
   nombre: "",
@@ -51,9 +55,8 @@ const defaultForm: EmpleadoForm = {
   telefono: "",
   fechaIngreso: new Date().toISOString().split("T")[0],
   notas: "",
-  tipoContrato: "fulltime",
-  diasDisponibles: [],
   diaDescansoFijo: null,
+  horarioPersonal: { ...defaultHorario },
 };
 
 export default function Empleados() {
@@ -64,7 +67,7 @@ export default function Empleados() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<EmpleadoForm>(defaultForm);
   const [bajaConfirm, setBajaConfirm] = useState<number | null>(null);
-  const [vincularEmpleado, setVincularEmpleado] = useState<typeof empleados[0] | null>(null);
+  const [vincularEmpleado, setVincularEmpleado] = useState<any | null>(null);
   const [userIdInput, setUserIdInput] = useState("");
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
@@ -78,7 +81,7 @@ export default function Empleados() {
   const createMut = trpc.empleados.create.useMutation({
     onSuccess: () => {
       utils.empleados.list.invalidate();
-      toast.success("Empleado registrado correctamente");
+      toast.success("Empleado creado");
       setDialogOpen(false);
       setForm(defaultForm);
     },
@@ -105,17 +108,16 @@ export default function Empleados() {
     onError: (e) => toast.error(e.message),
   });
 
-  const vincularMut = trpc.empleados.vincularUsuario.useMutation({
+  const vincularMut = trpc.empleados.vincularUsuario?.useMutation?.({
     onSuccess: () => {
       utils.empleados.list.invalidate();
-      toast.success("Usuario vinculado correctamente");
+      toast.success("Usuario vinculado");
       setVincularEmpleado(null);
       setUserIdInput("");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 
-  // Solo manager/owner/superadmin pueden crear o editar empleados; el líder solo puede ver
   const canEdit = ["owner", "superadmin", "manager"].includes(user?.role ?? "");
 
   function openCreate() {
@@ -124,227 +126,195 @@ export default function Empleados() {
     setDialogOpen(true);
   }
 
-  function openEdit(emp: typeof empleados[0]) {
+  function openEdit(emp: any) {
     setEditId(emp.id);
-    let dias: number[] = [];
-    try { dias = JSON.parse((emp as any).diasDisponibles ?? "[]"); } catch { dias = []; }
+    let horario: HorarioPersonal = { ...defaultHorario };
+    try {
+      const h = emp.horarioPersonal;
+      const parsed = typeof h === "string" ? JSON.parse(h) : (h ?? {});
+      // Convertir keys string a number
+      for (const k of Object.keys(parsed)) {
+        horario[Number(k)] = parsed[k];
+      }
+    } catch { }
     setForm({
-      nombre: emp.nombre,
+      nombre: emp.nombre ?? "",
       apellido: emp.apellido ?? "",
-      rol: emp.rol,
+      rol: emp.rol ?? "anfitrion",
       telefono: emp.telefono ?? "",
-      fechaIngreso: emp.fechaIngreso
-        ? new Date(emp.fechaIngreso).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0],
+      fechaIngreso: emp.fechaIngreso ? new Date(emp.fechaIngreso).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
       notas: emp.notas ?? "",
-      tipoContrato: ((emp as any).tipoContrato ?? "fulltime") as EmpleadoForm["tipoContrato"],
-      diasDisponibles: dias,
-      diaDescansoFijo: (emp as any).diaDescansoFijo ?? null,
+      diaDescansoFijo: emp.diaDescansoFijo ?? null,
+      horarioPersonal: horario,
     });
     setDialogOpen(true);
   }
 
-  function handleSubmit() {
+  function handleSave() {
     if (!form.nombre.trim()) { toast.error("El nombre es requerido"); return; }
-    if (!sucursalId) { toast.error("Selecciona una sucursal"); return; }
-    const diasJson = form.tipoContrato === "custom" ? JSON.stringify(form.diasDisponibles) : null;
-    if (editId) {
-      updateMut.mutate({ id: editId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined, diaDescansoFijo: form.diaDescansoFijo });
+    const horarioJson = JSON.stringify(form.horarioPersonal);
+    if (editId !== null) {
+      updateMut.mutate({
+        id: editId,
+        nombre: form.nombre,
+        apellido: form.apellido,
+        rol: form.rol,
+        telefono: form.telefono,
+        notas: form.notas,
+        diaDescansoFijo: form.diaDescansoFijo,
+        horarioPersonal: horarioJson,
+      } as any);
     } else {
-      createMut.mutate({ sucursalId, nombre: form.nombre, apellido: form.apellido, rol: form.rol, telefono: form.telefono, fechaIngreso: form.fechaIngreso, notas: form.notas, tipoContrato: form.tipoContrato, diasDisponibles: diasJson ?? undefined, diaDescansoFijo: form.diaDescansoFijo });
+      if (!sucursalId) { toast.error("Selecciona una sucursal"); return; }
+      createMut.mutate({
+        sucursalId,
+        nombre: form.nombre,
+        apellido: form.apellido,
+        rol: form.rol,
+        telefono: form.telefono,
+        fechaIngreso: form.fechaIngreso,
+        notas: form.notas,
+        diaDescansoFijo: form.diaDescansoFijo,
+        horarioPersonal: horarioJson,
+      } as any);
     }
   }
 
-  const activos = empleados.filter(e => e.activo);
-  const inactivos = empleados.filter(e => !e.activo);
-  const porRol = {
-    lider: activos.filter(e => e.rol === "lider"),
-    anfitrion: activos.filter(e => e.rol === "anfitrion"),
-    administrador: activos.filter(e => e.rol === "administrador"),
-  };
+  function toggleDescanso(dia: number) {
+    setForm(f => ({
+      ...f,
+      horarioPersonal: {
+        ...f.horarioPersonal,
+        [dia]: (f.horarioPersonal[dia] === null || f.horarioPersonal[dia] === undefined)
+          ? { entrada: "09:00", salida: "17:00" }
+          : null,
+      },
+    }));
+  }
+
+  function setDiaDescansoFijo(idx: number | null) {
+    setForm(f => {
+      const newHorario: HorarioPersonal = { ...f.horarioPersonal };
+      // Solo restaurar el dia que era descanso fijo anterior
+      if (f.diaDescansoFijo !== null && f.diaDescansoFijo !== undefined && f.diaDescansoFijo !== idx) {
+        newHorario[f.diaDescansoFijo] = { entrada: "09:00", salida: "17:00" };
+      }
+      // Marcar el nuevo dia como descanso
+      if (idx !== null) {
+        newHorario[idx] = null;
+      }
+      return { ...f, diaDescansoFijo: idx, horarioPersonal: newHorario };
+    });
+  }
+
+  function setHora(dia: number, campo: "entrada" | "salida", valor: string) {
+    setForm(f => ({
+      ...f,
+      horarioPersonal: {
+        ...f.horarioPersonal,
+        [dia]: {
+          entrada: campo === "entrada" ? valor : ((f.horarioPersonal[dia] as any)?.entrada ?? "09:00"),
+          salida: campo === "salida" ? valor : ((f.horarioPersonal[dia] as any)?.salida ?? "17:00"),
+        },
+      },
+    }));
+  }
+
+  const liders = empleados.filter((e: any) => e.rol === "lider");
+  const anfitriones = empleados.filter((e: any) => e.rol === "anfitrion");
+  const admins = empleados.filter((e: any) => e.rol === "administrador");
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <Users className="w-5 h-5 text-blue-500" />
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+            <Users className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Empleados</h1>
-            <p className="text-sm text-muted-foreground">Registro de anfitriones y líderes por sucursal</p>
+            <h1 className="text-xl font-bold">Empleados</h1>
+            <p className="text-sm text-muted-eground">Registro de anfitriones y líderes por sucursal</p>
           </div>
         </div>
         {canEdit && sucursalId && (
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" /> Nuevo empleado
+          <Button onClick={openCreate} className="bg-green-600 hover:bg-green-700">
+            <Plus className="w-4 h-4 mr-2" /> Nuevo empleado
           </Button>
         )}
       </div>
 
-      {/* Selector de sucursal */}
-      <Card>
-        <CardContent className="pt-4 pb-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex-1 min-w-48">
-              <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
-              <Select
-                value={sucursalId?.toString() ?? ""}
-                onValueChange={(v) => setSucursalId(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona una sucursal..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {sucursales.map((s) => (
-                    <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {sucursalId && (
-              <div className="flex items-center gap-2 mt-5">
-                <button
-                  onClick={() => setShowInactivos(!showInactivos)}
-                  className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
-                >
-                  {showInactivos ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  {showInactivos ? "Ocultar bajas" : "Ver bajas"}
-                </button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {!sucursalId && (
-        <div className="text-center py-16 text-muted-foreground">
-          <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>Selecciona una sucursal para ver su equipo</p>
+      {/* Selector sucursal */}
+      <div className="flex items-center gap-4">
+        <div className="w-56">
+          <Select value={sucursalId?.toString() ?? ""} onValueChange={v => setSucursalId(Number(v))}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona sucursal" />
+            </SelectTrigger>
+            <SelectContent position="item-aligned">
+              {sucursales.map((s: any) => (
+                <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
+        {sucursalId && (
+          <button onClick={() => setShowInactivos(!showInactivos)}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+            {showInactivos ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {showInactivos ? "Ocultar bajas" : "Ver bajas"}
+          </button>
+        )}
+      </div>
 
-      {sucursalId && isLoading && (
-        <div className="text-center py-8 text-muted-foreground">Cargando empleados...</div>
-      )}
+      {isLoading && <div className="py-12 text-center text-muted-foreground text-sm">Cargando...</div>}
 
-      {sucursalId && !isLoading && activos.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No hay empleados registrados</p>
-          {canEdit
-            ? <p className="text-sm mt-1">Agrega el primer empleado con el botón de arriba</p>
-            : <p className="text-sm mt-1">Contacta a tu administrador para registrar empleados</p>
-          }
-        </div>
-      )}
-
-      {/* Tarjetas por rol */}
       {sucursalId && !isLoading && (
         <div className="space-y-6">
-          {(["lider", "anfitrion", "administrador"] as const).map((rol) => {
-            const lista = porRol[rol];
-            if (lista.length === 0) return null;
-            return (
-              <div key={rol}>
-                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                  {ROL_LABELS[rol]}s ({lista.length})
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {lista.map((emp) => (
-                    <Card key={emp.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="pt-4 pb-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <p className="font-semibold">{emp.nombre} {emp.apellido}</p>
-                            <Badge className={`text-xs mt-1 ${ROL_COLORS[emp.rol]}`} variant="outline">
-                              {ROL_LABELS[emp.rol]}
-                            </Badge>
-                          </div>
-                          {canEdit && (
-                            <div className="flex gap-1">
-                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Vincular usuario del sistema" onClick={() => { setVincularEmpleado(emp); setUserIdInput(String((emp as any).userId ?? "")); }}>
-                                <Link2 className="w-3.5 h-3.5 text-blue-500" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(emp)}>
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setBajaConfirm(emp.id)}>
-                                <UserX className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                        <div className="space-y-1 text-sm text-muted-foreground">
-                          {emp.telefono && (
-                            <div className="flex items-center gap-2">
-                              <Phone className="w-3.5 h-3.5" />
-                              <span>{emp.telefono}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>Ingreso: {new Date(emp.fechaIngreso).toLocaleDateString("es-MX", { year: "numeric", month: "short", day: "numeric" })}</span>
-                          </div>
-                        </div>
-                        {/* Badge de disponibilidad */}
-                        {(emp as any).tipoContrato && (emp as any).tipoContrato !== "fulltime" && (
-                          <div className="mt-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              (emp as any).tipoContrato === "finde_ext" ? "bg-amber-100 text-amber-700" :
-                              (emp as any).tipoContrato === "finde" ? "bg-orange-100 text-orange-700" :
-                              "bg-gray-100 text-gray-600"
-                            }`}>
-                              {(emp as any).tipoContrato === "finde_ext" ? "Vie–Sáb–Dom" :
-                               (emp as any).tipoContrato === "finde" ? "Sáb–Dom" :
-                               "Personalizado"}
-                            </span>
-                          </div>
-                        )}
-                        {emp.notas && (
-                          <p className="text-xs text-muted-foreground mt-2 italic border-t pt-2">{emp.notas}</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Bajas */}
-          {showInactivos && inactivos.length > 0 && (
-            <div>
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Bajas ({inactivos.length})
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {inactivos.map((emp) => (
-                  <Card key={emp.id} className="opacity-60 border-dashed">
-                    <CardContent className="pt-4 pb-4">
-                      <p className="font-semibold line-through text-muted-foreground">{emp.nombre} {emp.apellido}</p>
-                      <Badge className="text-xs mt-1 bg-gray-100 text-gray-500" variant="outline">
-                        Baja {emp.fechaBaja ? new Date(emp.fechaBaja).toLocaleDateString("es-MX") : ""}
-                      </Badge>
-                    </CardContent>
-                  </Card>
-                ))}
+          {/* Líderes */}
+          {liders.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Líderes ({liders.length})</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {liders.map((emp: any) => <EmpleadoCard key={emp.id} emp={emp} canEdit={canEdit} onEdit={() => openEdit(emp)} onBaja={() => setBajaConfirm(emp.id)} onVincular={() => { setVincularEmpleado(emp); setUserIdInput(""); }} />)}
               </div>
             </div>
+          )}
+          {/* Anfitriones */}
+          {anfitriones.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Anfitriones ({anfitriones.length})</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {anfitriones.map((emp: any) => <EmpleadoCard key={emp.id} emp={emp} canEdit={canEdit} onEdit={() => openEdit(emp)} onBaja={() => setBajaConfirm(emp.id)} onVincular={() => { setVincularEmpleado(emp); setUserIdInput(""); }} />)}
+              </div>
+            </div>
+          )}
+          {/* Admins */}
+          {admins.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Administradores ({admins.length})</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {admins.map((emp: any) => <EmpleadoCard key={emp.id} emp={emp} canEdit={canEdit} onEdit={() => openEdit(emp)} onBaja={() => setBajaConfirm(emp.id)} onVincular={() => { setVincularEmpleado(emp); setUserIdInput(""); }} />)}
+              </div>
+            </div>
+          )}
+          {empleados.length === 0 && (
+            <div className="py-12 text-center text-muted-foreground text-sm">No hay empleados registrados</div>
           )}
         </div>
       )}
 
       {/* Dialog crear/editar */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+      <Dialog open={dialogOpen} onOpenChange={o => { if (!o) { setDialogOpen(false); setEditId(null); setForm(defaultForm); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editId ? "Editar empleado" : "Nuevo empleado"}</DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Nombre *</Label>
+                <Label>Nombre <span className="text-destructive">*</span></Label>
                 <Input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Nombre" />
               </div>
               <div>
@@ -352,172 +322,186 @@ export default function Empleados() {
                 <Input value={form.apellido} onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} placeholder="Apellido" />
               </div>
             </div>
+
             <div>
               <Label>Rol</Label>
-              <Select value={form.rol} onValueChange={v => setForm(f => ({ ...f, rol: v as EmpleadoForm["rol"] }))}>
+              <Select value={form.rol} onValueChange={v => setForm(f => ({ ...f, rol: v as any }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent position="item-aligned">
                   <SelectItem value="anfitrion">Anfitrión</SelectItem>
                   <SelectItem value="lider">Líder</SelectItem>
                   <SelectItem value="administrador">Administrador</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Teléfono</Label>
-                <Input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} placeholder="55 1234 5678" />
-              </div>
-              {!editId && (
-                <div>
-                  <Label>Fecha de ingreso</Label>
-                  <Input type="date" value={form.fechaIngreso} onChange={e => setForm(f => ({ ...f, fechaIngreso: e.target.value }))} />
-                </div>
-              )}
+
+            <div>
+              <Label>Teléfono</Label>
+              <Input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} placeholder="55 1234 5678" />
             </div>
+
             <div>
               <Label>Notas internas</Label>
               <Input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Opcional" />
             </div>
 
+            {!editId && (
+              <div>
+                <Label>Fecha de ingreso</Label>
+                <Input type="date" value={form.fechaIngreso} onChange={e => setForm(f => ({ ...f, fechaIngreso: e.target.value }))} />
+              </div>
+            )}
+
             {/* Día de descanso fijo */}
-            <div className="border-t pt-4">
+            <div className="space-y-2">
               <Label className="text-sm font-semibold">Día de descanso fijo</Label>
-              <p className="text-xs text-muted-foreground mb-2">El día que siempre descansa este empleado</p>
-              <div className="flex gap-2 flex-wrap">
-                {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((dia, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, diaDescansoFijo: f.diaDescansoFijo === idx ? null : idx }))}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                      form.diaDescansoFijo === idx
-                        ? "bg-red-500 text-white border-red-500"
-                        : "bg-background text-muted-foreground border-border hover:border-red-300"
-                    }`}
-                  >
+              <p className="text-xs text-muted-foreground">El día que siempre descansa este empleado</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {DIAS_LABELS.map((dia, idx) => (
+                  <button key={idx} type="button"
+                    onClick={() => setDiaDescansoFijo(form.diaDescansoFijo === idx ? null : idx)}
+                    className={"px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors " + (form.diaDescansoFijo === idx ? "bg-red-500 text-white border-red-500" : "border-input hover:bg-muted")}>
                     {dia}
                   </button>
                 ))}
               </div>
-              {form.diaDescansoFijo !== null && (
-                <p className="text-xs text-red-600 mt-1">Descanso fijo: {["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"][form.diaDescansoFijo]}</p>
-              )}
+
             </div>
 
-            {/* Disponibilidad para horarios */}
-            <div className="border-t pt-4">
-              <Label className="text-sm font-semibold">Disponibilidad para horarios</Label>
-              <p className="text-xs text-muted-foreground mb-2">Define qué días puede trabajar este empleado</p>
-              <Select
-                value={form.tipoContrato}
-                onValueChange={v => setForm(f => ({ ...f, tipoContrato: v as EmpleadoForm["tipoContrato"], diasDisponibles: [] }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TIPO_CONTRATO_LABELS).map(([val, label]) => (
-                    <SelectItem key={val} value={val}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Selector de días para tipo custom */}
-              {form.tipoContrato === "custom" && (
-                <div className="mt-3">
-                  <Label className="text-xs text-muted-foreground mb-2 block">Selecciona los días disponibles</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {DIAS_LABELS.map((dia, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          const dias = form.diasDisponibles.includes(idx)
-                            ? form.diasDisponibles.filter(d => d !== idx)
-                            : [...form.diasDisponibles, idx];
-                          setForm(f => ({ ...f, diasDisponibles: dias }));
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                          form.diasDisponibles.includes(idx)
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background text-muted-foreground border-border hover:border-primary/50"
-                        }`}
-                      >
-                        {dia}
+            {/* Horario por día */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-sm font-semibold">Horario por día</Label>
+              <p className="text-xs text-muted-foreground">Define la hora de entrada y salida para cada día. Clic en "Descanso" para marcar día libre.</p>
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5, 6, 0].map(dia => {
+                  const h = form.horarioPersonal[dia];
+                  const esDescanso = h === null || h === undefined;
+                  return (
+                    <div key={dia} className="flex items-center gap-2 py-0.5">
+                      <span className="text-xs font-medium w-8 shrink-0 text-muted-foreground">{DIAS_LABELS[dia]}</span>
+                      {esDescanso ? (
+                        <span className="text-xs text-red-400 flex-1 italic">
+                          {form.diaDescansoFijo === dia ? "Descanso fijo" : "Descanso"}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1.5 flex-1">
+                          <input type="time" value={h!.entrada}
+                            onChange={e => setHora(dia, "entrada", e.target.value)}
+                            className="h-7 text-xs rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" style={{width:"88px"}} />                          <span className="text-xs text-muted-foreground">–</span>
+                          <input type="time" value={h!.salida}
+                            onChange={e => setHora(dia, "salida", e.target.value)}
+                            className="h-7 text-xs rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" style={{width:"88px"}} />
+                        </div>
+                      )}
+                      <button type="button" onClick={() => toggleDescanso(dia)}
+                        className={"text-xs px-2 py-1 rounded-lg font-medium shrink-0 " + (esDescanso ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-600 hover:bg-red-200")}>
+                        {esDescanso ? "Activar" : "Descanso"}
                       </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={createMut.isPending || updateMut.isPending}>
-              {editId ? "Guardar cambios" : "Registrar empleado"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Modal vincular usuario del sistema */}
-      <Dialog open={!!vincularEmpleado} onOpenChange={() => { setVincularEmpleado(null); setUserIdInput(""); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Vincular usuario del sistema</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Vincula la cuenta de usuario del sistema al empleado <strong>{vincularEmpleado?.nombre} {vincularEmpleado?.apellido}</strong> para que pueda ver sus propias evaluaciones KPI.
-            </p>
-            <div>
-              <Label>ID de usuario del sistema</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="Ej: 5"
-                value={userIdInput}
-                onChange={e => setUserIdInput(e.target.value.replace(/[^0-9]/g, ""))}
-              />
-              <p className="text-xs text-muted-foreground mt-1">El ID del usuario se puede obtener en la sección de Admin Usuarios.</p>
-            </div>
-            {(vincularEmpleado as any)?.userId && (
-              <p className="text-xs text-green-600 font-medium">✓ Actualmente vinculado al usuario ID: {(vincularEmpleado as any).userId}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setVincularEmpleado(null); setUserIdInput(""); }}>Cancelar</Button>
-            <Button
-              onClick={() => {
-                if (!vincularEmpleado) return;
-                const uid = userIdInput ? parseInt(userIdInput) : null;
-                vincularMut.mutate({ empleadoId: vincularEmpleado.id, userId: uid });
-              }}
-              disabled={vincularMut.isPending}
-            >
-              Guardar vinculación
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => { setDialogOpen(false); setEditId(null); setForm(defaultForm); }}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={createMut.isPending || updateMut.isPending} className="bg-green-600 hover:bg-green-700">
+              {createMut.isPending || updateMut.isPending ? "Guardando..." : "Guardar cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Confirmar baja */}
-      <Dialog open={!!bajaConfirm} onOpenChange={() => setBajaConfirm(null)}>
+      <Dialog open={bajaConfirm !== null} onOpenChange={o => !o && setBajaConfirm(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>¿Dar de baja al empleado?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            El empleado quedará inactivo. Puedes verlo en "Ver bajas" pero ya no aparecerá en los registros activos.
-          </p>
+          <DialogHeader><DialogTitle>Dar de baja</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">¡Confirmas dar de baja a este empleado? Podrás reactivarlo después.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBajaConfirm(null)}>Cancelar</Button>
-            <Button variant="destructive" onClick={() => bajaConfirm && bajaMut.mutate({ id: bajaConfirm })} disabled={bajaMut.isPending}>
-              Dar de baja
+            <Button variant="destructive" onClick={() => bajaConfirm && bajaMut.mutate({ id: bajaConfirm })}
+              disabled={bajaMut.isPending}>
+              {bajaMut.isPending ? "..." : "Dar de baja"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Vincular usuario */}
+      {vincularMut && (
+        <Dialog open={vincularEmpleado !== null} onOpenChange={o => !o && setVincularEmpleado(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Vincular usuario — {vincularEmpleado?.nombre}</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">Ingresa el ID del usuario del sistema para vincularlo a este empleado.</p>
+              <Input value={userIdInput} onChange={e => setUserIdInput(e.target.value)} placeholder="ID del usuario" />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setVincularEmpleado(null)}>Cancelar</Button>
+              <Button onClick={() => vincularMut.mutate({ empleadoId: vincularEmpleado!.id, userId: Number(userIdInput) })}
+                disabled={!userIdInput || vincularMut.isPending}>
+                {vincularMut.isPending ? "Vinculando..." : "Vincular"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function EmpleadoCard({ emp, canEdit, onEdit, onBaja, onVincular }: {
+  emp: any; canEdit: boolean; onEdit: () => void; onBaja: () => void; onVincular: () => void;
+}) {
+  return (
+    <div className={"bg-card rounded-2xl border p-4 space-y-3 " + (!emp.activo ? "opacity-60" : "")}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-blue-100 flex items-center justify-center font-bold text-violet-700">
+            {emp.nombre.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <p className="font-semibold text-sm">{emp.nombre} {emp.apellido ?? ""}</p>
+            <Badge className={"text-xs " + (ROL_COLORS[emp.rol] ?? "")}>{ROL_LABELS[emp.rol] ?? emp.rol}</Badge>
+          </div>
+        </div>
+        {canEdit && emp.activo && (
+          <div className="flex gap-1">
+            <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onBaja} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600">
+              <UserX className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        {emp.telefono && (
+          <span className="flex items-center gap-1">
+            <Phone className="w-3 h-3" /> {emp.telefono}
+          </span>
+        )}
+        {emp.fechaIngreso && (
+          <span className="flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> Ingreso: {new Date(emp.fechaIngreso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
+          </span>
+        )}
+      </div>
+      {emp.diaDescansoFijo !== null && emp.diaDescansoFijo !== undefined && (
+        <p className="text-xs text-red-500">Descanso: {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][emp.diaDescansoFijo]}</p>
+      )}
+      {canEdit && !emp.userId && emp.activo && (
+        <button onClick={onVincular} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+          <Link2 className="w-3 h-3" /> Vincular usuario del sistema
+        </button>
+      )}
+      {emp.userId && (
+        <p className="text-xs text-green-600 flex items-center gap-1">
+          <Link2 className="w-3 h-3" /> Vinculado (ID: {emp.userId})
+        </p>
+      )}
     </div>
   );
 }
