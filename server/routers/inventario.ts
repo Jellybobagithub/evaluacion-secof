@@ -1198,7 +1198,7 @@ export const inventarioRouter = router({
 
           const estado2 = diasCob2 <= 7 ? "urgente" : diasCob2 <= 15 ? "surtir" : "ok";
 
-          return {id,nombre:data.nombre,categoria:data.categoria||"Varios",unidad:data.unidad,unidadCompra:data.unidadCompra||data.unidad,pesoNeto:data.pesoNeto,factorConversion:data.factorConv||1,factorConversion:data.factorConv||1,
+          return {id,nombre:data.nombre,categoria:data.categoria||"Varios",unidad:data.unidad,unidadCompra:data.unidadCompra||data.unidad,pesoNeto:data.pesoNeto,factorConversion:data.factorConv||1,ppc:data.ppc||1,factorConversion:data.factorConv||1,
             // Mostrar stock en unidades contadas incluyendo gramos parciales
             stockBodegaPiezas: isPiezas ? sb.p : (data.pesoNeto > 0 ? Math.round((sb.p * data.pesoNeto + sb.g) / data.pesoNeto * 100) / 100 : sb.p),
             stockIslaPiezas:   isPiezas ? si.p : (data.pesoNeto > 0 ? Math.round((si.p * data.pesoNeto + si.g) / data.pesoNeto * 100) / 100 : si.p),

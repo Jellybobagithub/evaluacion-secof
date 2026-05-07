@@ -105,21 +105,32 @@ export default function PronosticoSurtido() {
     return (pronostico?.items ?? [])
       .filter(i => i.consumoPiezas > 0)
       .map(i => {
-        const cd = i.consumoPiezas / diasHist;
-        const need7 = cd * 7;
-        const deficit = Math.max(0, need7 - i.stockIslaPiezas);
-        const fc = (i as any).factorConversion || 1;
+        const fc  = (i as any).factorConversion || 1;
+        const ppc = (i as any).ppc || 1;
+        // consumoPiezas está en piezas individuales; stock está en unidades de conteo
+        // Normalizar todo a unidades de conteo para comparar correctamente
+        const cdConteo   = (i.consumoPiezas / diasHist) / ppc;  // consumo diario en u.conteo
+        const need7Conteo = cdConteo * 7;
+        const stockIslaConteo = i.stockIslaPiezas;               // ya en u.conteo
+        const stockBodegaConteo = i.stockBodegaPiezas;
+        const deficit = Math.max(0, need7Conteo - stockIslaConteo);
+        // Multiple en u.conteo: vasos→50pzas/ppc, popotes→300pzas/ppc, otros→fc/ppc
         const nombreL = i.nombre.toLowerCase();
-        const multiple = nombreL.includes('vaso') ? 50 : nombreL.includes('popote') ? 300 : fc;
-        const transferir = deficit > 0 ? Math.ceil(deficit / multiple) * multiple : 0;
-        const estado = i.stockIslaPiezas < cd * 3 ? 'urgente' : deficit > 0 ? 'surtir' : 'ok';
+        const multipleIndiv = nombreL.includes('vaso') ? 50 : nombreL.includes('popote') ? 300 : fc;
+        const multipleConteo = Math.max(1, multipleIndiv / ppc);
+        const transferir = deficit > 0 ? Math.ceil(deficit / multipleConteo) * multipleConteo : 0;
+        const estado = stockIslaConteo < cdConteo * 3 ? 'urgente' : deficit > 0 ? 'surtir' : 'ok';
         return {
-          ...i, cd: Math.round(cd*100)/100,
-          need7: Math.round(need7*10)/10,
-          minRec: Math.round(cd*5*10)/10,
-          maxRec: Math.round(cd*10*10)/10,
+          ...i,
+          cd:   Math.round(cdConteo*100)/100,
+          need7: Math.round(need7Conteo*10)/10,
+          minRec: Math.round(cdConteo*5*10)/10,
+          maxRec: Math.round(cdConteo*10*10)/10,
           deficit: Math.round(deficit*10)/10,
-          transferir, multiple, bodegaOK: i.stockBodegaPiezas >= transferir, estado,
+          transferir: Math.round(transferir*100)/100,
+          multiple: multipleConteo,
+          bodegaOK: stockBodegaConteo >= transferir,
+          estado,
         };
       })
       .filter(i => i.cd > 0)
