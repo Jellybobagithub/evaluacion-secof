@@ -11,7 +11,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import {
-  getSucursales, getSucursalById, createSucursal, updateSucursal, deleteSucursal,
+  getSucursales, getSucursalById, getSucursalesTodas, createSucursal, updateSucursal, deleteSucursal,
   getEvaluaciones, getEvaluacionById, createEvaluacion, updateEvaluacion, deleteEvaluacion,
   getRespuestasByEvaluacion, upsertRespuestas,
   getPlanAccion, createPlanAccion, updatePlanAccion, deletePlanAccion,
@@ -87,6 +87,27 @@ export const appRouter = router({
       await updateSucursal(id, data);
       return { success: true };
     }),
+    listTodas: protectedProcedure.query(async ({ ctx }) => {
+      if (!['superadmin', 'owner'].includes(ctx.user.role))
+        throw new TRPCError({ code: 'FORBIDDEN' });
+      return getSucursalesTodas();
+    }),
+    cerrarTienda: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['superadmin', 'owner'].includes(ctx.user.role))
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        await updateSucursal(input.id, { activa: false });
+        return { success: true };
+      }),
+    reactivarTienda: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['superadmin', 'owner'].includes(ctx.user.role))
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        await updateSucursal(input.id, { activa: true });
+        return { success: true };
+      }),
 
     uploadFoto: protectedProcedure.input(z.object({
       sucursalId: z.number(),

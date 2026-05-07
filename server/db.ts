@@ -72,6 +72,12 @@ export async function isNewUser(openId: string): Promise<boolean> {
 export async function getSucursales() {
   const db = await getDb();
   if (!db) return [];
+  return db.select().from(sucursales).where(eq(sucursales.activa, true)).orderBy(desc(sucursales.createdAt));
+}
+
+export async function getSucursalesTodas() {
+  const db = await getDb();
+  if (!db) return [];
   return db.select().from(sucursales).orderBy(desc(sucursales.createdAt));
 }
 
