@@ -1079,21 +1079,35 @@ export const inventarioRouter = router({
           }
         }
 
-        // ── Fuente 4: Perlas Explosivas → 46g por vaso vendido, distribuido entre sabores activos ──
+        // ── Fuente 4: Perlas Explosivas → 46g por vaso, ponderado por consumo estimado (inverso de stock) ──
         const GR_PERLAS_POR_VASO = 46;
         const gramosPerlasTotales = totalVasosHist * GR_PERLAS_POR_VASO;
         const perlasActRes = await db.execute(sql`
-          SELECT id, nombre, categoria, unidadConteo, unidadCompra,
-                 pesoNetoPorUnidad, factorConversion, piezasPorUnidadConteo
-          FROM inv_productos WHERE nombre LIKE '%erlas%' AND activo=1
+          SELECT p.id, p.nombre, p.categoria, p.unidadConteo, p.unidadCompra,
+                 p.pesoNetoPorUnidad, p.factorConversion, p.piezasPorUnidadConteo,
+                 COALESCE(cd.cantidadPiezas, 0) as stockPiezas
+          FROM inv_productos p
+          LEFT JOIN inv_conteo_detalle cd ON cd.productoId = p.id
+            AND cd.conteoId = (
+              SELECT MAX(cf2.id) FROM inv_conteo_fisico cf2
+              JOIN inv_conteo_detalle cd2 ON cd2.conteoId = cf2.id
+              WHERE cd2.productoId = p.id AND cf2.sucursalId=${input.sucursalId}
+                AND cf2.estado IN ('enviado','bloqueado')
+            )
+          WHERE p.nombre LIKE '%erlas%' AND p.activo=1
         `);
         const perlasActivas2 = (perlasActRes[0] as any[]);
         if (perlasActivas2.length > 0 && gramosPerlasTotales > 0) {
-          const gPorSabor = gramosPerlasTotales / perlasActivas2.length;
-          for (const p of perlasActivas2) {
+          // Peso inverso: sabores con menos stock se asume que se consumen más
+          const maxStock = Math.max(...perlasActivas2.map((p: any) => Number(p.stockPiezas)));
+          const pesos = perlasActivas2.map((p: any) => maxStock - Number(p.stockPiezas) + 1);
+          const sumaPesos = pesos.reduce((a: number, b: number) => a + b, 0);
+          for (let i = 0; i < perlasActivas2.length; i++) {
+            const p = perlasActivas2[i];
+            const gSabor = gramosPerlasTotales * (pesos[i] / sumaPesos);
             add(Number(p.id), p.nombre, p.categoria, p.unidadConteo, p.unidadCompra,
               Number(p.pesoNetoPorUnidad)||0, Number(p.factorConversion)||1, Number(p.piezasPorUnidadConteo)||1,
-              gPorSabor, 0);
+              gSabor, 0);
           }
         }
 

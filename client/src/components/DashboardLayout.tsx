@@ -473,10 +473,10 @@ function DashboardLayoutContent({
             {!isCollapsed && (
               <div className="px-2 pb-2 flex items-center justify-between">
                 <span className="text-[10px] text-sidebar-foreground/40 font-mono">
-                  SECOF v{(window as any).__APP_VERSION__ ?? "—"}
+                  SECOF v{__APP_VERSION__}
                 </span>
                 <span className="text-[10px] text-sidebar-foreground/30">
-                  {(window as any).__APP_BUILD__ ?? ""}
+                  {__APP_BUILD__}
                 </span>
               </div>
             )}
