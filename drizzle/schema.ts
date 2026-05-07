@@ -722,3 +722,20 @@ export const rotacionAreas = mysqlTable("rotacion_areas", {
 export type RotacionArea = typeof rotacionAreas.$inferSelect;
 export type InsertRotacionArea = typeof rotacionAreas.$inferInsert;
 
+
+/** Ajustes eventuales de horario por día (ausencias, cambios de turno) */
+export const ajustesEventuales = mysqlTable("ajustes_eventuales", {
+  id:          int("id").autoincrement().primaryKey(),
+  sucursalId:  int("sucursalId").notNull(),
+  empleadoId:  int("empleadoId").notNull(),
+  fecha:       varchar("fecha", { length: 10 }).notNull(),
+  ausente:     boolean("ausente").default(false).notNull(),
+  horaEntrada: varchar("horaEntrada", { length: 5 }),
+  horaSalida:  varchar("horaSalida",  { length: 5 }),
+  motivo:      varchar("motivo",      { length: 255 }),
+  creadoPorId: int("creadoPorId"),
+  createdAt:   timestamp("createdAt").defaultNow().notNull(),
+  updatedAt:   timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AjusteEventual       = typeof ajustesEventuales.$inferSelect;
+export type InsertAjusteEventual = typeof ajustesEventuales.$inferInsert;

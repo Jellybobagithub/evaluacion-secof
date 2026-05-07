@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { asistenciaRouter } from "./routers/asistencia";
 import { rotacionRouter } from "./routers/rotacion";
+import { ajustesEventualesRouter } from "./routers/ajustesEventuales";
 import { finanzasRouter } from "./routers/finanzas";
 import { asistenteRouter } from "./routers/asistente";
 import { asistenteRouter } from "./routers/asistente";
@@ -1083,6 +1084,7 @@ export const appRouter = router({
   // ─── Asistencia ──────────────────────────────────────────────────────────
   asistencia: asistenciaRouter,
   rotacion: rotacionRouter,
+  ajustesEventuales: ajustesEventualesRouter,
   finanzas: finanzasRouter,
   evalPeriodos: evaluacionesPeriodoRouter,
   asistente: asistenteRouter,
