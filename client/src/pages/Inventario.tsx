@@ -770,6 +770,11 @@ function HistorialTab({ sucursalId, almacenId }: { sucursalId: number; almacenId
                     <History className="w-3 h-3" />
                     Creado: {formatFechaHora(conteo.createdAt)}
                   </span>
+                  {(conteo as any).realizadoPorNombre && (
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                      👤 {(conteo as any).realizadoPorNombre}
+                    </span>
+                  )}
                 </div>
               </button>
               <div className="flex items-center gap-1 ml-2 shrink-0">

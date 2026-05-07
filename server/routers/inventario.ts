@@ -384,13 +384,17 @@ export const inventarioRouter = router({
       .query(async ({ input }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-        return db.select().from(invConteoFisico)
-          .where(and(
-            eq(invConteoFisico.sucursalId, input.sucursalId),
-            eq(invConteoFisico.almacenId, input.almacenId),
-          ))
-          .orderBy(desc(invConteoFisico.semana))
-          .limit(input.limite);
+        const rows = await db.execute(sql`
+          SELECT cf.*,
+                 u.name AS realizadoPorNombre
+          FROM inv_conteo_fisico cf
+          LEFT JOIN users u ON u.id = cf.liderId
+          WHERE cf.sucursalId = ${input.sucursalId}
+            AND cf.almacenId  = ${input.almacenId}
+          ORDER BY cf.fechaConteo DESC, cf.id DESC
+          LIMIT ${input.limite}
+        `);
+        return (rows[0] as any[]);
       }),
 
     // Obtener conteo con detalles por ID
