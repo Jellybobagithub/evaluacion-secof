@@ -1102,9 +1102,27 @@ export const inventarioRouter = router({
         `);
         const perlasActivas2 = (perlasActRes[0] as any[]);
         if (perlasActivas2.length > 0 && gramosPerlasTotales > 0) {
-          // Peso inverso: sabores con menos stock se asume que se consumen más
-          const maxStock = Math.max(...perlasActivas2.map((p: any) => Number(p.stockPiezas)));
-          const pesos = perlasActivas2.map((p: any) => maxStock - Number(p.stockPiezas) + 1);
+          // Historial real de surtidos (90 días) para ponderar por sabor
+          const surtidoHist = await db.execute(sql`
+            SELECT sd.productoId, SUM(sd.cantidadPiezas) as totalSurtido
+            FROM inv_surtido_detalle sd
+            JOIN inv_surtidos s ON s.id = sd.surtidoId
+            JOIN inv_productos p ON p.id = sd.productoId
+            WHERE p.nombre LIKE '%erlas%' AND s.estado='confirmado'
+              AND s.sucursalId=${input.sucursalId}
+              AND s.fecha >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+            GROUP BY sd.productoId
+          `);
+          const surtidoMap: Record<number,number> = {};
+          for (const r of (surtidoHist[0] as any[])) surtidoMap[Number(r.productoId)] = Number(r.totalSurtido);
+          const hayHistorial = Object.keys(surtidoMap).length >= 2;
+          let pesos: number[];
+          if (hayHistorial) {
+            pesos = perlasActivas2.map((p: any) => surtidoMap[Number(p.id)] || 1);
+          } else {
+            const maxStock = Math.max(...perlasActivas2.map((p: any) => Number(p.stockPiezas)));
+            pesos = perlasActivas2.map((p: any) => maxStock - Number(p.stockPiezas) + 1);
+          }
           const sumaPesos = pesos.reduce((a: number, b: number) => a + b, 0);
           for (let i = 0; i < perlasActivas2.length; i++) {
             const p = perlasActivas2[i];
