@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -300,10 +300,10 @@ function AjusteEventualTab({ sucursalId }: { sucursalId: number | null }) {
   }, [empleados, diaSemana]);
 
   // Cargar ajustes guardados al cambiar fecha
-  useMemo(() => {
-    const m: typeof ajustes = {};
+  useEffect(() => {
+    const m: Record<number,{ausente:boolean;entrada:string;salida:string;motivo:string}> = {};
     for (const a of ajustesDB as any[]) {
-      m[a.empleadoId] = { ausente: !!a.ausente, entrada: a.horaEntrada ?? "", salida: a.horaSalida ?? "", motivo: a.motivo ?? "" };
+      m[Number(a.empleadoId)] = { ausente: !!a.ausente, entrada: a.horaEntrada ?? "", salida: a.horaSalida ?? "", motivo: a.motivo ?? "" };
     }
     setAjustes(m);
     setTimeline([]);
@@ -457,7 +457,7 @@ export default function HorariosRotacion() {
   const [sucursalId, setSucursalId] = useState<number | null>(null);
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
 
-  useMemo(() => {
+  useEffect(() => {
     if (sucursales.length === 1 && sucursalId === null) setSucursalId(sucursales[0].id);
   }, [sucursales.length]);
 
