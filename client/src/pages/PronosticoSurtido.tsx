@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,9 @@ function badgeEstado(estado: string) {
 }
 
 export default function PronosticoSurtido() {
-  const [tab, setTab] = useState<"pronostico"|"historial">("pronostico");
+  const [tab, setTab] = useState<"pronostico"|"historial"|"isla">("pronostico");
+  const [editIsla, setEditIsla] = useState<Record<number,number>>({});
+  const [notasIsla, setNotasIsla] = useState("");
   const [sucursalId, setSucursalId] = useState<number|null>(null);
   const [dias, setDias] = useState(15);
   const [buffer, setBuffer] = useState(20);
@@ -92,6 +94,38 @@ export default function PronosticoSurtido() {
     });
   }
 
+  const confirmarIslaMut = trpc.inventario.ventas.surtidoIslaConfirmar.useMutation({
+    onSuccess: () => { toast.success("✅ Surtido a isla confirmado — inventario actualizado"); setEditIsla({}); refetch(); },
+    onError: e => toast.error(e.message),
+  });
+
+  // Calcular items para surtido a isla
+  const diasHist = pronostico?.diasHistorico ?? 28;
+  const islaItems = useMemo(() => {
+    return (pronostico?.items ?? [])
+      .filter(i => i.consumoPiezas > 0)
+      .map(i => {
+        const cd = i.consumoPiezas / diasHist;
+        const need7 = cd * 7;
+        const deficit = Math.max(0, need7 - i.stockIslaPiezas);
+        const fc = (i as any).factorConversion || 1;
+        const nombreL = i.nombre.toLowerCase();
+        const multiple = nombreL.includes('vaso') ? 50 : nombreL.includes('popote') ? 300 : fc;
+        const transferir = deficit > 0 ? Math.ceil(deficit / multiple) * multiple : 0;
+        const estado = i.stockIslaPiezas < cd * 3 ? 'urgente' : deficit > 0 ? 'surtir' : 'ok';
+        return {
+          ...i, cd: Math.round(cd*100)/100,
+          need7: Math.round(need7*10)/10,
+          minRec: Math.round(cd*5*10)/10,
+          maxRec: Math.round(cd*10*10)/10,
+          deficit: Math.round(deficit*10)/10,
+          transferir, multiple, bodegaOK: i.stockBodegaPiezas >= transferir, estado,
+        };
+      })
+      .filter(i => i.cd > 0)
+      .sort((a,b) => ({urgente:0,surtir:1,ok:2}[a.estado]||2) - ({urgente:0,surtir:1,ok:2}[b.estado]||2) || a.nombre.localeCompare(b.nombre));
+  }, [pronostico, diasHist]);
+
   const urgentesCount = items.filter(i => i.estado === "urgente").length;
   const surtirCount   = items.filter(i => i.estado === "surtir").length;
 
@@ -114,7 +148,7 @@ export default function PronosticoSurtido() {
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        {[["pronostico","Pronóstico"],["historial","Historial de Surtidos"]].map(([k,l]) => (
+        {[["pronostico","Pronóstico Proveedor"],["isla","🏪 Surtido a Isla"],["historial","Historial"]].map(([k,l]) => (
           <button key={k} onClick={() => setTab(k as any)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab===k ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             {l}
@@ -256,6 +290,124 @@ export default function PronosticoSurtido() {
                 </CardContent>
               </Card>
             </>
+          )}
+        </div>
+      )}
+
+      {tab === "isla" && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+            <strong>Surtido Bodega → Isla:</strong> Calcula cuánto mover de bodega a isla para tener <strong>7 días</strong> de stock.
+            Vasos en múltiplos de 50 · Popotes en múltiplos de 300 · Demás productos por caja/paquete.
+          </div>
+
+          {isLoading && <div className="py-8 text-center text-muted-foreground text-sm">Calculando...</div>}
+
+          {!isLoading && islaItems.length > 0 && (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  ["Urgentes (isla)", islaItems.filter(i=>i.estado==="urgente").length, "text-red-700"],
+                  ["A surtir",        islaItems.filter(i=>i.estado==="surtir").length,  "text-amber-700"],
+                  ["OK",              islaItems.filter(i=>i.estado==="ok").length,      "text-emerald-700"],
+                ].map(([l,v,cl]) => (
+                  <div key={String(l)} className="bg-secondary rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground">{l}</p>
+                    <p className={`text-xl font-medium ${cl}`}>{v}</p>
+                  </div>
+                ))}
+              </div>
+
+              <Card className="overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/30">
+                        <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Producto</th>
+                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground">Isla actual</th>
+                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground">Necesidad 7d</th>
+                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground">Min↔Max rec.</th>
+                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground">Bodega</th>
+                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground">Transferir</th>
+                        <th className="text-center px-2 py-2 text-xs font-medium text-muted-foreground">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {islaItems.map(item => {
+                        const val = editIsla[item.id] !== undefined ? editIsla[item.id] : item.transferir;
+                        return (
+                          <tr key={item.id} className={`border-b last:border-0 hover:bg-muted/20 ${item.estado==="urgente"?"bg-red-50/30":item.estado==="surtir"?"bg-amber-50/20":""}`}>
+                            <td className="px-3 py-2.5">
+                              <div className="font-medium">{item.nombre}</div>
+                              <div className="text-xs text-muted-foreground">{item.multiple > 1 ? `múltiplos de ${item.multiple}` : item.unidad}</div>
+                            </td>
+                            <td className="px-2 py-2.5 text-center">
+                              <span className={item.stockIslaPiezas < item.minRec ? "text-red-600 font-medium" : "text-muted-foreground"}>
+                                {item.stockIslaPiezas}
+                              </span>
+                              <div className="text-xs text-muted-foreground">{item.unidad}</div>
+                            </td>
+                            <td className="px-2 py-2.5 text-center text-muted-foreground">{item.need7} {item.unidad}</td>
+                            <td className="px-2 py-2.5 text-center text-xs text-muted-foreground">
+                              <span className="text-amber-600">{item.minRec}</span>
+                              <span className="mx-1">↔</span>
+                              <span className="text-emerald-600">{item.maxRec}</span>
+                            </td>
+                            <td className="px-2 py-2.5 text-center">
+                              <span className={!item.bodegaOK && item.transferir > 0 ? "text-red-600 font-medium" : "text-muted-foreground"}>
+                                {item.stockBodegaPiezas} {item.unidad}
+                              </span>
+                              {!item.bodegaOK && item.transferir > 0 && <div className="text-xs text-red-500">insuficiente</div>}
+                            </td>
+                            <td className="px-2 py-2.5 text-center">
+                              {item.estado !== "ok" ? (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <input type="number" min="0" step={item.multiple}
+                                    value={val}
+                                    onChange={e => setEditIsla(p => ({...p,[item.id]:Number(e.target.value)}))}
+                                    className="w-16 h-7 text-center text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                                  <span className="text-[10px] text-muted-foreground">{item.unidad}</span>
+                                </div>
+                              ) : <span className="text-xs text-muted-foreground">—</span>}
+                            </td>
+                            <td className="px-2 py-2.5 text-center">{badgeEstado(item.estado)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+
+              <Card className="border-teal-200">
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-sm font-medium">Confirmar surtido a isla</p>
+                  <textarea value={notasIsla} onChange={e => setNotasIsla(e.target.value)}
+                    placeholder="Notas opcionales..."
+                    className="w-full h-14 px-3 py-2 text-sm rounded-lg border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {islaItems.filter(i => (editIsla[i.id]??i.transferir)>0).length} productos a transferir
+                    </p>
+                    <Button className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
+                      disabled={confirmarIslaMut.isPending || islaItems.filter(i=>(editIsla[i.id]??i.transferir)>0).length===0}
+                      onClick={() => {
+                        if (!sucursalEfectiva) return;
+                        const items = islaItems
+                          .filter(i => (editIsla[i.id]??i.transferir)>0)
+                          .map(i => ({ productoId: i.id, cantidad: editIsla[i.id]??i.transferir }));
+                        confirmarIslaMut.mutate({ sucursalId: sucursalEfectiva, items, notas: notasIsla });
+                      }}>
+                      <PackagePlus className="w-4 h-4" />
+                      {confirmarIslaMut.isPending ? "Confirmando..." : "Confirmar transferencia"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+          {!isLoading && islaItems.length === 0 && (
+            <div className="py-10 text-center text-muted-foreground text-sm">Sin datos de consumo disponibles. Importa ventas primero.</div>
           )}
         </div>
       )}
