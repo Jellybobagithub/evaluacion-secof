@@ -102,40 +102,63 @@ export default function PronosticoSurtido() {
   // Calcular items para surtido a isla
   const diasHist = pronostico?.diasHistorico ?? 28;
   const islaItems = useMemo(() => {
-    return (pronostico?.items ?? [])
+    // consumoPiezas = consumo proyectado para diasProyeccion días (no diasHistorico)
+    const diasProyec = pronostico?.diasProyeccion ?? 15;
+
+    const base = (pronostico?.items ?? [])
       .filter(i => i.consumoPiezas > 0)
       .map(i => {
-        const fc  = (i as any).factorConversion || 1;
         const ppc = (i as any).ppc || 1;
-        // consumoPiezas está en piezas individuales; stock está en unidades de conteo
-        // Normalizar todo a unidades de conteo para comparar correctamente
-        const cdConteo   = (i.consumoPiezas / diasHist) / ppc;  // consumo diario en u.conteo
-        const need7Conteo = cdConteo * 7;
-        const stockIslaConteo = i.stockIslaPiezas;               // ya en u.conteo
-        const stockBodegaConteo = i.stockBodegaPiezas;
-        const deficit = Math.max(0, need7Conteo - stockIslaConteo);
-        // Multiple en u.conteo: vasos→50pzas/ppc, popotes→300pzas/ppc, otros→fc/ppc
+        const fc  = (i as any).factorConversion || 1;
         const nombreL = i.nombre.toLowerCase();
-        const multipleIndiv = nombreL.includes('vaso') ? 50 : nombreL.includes('popote') ? 300 : fc;
-        const multipleConteo = Math.max(1, multipleIndiv / ppc);
-        const transferir = deficit > 0 ? Math.ceil(deficit / multipleConteo) * multipleConteo : 0;
-        const estado = stockIslaConteo < cdConteo * 3 ? 'urgente' : deficit > 0 ? 'surtir' : 'ok';
+        const isVaso   = nombreL.includes('vaso');
+        const isPopote = nombreL.includes('popote');
+
+        // Tasa diaria en piezas individuales (consumoPiezas ya está proyectado a diasProyec días)
+        const cdPcs    = i.consumoPiezas / diasProyec;
+        const need7Pcs = cdPcs * 7;
+        // Stock en piezas individuales (ppc=1 para vasos/popotes contados en pzas)
+        const islaPcs    = i.stockIslaPiezas  * ppc;
+        const bodegaPcs  = i.stockBodegaPiezas * ppc;
+        const deficitPcs = Math.max(0, need7Pcs - islaPcs);
+
+        // Unidad de paquete para mostrar y redondear
+        const paqSize    = isVaso ? 50 : isPopote ? 300 : (ppc > 1 ? ppc : fc);
+        const transferirPcs = deficitPcs > 0 ? Math.ceil(deficitPcs / paqSize) * paqSize : 0;
+        const estado = islaPcs < cdPcs * 3 ? 'urgente' : deficitPcs > 0 ? 'surtir' : 'ok';
+
         return {
-          ...i,
-          cd:   Math.round(cdConteo*100)/100,
-          need7: Math.round(need7Conteo*10)/10,
-          minRec: Math.round(cdConteo*5*10)/10,
-          maxRec: Math.round(cdConteo*10*10)/10,
-          deficit: Math.round(deficit*10)/10,
-          transferir: Math.round(transferir*100)/100,
-          multiple: multipleConteo,
-          bodegaOK: stockBodegaConteo >= transferir,
+          ...i, isVaso, isPopote, ppc, fc, paqSize,
+          cdPcs:        Math.round(cdPcs*10)/10,
+          need7Pcs:     Math.round(need7Pcs*10)/10,
+          minRecPcs:    Math.round(cdPcs*5*10)/10,
+          maxRecPcs:    Math.round(cdPcs*10*10)/10,
+          deficitPcs:   Math.round(deficitPcs*10)/10,
+          transferirPcs, islaPcs, bodegaPcs,
+          bodegaOK:     bodegaPcs >= transferirPcs,
           estado,
         };
       })
-      .filter(i => i.cd > 0)
-      .sort((a,b) => ({urgente:0,surtir:1,ok:2}[a.estado]||2) - ({urgente:0,surtir:1,ok:2}[b.estado]||2) || a.nombre.localeCompare(b.nombre));
-  }, [pronostico, diasHist]);
+      .filter(i => i.cdPcs > 0);
+
+    // ── Regla de paridad vasos ↔ popotes ─────────────────────────────────────
+    // Isla siempre debe tener la misma cantidad individual de vasos y popotes.
+    // Surtir el máximo que necesite cualquiera de los dos, en múltiplos de 300
+    // (LCM de 50 y 300), para que ambos queden en paquetes enteros.
+    const vIdx = base.findIndex(i => i.isVaso);
+    const pIdx = base.findIndex(i => i.isPopote);
+    if (vIdx >= 0 && pIdx >= 0) {
+      const maxNeed = Math.max(base[vIdx].transferirPcs, base[pIdx].transferirPcs);
+      const paridad = maxNeed > 0 ? Math.ceil(maxNeed / 300) * 300 : 0;
+      base[vIdx] = { ...base[vIdx], transferirPcs: paridad, bodegaOK: base[vIdx].bodegaPcs >= paridad, paridad: true };
+      base[pIdx] = { ...base[pIdx], transferirPcs: paridad, bodegaOK: base[pIdx].bodegaPcs >= paridad, paridad: true };
+    }
+
+    return base.sort((a,b) =>
+      ({urgente:0,surtir:1,ok:2}[a.estado]||2) - ({urgente:0,surtir:1,ok:2}[b.estado]||2)
+      || a.nombre.localeCompare(b.nombre)
+    );
+  }, [pronostico]);
 
   const urgentesCount = items.filter(i => i.estado === "urgente").length;
   const surtirCount   = items.filter(i => i.estado === "surtir").length;
@@ -345,39 +368,55 @@ export default function PronosticoSurtido() {
                     </thead>
                     <tbody>
                       {islaItems.map(item => {
-                        const val = editIsla[item.id] !== undefined ? editIsla[item.id] : item.transferir;
+                        const paqSize = (item as any).paqSize || 1;
+                        const rawVal  = editIsla[item.id] !== undefined ? editIsla[item.id] : (item as any).transferirPcs;
+                        const paqCount = paqSize > 1 ? Math.round(rawVal / paqSize) : null;
+                        const islaShow   = paqSize > 1 ? `${Math.round((item as any).islaPcs / paqSize)} paq` : `${(item as any).islaPcs}`;
+                        const need7Show  = paqSize > 1 ? `${Math.round((item as any).need7Pcs / paqSize)} paq` : `${(item as any).need7Pcs}`;
+                        const minShow    = paqSize > 1 ? `${Math.round((item as any).minRecPcs / paqSize)}` : `${(item as any).minRecPcs}`;
+                        const maxShow    = paqSize > 1 ? `${Math.round((item as any).maxRecPcs / paqSize)}` : `${(item as any).maxRecPcs}`;
+                        const bodegaShow = paqSize > 1 ? `${Math.round((item as any).bodegaPcs / paqSize)} paq` : `${(item as any).bodegaPcs}`;
                         return (
                           <tr key={item.id} className={`border-b last:border-0 hover:bg-muted/20 ${item.estado==="urgente"?"bg-red-50/30":item.estado==="surtir"?"bg-amber-50/20":""}`}>
                             <td className="px-3 py-2.5">
                               <div className="font-medium">{item.nombre}</div>
-                              <div className="text-xs text-muted-foreground">{item.multiple > 1 ? `múltiplos de ${item.multiple}` : item.unidad}</div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                {paqSize > 1 ? `paq de ${paqSize} pzas` : item.unidad}
+                                {(item as any).paridad && <span className="text-blue-500">🔗 paridad vasos/popotes</span>}
+                              </div>
                             </td>
                             <td className="px-2 py-2.5 text-center">
-                              <span className={item.stockIslaPiezas < item.minRec ? "text-red-600 font-medium" : "text-muted-foreground"}>
-                                {item.stockIslaPiezas}
+                              <span className={(item as any).islaPcs < (item as any).minRecPcs ? "text-red-600 font-medium" : "text-muted-foreground"}>
+                                {islaShow}
                               </span>
-                              <div className="text-xs text-muted-foreground">{item.unidad}</div>
+                              {paqSize > 1 && <div className="text-xs text-muted-foreground">{(item as any).islaPcs} pzas</div>}
                             </td>
-                            <td className="px-2 py-2.5 text-center text-muted-foreground">{item.need7} {item.unidad}</td>
+                            <td className="px-2 py-2.5 text-center text-muted-foreground">
+                              {need7Show}
+                              {paqSize > 1 && <div className="text-xs">{(item as any).need7Pcs} pzas</div>}
+                            </td>
                             <td className="px-2 py-2.5 text-center text-xs text-muted-foreground">
-                              <span className="text-amber-600">{item.minRec}</span>
+                              <span className="text-amber-600">{minShow}</span>
                               <span className="mx-1">↔</span>
-                              <span className="text-emerald-600">{item.maxRec}</span>
+                              <span className="text-emerald-600">{maxShow}</span>
+                              {paqSize > 1 && <div className="text-muted-foreground/60">paq</div>}
                             </td>
                             <td className="px-2 py-2.5 text-center">
-                              <span className={!item.bodegaOK && item.transferir > 0 ? "text-red-600 font-medium" : "text-muted-foreground"}>
-                                {item.stockBodegaPiezas} {item.unidad}
+                              <span className={!(item as any).bodegaOK && rawVal > 0 ? "text-red-600 font-medium" : "text-muted-foreground"}>
+                                {bodegaShow}
                               </span>
-                              {!item.bodegaOK && item.transferir > 0 && <div className="text-xs text-red-500">insuficiente</div>}
+                              {!(item as any).bodegaOK && rawVal > 0 && <div className="text-xs text-red-500">insuficiente</div>}
                             </td>
                             <td className="px-2 py-2.5 text-center">
-                              {item.estado !== "ok" ? (
+                              {item.estado !== "ok" || rawVal > 0 ? (
                                 <div className="flex flex-col items-center gap-0.5">
-                                  <input type="number" min="0" step={item.multiple}
-                                    value={val}
+                                  <input type="number" min="0" step={paqSize}
+                                    value={rawVal}
                                     onChange={e => setEditIsla(p => ({...p,[item.id]:Number(e.target.value)}))}
                                     className="w-16 h-7 text-center text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
-                                  <span className="text-[10px] text-muted-foreground">{item.unidad}</span>
+                                  {paqCount !== null
+                                    ? <span className="text-[10px] text-muted-foreground">{paqCount} paq × {paqSize}</span>
+                                    : <span className="text-[10px] text-muted-foreground">{item.unidad}</span>}
                                 </div>
                               ) : <span className="text-xs text-muted-foreground">—</span>}
                             </td>
@@ -398,7 +437,7 @@ export default function PronosticoSurtido() {
                     className="w-full h-14 px-3 py-2 text-sm rounded-lg border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-muted-foreground">
-                      {islaItems.filter(i => (editIsla[i.id]??i.transferir)>0).length} productos a transferir
+                      {islaItems.filter(i => (editIsla[i.id]??((i as any).transferirPcs??0))>0).length} productos a transferir
                     </p>
                     <Button className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
                       disabled={confirmarIslaMut.isPending || islaItems.filter(i=>(editIsla[i.id]??i.transferir)>0).length===0}
@@ -406,7 +445,7 @@ export default function PronosticoSurtido() {
                         if (!sucursalEfectiva) return;
                         const items = islaItems
                           .filter(i => (editIsla[i.id]??i.transferir)>0)
-                          .map(i => ({ productoId: i.id, cantidad: editIsla[i.id]??i.transferir }));
+                          .map(i => ({ productoId: i.id, cantidad: editIsla[i.id]??((i as any).transferirPcs??0) }));
                         confirmarIslaMut.mutate({ sucursalId: sucursalEfectiva, items, notas: notasIsla });
                       }}>
                       <PackagePlus className="w-4 h-4" />
