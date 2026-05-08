@@ -279,20 +279,14 @@ export default function PronosticoSurtido() {
                                   </span>
                                 </td>
                                 <td className="px-2 py-2.5 text-center">
-                                  {item.estado !== "ok" ? (
-                                    <div className="flex flex-col items-center gap-0.5">
-                                      <div className="flex items-center gap-1">
-                                        <input type="number" min="0" step="1"
-                                          value={editItems[item.id] !== undefined ? editItems[item.id] : ((item as any).pedirCajas ?? 0)}
-                                          onChange={e => setEditItems(p => ({...p,[item.id]:Number(e.target.value)}))}
-                                          className="w-14 h-7 text-center text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                                        />
-                                      </div>
-                                      <span className="text-[10px] text-muted-foreground">{(item as any).unidadCompra || item.unidad}</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground">—</span>
-                                  )}
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <input type="number" min="0" step="1"
+                                      value={editItems[item.id] !== undefined ? editItems[item.id] : (item.estado !== "ok" ? ((item as any).pedirCajas ?? 0) : 0)}
+                                      onChange={e => setEditItems(p => ({...p,[item.id]:Number(e.target.value)}))}
+                                      className={`w-14 h-7 text-center text-sm rounded border bg-background focus:outline-none focus:ring-1 focus:ring-ring ${item.estado === "ok" && (editItems[item.id] === undefined || editItems[item.id] === 0) ? "border-dashed border-muted-foreground/30 text-muted-foreground/50" : "border-input"}`}
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">{(item as any).unidadCompra || item.unidad}</span>
+                                  </div>
                                 </td>
                                 <td className="px-2 py-2.5 text-center">{badgeEstado(item.estado)}</td>
                               </tr>
