@@ -1514,7 +1514,24 @@ export const inventarioRouter = router({
             WHERE surtidoId=${input.surtidoId} AND productoId=${item.productoId} LIMIT 1
           `);
           const det = (detRows[0] as any[])[0];
-          if (!det) continue;
+          if (!det) {
+            // Producto nuevo — no estaba en el surtido original, se agrega
+            if (item.cantidadNueva <= 0) continue;
+            await db.execute(sql`
+              INSERT INTO inv_surtido_detalle (surtidoId, productoId, cantidadPiezas, cantidadGramos)
+              VALUES (${input.surtidoId}, ${item.productoId}, ${item.cantidadNueva}, 0)
+            `);
+            if (bodegaCteoId) {
+              const bNew = await db.execute(sql`SELECT id, cantidadPiezas FROM inv_conteo_detalle WHERE conteoId=${bodegaCteoId} AND productoId=${item.productoId} LIMIT 1`);
+              if ((bNew[0] as any[]).length > 0) {
+                const act = Number((bNew[0] as any[])[0].cantidadPiezas);
+                await db.execute(sql`UPDATE inv_conteo_detalle SET cantidadPiezas=${act + item.cantidadNueva} WHERE conteoId=${bodegaCteoId} AND productoId=${item.productoId}`);
+              } else {
+                await db.execute(sql`INSERT INTO inv_conteo_detalle (conteoId, productoId, cantidadPiezas, cantidadGramos) VALUES (${bodegaCteoId}, ${item.productoId}, ${item.cantidadNueva}, 0)`);
+              }
+            }
+            continue;
+          }
           const cantidadOriginal = Number(det.cantidadPiezas);
           const delta = item.cantidadNueva - cantidadOriginal;
           if (delta === 0) continue;
