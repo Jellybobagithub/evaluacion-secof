@@ -1470,6 +1470,92 @@ export const inventarioRouter = router({
         return { ok: true };
       }),
 
+    // Ajustar cantidades de un surtido ya confirmado (ej: proveedor surtió de más/menos)
+    surtidoAjustar: protectedProcedure
+      .input(z.object({
+        surtidoId: z.number(),
+        items: z.array(z.object({
+          productoId: z.number(),
+          cantidadNueva: z.number().min(0),
+        })),
+        motivo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        if (!["superadmin","owner","manager"].includes(ctx.user.role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+
+        // Obtener surtido y verificar que esté confirmado
+        const surtRows = await db.execute(sql`SELECT * FROM inv_surtidos WHERE id=${input.surtidoId} LIMIT 1`);
+        const surt = (surtRows[0] as any[])[0];
+        if (!surt) throw new TRPCError({ code: "NOT_FOUND" });
+        if (surt.estado !== "confirmado")
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Solo se pueden ajustar surtidos confirmados" });
+
+        // Obtener último conteo de bodega
+        const almRows = await db.execute(sql`
+          SELECT id FROM inv_almacenes WHERE sucursalId=${surt.sucursalId} AND nombre LIKE '%odega%' AND activo=1 LIMIT 1
+        `);
+        const almId = (almRows[0] as any[])[0]?.id;
+        let bodegaCteoId: number | null = null;
+        if (almId) {
+          const ctRows = await db.execute(sql`
+            SELECT id FROM inv_conteo_fisico WHERE sucursalId=${surt.sucursalId} AND almacenId=${almId}
+            ORDER BY fechaConteo DESC LIMIT 1
+          `);
+          bodegaCteoId = (ctRows[0] as any[])[0]?.id ?? null;
+        }
+
+        for (const item of input.items) {
+          // Obtener cantidad original en surtido_detalle
+          const detRows = await db.execute(sql`
+            SELECT id, cantidadPiezas FROM inv_surtido_detalle
+            WHERE surtidoId=${input.surtidoId} AND productoId=${item.productoId} LIMIT 1
+          `);
+          const det = (detRows[0] as any[])[0];
+          if (!det) continue;
+          const cantidadOriginal = Number(det.cantidadPiezas);
+          const delta = item.cantidadNueva - cantidadOriginal;
+          if (delta === 0) continue;
+
+          // Actualizar detalle del surtido
+          await db.execute(sql`
+            UPDATE inv_surtido_detalle SET cantidadPiezas=${item.cantidadNueva}
+            WHERE surtidoId=${input.surtidoId} AND productoId=${item.productoId}
+          `);
+
+          // Aplicar delta al conteo de bodega
+          if (bodegaCteoId && delta !== 0) {
+            const bdRows = await db.execute(sql`
+              SELECT id, cantidadPiezas FROM inv_conteo_detalle
+              WHERE conteoId=${bodegaCteoId} AND productoId=${item.productoId} LIMIT 1
+            `);
+            if ((bdRows[0] as any[]).length > 0) {
+              const actual = Number((bdRows[0] as any[])[0].cantidadPiezas);
+              const nuevo  = Math.max(0, actual + delta);
+              await db.execute(sql`
+                UPDATE inv_conteo_detalle SET cantidadPiezas=${nuevo}
+                WHERE conteoId=${bodegaCteoId} AND productoId=${item.productoId}
+              `);
+            } else if (delta > 0) {
+              await db.execute(sql`
+                INSERT INTO inv_conteo_detalle (conteoId, productoId, cantidadPiezas, cantidadGramos)
+                VALUES (${bodegaCteoId}, ${item.productoId}, ${delta}, 0)
+              `);
+            }
+          }
+        }
+
+        // Agregar nota de ajuste al surtido
+        const notaAjuste = `[AJUSTE ${new Date().toLocaleDateString("es-MX")}] ${input.motivo ?? "Sin motivo"} — por ${ctx.user.name ?? ctx.user.id}`;
+        await db.execute(sql`
+          UPDATE inv_surtidos SET notas=CONCAT(COALESCE(notas,''), ${" | " + notaAjuste})
+          WHERE id=${input.surtidoId}
+        `);
+        return { ok: true };
+      }),
+
     // Renombrar producto de venta
     renombrar: protectedProcedure
       .input(z.object({ id: z.number(), nombre: z.string(), sabor: z.string() }))

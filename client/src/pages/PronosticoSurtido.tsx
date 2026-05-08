@@ -25,6 +25,9 @@ export default function PronosticoSurtido() {
   const [soloUrgentes, setSoloUrgentes] = useState(false);
   const [surtidoAbierto, setSurtidoAbierto] = useState<number|null>(null);
   const [notasSurtido, setNotasSurtido] = useState("");
+  const [ajustandoId, setAjustandoId] = useState<number|null>(null);
+  const [ajusteItems, setAjusteItems] = useState<Record<number,number>>({});
+  const [ajusteMotivo, setAjusteMotivo] = useState("");
   const [catOpen, setCatOpen] = useState<Record<string,boolean>>({});
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
@@ -41,6 +44,17 @@ export default function PronosticoSurtido() {
   const { data: detalleSurtido } = trpc.inventario.ventas.surtidoDetalle.useQuery(
     { id: surtidoAbierto! }, { enabled: !!surtidoAbierto }
   );
+
+  const ajustarMut = trpc.inventario.ventas.surtidoAjustar.useMutation({
+    onSuccess: () => {
+      toast.success("Ajuste guardado — inventario de bodega actualizado");
+      setAjustandoId(null);
+      setAjusteItems({});
+      setAjusteMotivo("");
+      refetchHist();
+    },
+    onError: e => toast.error(e.message),
+  });
 
   const guardarMut = trpc.inventario.ventas.surtidoGuardar.useMutation({
     onSuccess: (res) => {
@@ -494,23 +508,77 @@ export default function PronosticoSurtido() {
                           <tr className="bg-muted/30 border-b">
                             <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Producto</th>
                             <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Categoría</th>
-                            <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">Cantidad</th>
+                            <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">
+                              {ajustandoId === s.id ? "Cantidad real" : "Cantidad"}
+                            </th>
                             <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Unidad</th>
+                            {ajustandoId === s.id && <th className="text-center px-3 py-2 text-xs font-medium text-muted-foreground">Δ</th>}
                           </tr>
                         </thead>
                         <tbody>
-                          {detalleSurtido.items.map((item: any) => (
-                            <tr key={item.id} className="border-b last:border-0">
-                              <td className="px-3 py-2 font-medium">{item.nombre}</td>
-                              <td className="px-3 py-2 text-muted-foreground text-xs">{item.categoria}</td>
-                              <td className="px-3 py-2 text-center font-medium">{item.cantidadPiezas}</td>
-                              <td className="px-3 py-2 text-muted-foreground text-xs">{item.unidadCompra}</td>
-                            </tr>
-                          ))}
+                          {detalleSurtido.items.map((item: any) => {
+                            const editVal = ajusteItems[item.productoId] ?? item.cantidadPiezas;
+                            const delta = editVal - item.cantidadPiezas;
+                            return (
+                              <tr key={item.id} className={`border-b last:border-0 ${ajustandoId === s.id && delta !== 0 ? "bg-amber-50/40" : ""}`}>
+                                <td className="px-3 py-2 font-medium">{item.nombre}</td>
+                                <td className="px-3 py-2 text-muted-foreground text-xs">{item.categoria}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {ajustandoId === s.id ? (
+                                    <input type="number" min="0" step="1"
+                                      value={editVal}
+                                      onChange={e => setAjusteItems(p => ({...p,[item.productoId]:Number(e.target.value)}))}
+                                      className="w-16 h-7 text-center text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                                    />
+                                  ) : (
+                                    <span className="font-medium">{item.cantidadPiezas}</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-muted-foreground text-xs">{item.unidadCompra}</td>
+                                {ajustandoId === s.id && (
+                                  <td className="px-3 py-2 text-center text-xs font-medium">
+                                    {delta !== 0 ? (
+                                      <span className={delta > 0 ? "text-emerald-600" : "text-red-600"}>
+                                        {delta > 0 ? "+" : ""}{delta}
+                                      </span>
+                                    ) : <span className="text-muted-foreground">—</span>}
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
-                    {detalleSurtido.estado === "borrador" && (
+
+                    {/* Modo ajuste */}
+                    {ajustandoId === s.id && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <input type="text" placeholder="Motivo del ajuste (ej: proveedor entregó menos, error de captura...)"
+                          value={ajusteMotivo} onChange={e => setAjusteMotivo(e.target.value)}
+                          className="w-full h-8 px-3 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => { setAjustandoId(null); setAjusteItems({}); setAjusteMotivo(""); }}>
+                            Cancelar
+                          </Button>
+                          <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white"
+                            disabled={ajustarMut.isPending}
+                            onClick={() => ajustarMut.mutate({
+                              surtidoId: s.id,
+                              items: detalleSurtido.items.map((i: any) => ({
+                                productoId: i.productoId,
+                                cantidadNueva: ajusteItems[i.productoId] ?? i.cantidadPiezas,
+                              })),
+                              motivo: ajusteMotivo || undefined,
+                            })}>
+                            {ajustarMut.isPending ? "Guardando..." : "Guardar ajuste"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Acciones normales */}
+                    {detalleSurtido.estado === "borrador" && ajustandoId !== s.id && (
                       <div className="flex justify-end gap-2 pt-2 border-t">
                         <p className="text-xs text-muted-foreground flex-1 self-center">Al confirmar, se sumará al inventario de bodega</p>
                         <Button className="bg-green-600 hover:bg-green-700 text-white gap-2"
@@ -518,6 +586,14 @@ export default function PronosticoSurtido() {
                           disabled={confirmarMut.isPending}>
                           <CheckCircle2 className="w-4 h-4" />
                           {confirmarMut.isPending ? "Confirmando..." : "Confirmar surtido"}
+                        </Button>
+                      </div>
+                    )}
+                    {detalleSurtido.estado === "confirmado" && ajustandoId !== s.id && (
+                      <div className="flex justify-end pt-2 border-t">
+                        <Button variant="outline" size="sm"
+                          onClick={() => { setAjustandoId(s.id); setAjusteItems({}); setAjusteMotivo(""); }}>
+                          ✏️ Ajustar cantidades
                         </Button>
                       </div>
                     )}
