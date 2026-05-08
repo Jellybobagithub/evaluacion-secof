@@ -28,6 +28,7 @@ export default function PronosticoSurtido() {
   const [ajustandoId, setAjustandoId] = useState<number|null>(null);
   const [ajusteItems, setAjusteItems] = useState<Record<number,number>>({});
   const [ajusteMotivo, setAjusteMotivo] = useState("");
+  const [nuevosAjusteItems, setNuevosAjusteItems] = useState<{uid:string;productoId:number;cantidad:number}[]>([]);
   const [catOpen, setCatOpen] = useState<Record<string,boolean>>({});
 
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
@@ -44,6 +45,8 @@ export default function PronosticoSurtido() {
   const { data: detalleSurtido } = trpc.inventario.ventas.surtidoDetalle.useQuery(
     { id: surtidoAbierto! }, { enabled: !!surtidoAbierto }
   );
+
+  const { data: todosProductos = [] } = trpc.inventario.productos.list.useQuery(undefined, { enabled: !!ajustandoId });
 
   const ajustarMut = trpc.inventario.ventas.surtidoAjustar.useMutation({
     onSuccess: () => {
@@ -553,22 +556,60 @@ export default function PronosticoSurtido() {
 
                     {/* Modo ajuste */}
                     {ajustandoId === s.id && (
-                      <div className="space-y-2 pt-2 border-t">
-                        <input type="text" placeholder="Motivo del ajuste (ej: proveedor entregó menos, error de captura...)"
+                      <div className="space-y-3 pt-2 border-t">
+                        {/* Productos extra enviados por proveedor */}
+                        {nuevosAjusteItems.length > 0 && (
+                          <div className="border border-emerald-200 rounded-lg overflow-hidden">
+                            <div className="bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 border-b border-emerald-200">
+                              Productos adicionales del proveedor
+                            </div>
+                            <div className="divide-y">
+                              {nuevosAjusteItems.map(ni => (
+                                <div key={ni.uid} className="flex items-center gap-2 px-3 py-2 bg-emerald-50/20">
+                                  <select value={ni.productoId}
+                                    onChange={e => setNuevosAjusteItems(prev => prev.map(x => x.uid===ni.uid ? {...x,productoId:Number(e.target.value)} : x))}
+                                    className="flex-1 h-7 px-2 text-sm rounded border border-input bg-background focus:outline-none">
+                                    <option value={0}>Selecciona producto...</option>
+                                    {(todosProductos as any[])
+                                      .filter((p:any) => !detalleSurtido.items.some((i:any) => i.productoId === p.id))
+                                      .map((p:any) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                                  </select>
+                                  <input type="number" min="0" step="1" value={ni.cantidad}
+                                    onChange={e => setNuevosAjusteItems(prev => prev.map(x => x.uid===ni.uid ? {...x,cantidad:Number(e.target.value)} : x))}
+                                    className="w-16 h-7 text-center text-sm rounded border border-input bg-background focus:outline-none" />
+                                  <button onClick={() => setNuevosAjusteItems(prev => prev.filter(x => x.uid!==ni.uid))}
+                                    className="text-red-400 hover:text-red-600 font-bold px-1">✕</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <Button variant="outline" size="sm"
+                          className="w-full text-emerald-700 border-emerald-300 hover:bg-emerald-50 border-dashed"
+                          onClick={() => setNuevosAjusteItems(prev => [...prev, {uid:Date.now().toString(), productoId:0, cantidad:1}])}>
+                          + Agregar producto enviado por proveedor
+                        </Button>
+                        <input type="text" placeholder="Motivo del ajuste (ej: proveedor entregó menos, más, error de captura...)"
                           value={ajusteMotivo} onChange={e => setAjusteMotivo(e.target.value)}
                           className="w-full h-8 px-3 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => { setAjustandoId(null); setAjusteItems({}); setAjusteMotivo(""); }}>
+                          <Button variant="outline" size="sm"
+                            onClick={() => { setAjustandoId(null); setAjusteItems({}); setAjusteMotivo(""); setNuevosAjusteItems([]); }}>
                             Cancelar
                           </Button>
                           <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white"
                             disabled={ajustarMut.isPending}
                             onClick={() => ajustarMut.mutate({
                               surtidoId: s.id,
-                              items: detalleSurtido.items.map((i: any) => ({
-                                productoId: i.productoId,
-                                cantidadNueva: ajusteItems[i.productoId] ?? i.cantidadPiezas,
-                              })),
+                              items: [
+                                ...detalleSurtido.items.map((i: any) => ({
+                                  productoId: i.productoId,
+                                  cantidadNueva: ajusteItems[i.productoId] ?? i.cantidadPiezas,
+                                })),
+                                ...nuevosAjusteItems
+                                  .filter(ni => ni.productoId > 0 && ni.cantidad > 0)
+                                  .map(ni => ({ productoId: ni.productoId, cantidadNueva: ni.cantidad })),
+                              ],
                               motivo: ajusteMotivo || undefined,
                             })}>
                             {ajustarMut.isPending ? "Guardando..." : "Guardar ajuste"}
