@@ -1,4 +1,4 @@
-import { eq, desc, and, inArray, gte, lte, sql } from "drizzle-orm";
+import { eq, desc, asc, and, inArray, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users, sucursales, evaluaciones, respuestas, planAccion, puntosEvaluacion,
@@ -72,13 +72,13 @@ export async function isNewUser(openId: string): Promise<boolean> {
 export async function getSucursales() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(sucursales).where(eq(sucursales.activa, true)).orderBy(desc(sucursales.createdAt));
+  return db.select().from(sucursales).where(eq(sucursales.activa, true)).orderBy(asc(sucursales.id));
 }
 
 export async function getSucursalesTodas() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(sucursales).orderBy(desc(sucursales.createdAt));
+  return db.select().from(sucursales).orderBy(asc(sucursales.id));
 }
 
 export async function getSucursalById(id: number) {
@@ -319,7 +319,7 @@ export async function getSucursalesAsignadas(userId: number) {
   const asignaciones = await db.select().from(userSucursales).where(eq(userSucursales.userId, userId));
   if (asignaciones.length === 0) return [];
   const ids = asignaciones.map(a => a.sucursalId);
-  return db.select().from(sucursales).where(inArray(sucursales.id, ids)).orderBy(desc(sucursales.createdAt));
+  return db.select().from(sucursales).where(inArray(sucursales.id, ids)).orderBy(asc(sucursales.id));
 }
 
 export async function getEvaluacionesByUser(userId: number, userRole: string, sucursalId?: number) {

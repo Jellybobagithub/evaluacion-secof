@@ -267,14 +267,20 @@ export default function PlanAccion() {
         <div className="space-y-4">
           {filteredPlanes.map(plan => {
             const sucursal = sucursales.find(s => s.id === plan.sucursalId);
+            const esVencido = plan.estado !== "completado" && plan.fechaCompromiso && new Date(plan.fechaCompromiso) < new Date();
             return (
-              <Card key={plan.id} className="border-0 shadow-sm bg-white">
+              <Card key={plan.id} className={`border-0 shadow-sm ${esVencido ? "bg-red-50 border-l-4 border-l-red-500" : "bg-white"}`}>
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge className={ESTADO_COLORS[plan.estado as keyof typeof ESTADO_COLORS]}>
                         {ESTADO_LABELS[plan.estado as keyof typeof ESTADO_LABELS]}
                       </Badge>
+                      {esVencido && (
+                        <Badge className="bg-red-100 text-red-700 border border-red-300 text-xs">
+                          ⚠️ Vencido
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="text-xs">{plan.area}</Badge>
                     </div>
                     <div className="flex gap-1">

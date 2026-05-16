@@ -37,6 +37,7 @@ import CuadreVasos from "./pages/CuadreVasos";
 import PronosticoSurtido from "@/pages/PronosticoSurtido";
 import ImportarVentasOdoo from "@/pages/ImportarVentasOdoo";
 import Inventario from "./pages/Inventario";
+import InventarioStock from "./pages/InventarioStock";
 import Finanzas from "./pages/Finanzas";
 import EvaluacionesPeriodo from "./pages/EvaluacionesPeriodo";
 import Supervision from "./pages/Supervision";
@@ -149,7 +150,7 @@ function Router() {
 
         {/* Colaboradores: owner, manager, superadmin */}
         <Route path="/admin/usuarios">
-          <ProtectedRoute component={AdminUsuarios} minRole="owner" />
+          <ProtectedRoute component={AdminUsuarios} minRole="leader" />
         </Route>
 
         {/* Ventas Históricas: owner, manager, superadmin */}
@@ -191,6 +192,9 @@ function Router() {
         </Route>
         <Route path="/inventario">
           <ProtectedRoute component={Inventario} minRole="leader" />
+        </Route>
+        <Route path="/inventario/stock">
+          <ProtectedRoute component={InventarioStock} minRole="leader" />
         </Route>
 
         <Route path="/evaluaciones-periodo">

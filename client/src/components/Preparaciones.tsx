@@ -330,7 +330,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
 
       {/* Modal: Nueva Preparación */}
       <Dialog open={showNueva} onOpenChange={setShowNueva}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm top-[50%] translate-y-[-50%]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FlaskConical className="w-4 h-4 text-teal-600" />
@@ -344,7 +344,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Selecciona receta..." />
                 </SelectTrigger>
-                <SelectContent position="item-aligned">
+                <SelectContent position="popper" className="z-[200]">
                   {catalogo.map((c: any) => (
                     <SelectItem key={c.clave} value={c.clave}>
                       {c.nombre}
@@ -362,7 +362,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecciona cantidad..." />
                   </SelectTrigger>
-                  <SelectContent position="item-aligned">
+                  <SelectContent position="popper" className="z-[200]">
                     {recetaConfig.cantidades.map((c: any) => (
                       <SelectItem key={c.valor} value={c.valor}>{c.etiqueta}</SelectItem>
                     ))}
@@ -414,7 +414,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
 
       {/* Modal: Registrar Incidencia */}
       <Dialog open={showIncidencia} onOpenChange={setShowIncidencia}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm top-[50%] translate-y-[-50%]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
               <AlertTriangle className="w-4 h-4" />
@@ -433,7 +433,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecciona receta..." />
                   </SelectTrigger>
-                  <SelectContent position="item-aligned">
+                  <SelectContent position="popper" className="z-[200]">
                     {catalogo.map((c: any) => (
                       <SelectItem key={c.clave} value={c.clave}>{c.nombre}</SelectItem>
                     ))}
@@ -448,7 +448,7 @@ export default function Preparaciones({ sucursalId, turnoId, empleadoId, modo = 
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Selecciona tipo..." />
                 </SelectTrigger>
-                <SelectContent position="item-aligned">
+                <SelectContent position="popper" className="z-[200]">
                   {Object.entries(INCIDENCIA_LABELS).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
                   ))}

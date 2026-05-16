@@ -13,6 +13,7 @@ import {
   invCategoria,
 } from "../../drizzle/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { fetchVentasOdoo, testConexion } from "../services/odooService";
 
 // ─── Helpers de semana ────────────────────────────────────────────────────────
 function getSemanaISO(date = new Date()): string {
@@ -725,6 +726,85 @@ export const inventarioRouter = router({
         return { ok: true };
       }),
 
+
+
+    // Test de conexión con Odoo
+    testOdoo: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (!["superadmin","owner","manager"].includes(ctx.user.role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+        return testConexion();
+      }),
+
+    // Sync directo desde Odoo: trae ventas por rango de fechas y las guarda en inv_ventas_captura
+    syncFromOdoo: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fechaInicio: z.string(), // YYYY-MM-DD
+        fechaFin: z.string(),    // YYYY-MM-DD
+        reemplazar: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        if (!["superadmin","owner","manager","leader"].includes(ctx.user.role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+
+        // 1. Traer datos de Odoo
+        const odoo = await fetchVentasOdoo(input.fechaInicio, input.fechaFin);
+
+        // 2. Cargar mapa de productos SECOF
+        const prodRows = await db.execute(sql`SELECT id, nombre, sabor FROM inv_productos_venta`);
+        const prodMap: Record<string, number> = {};
+        for (const r of (prodRows[0] as any[])) {
+          const key = r.sabor ? `${r.nombre} ${r.sabor}` : r.nombre;
+          prodMap[key] = r.id;
+        }
+
+        // 3. Opcional: borrar el rango antes de insertar
+        if (input.reemplazar) {
+          await db.execute(sql`
+            DELETE FROM inv_ventas_captura
+            WHERE sucursalId = ${input.sucursalId}
+              AND fecha >= ${input.fechaInicio}
+              AND fecha <= ${input.fechaFin}
+          `);
+        }
+
+        // 4. Insertar líneas
+        let insertados = 0;
+        const noMapeados = new Set<string>();
+
+        // Agrupar por fecha+producto
+        const agrupado: Record<string, number> = {};
+        for (const l of odoo.lineas) {
+          const key = `${l.fecha}|||${l.productoNombre}`;
+          agrupado[key] = (agrupado[key] || 0) + l.cantidad;
+        }
+
+        for (const [key, cantidad] of Object.entries(agrupado)) {
+          const [fecha, nombre] = key.split("|||");
+          const productoId = prodMap[nombre];
+          if (!productoId) {
+            noMapeados.add(nombre);
+            continue;
+          }
+          await db.execute(sql`
+            INSERT INTO inv_ventas_captura (sucursalId, fecha, productoVentaId, cantidad, capturoId)
+            VALUES (${input.sucursalId}, ${fecha}, ${productoId}, ${cantidad}, ${ctx.user.id})
+            ON DUPLICATE KEY UPDATE cantidad = ${cantidad}, capturoId = ${ctx.user.id}
+          `);
+          insertados++;
+        }
+
+        return {
+          ok: true,
+          insertados,
+          diasImportados: new Set(odoo.lineas.map(l => l.fecha)).size,
+          noMapeados: [...noMapeados, ...odoo.noMapeados],
+          totalOdoo: odoo.totalRegistros,
+        };
+      }),
 
     // Importar ventas masivas desde Excel de Odoo (con precios reales)
     importarOdooExcel: protectedProcedure
@@ -1731,5 +1811,69 @@ export const inventarioRouter = router({
         return { ok: true };
       }),
   },
+
+  stockTeorico: protectedProcedure
+    .input(z.object({ sucursalId: z.number(), dias: z.number().default(7) }))
+    .query(async ({ ctx, input }) => {
+      if (!['owner','superadmin','manager','leader'].includes(ctx.user.role))
+        throw new TRPCError({ code: 'FORBIDDEN' });
+      const db = await getDb();
+      if (!db) return [];
+      const consumoDir = await db.execute(sql`
+        SELECT r.materiasPrimaId as productoId,
+          SUM(vc.cantidad * r.cantidadGramos) / ${input.dias} as gpd
+        FROM inv_ventas_captura vc
+        JOIN inv_recetas r ON r.productoVentaId=vc.productoVentaId AND r.esSubproducto=0
+        WHERE vc.sucursalId=${input.sucursalId}
+          AND vc.fecha >= DATE_SUB(CURDATE(), INTERVAL ${input.dias} DAY)
+        GROUP BY r.materiasPrimaId`);
+      const consumoSub = await db.execute(sql`
+        SELECT spr.materiasPrimaId as productoId,
+          SUM(vc.cantidad * r.cantidadGramos * spr.cantidadGramos / sp.rendimientoGramos) / ${input.dias} as gpd
+        FROM inv_ventas_captura vc
+        JOIN inv_recetas r ON r.productoVentaId=vc.productoVentaId AND r.esSubproducto=1
+        JOIN inv_subproductos sp ON sp.id=r.subproductoId
+        JOIN inv_subproductos_receta spr ON spr.subproductoId=sp.id
+        WHERE vc.sucursalId=${input.sucursalId}
+          AND vc.fecha >= DATE_SUB(CURDATE(), INTERVAL ${input.dias} DAY)
+        GROUP BY spr.materiasPrimaId`);
+      const cMap: Record<number,number> = {};
+      for (const r of [...(consumoDir[0] as any[]), ...(consumoSub[0] as any[])])
+        cMap[r.productoId] = (cMap[r.productoId]??0) + Number(r.gpd);
+      const rows = await db.execute(sql`
+        SELECT cd.productoId, cd.cantidadPiezas,
+          p.nombre, p.categoria, p.unidadConteo, p.pesoNetoPorUnidad,
+          cf.fechaConteo,
+          (cd.cantidadPiezas * p.pesoNetoPorUnidad) as gramosConteo
+        FROM inv_conteo_detalle cd
+        JOIN inv_conteo_fisico cf ON cf.id=cd.conteoId
+        JOIN inv_productos p ON p.id=cd.productoId
+        WHERE cf.id=(SELECT id FROM inv_conteo_fisico
+          WHERE sucursalId=${input.sucursalId}
+          ORDER BY fechaConteo DESC, id DESC LIMIT 1)`);
+      const data = (rows[0] as any[]);
+      if (!data.length) return [];
+      const dias0 = Math.max(0, Math.floor(
+        (Date.now()-new Date(data[0].fechaConteo).getTime())/86400000));
+      return data.map((row: any) => {
+        const gpd = cMap[row.productoId]??0;
+        const gc = Number(row.gramosConteo);
+        const stockG = Math.max(0, gc - gpd*dias0);
+        const stockU = row.pesoNetoPorUnidad>0 ? stockG/row.pesoNetoPorUnidad : stockG;
+        const dias = gpd>0 ? stockG/gpd : 99;
+        const alerta = dias<2?'critico':dias<4?'bajo':dias<7?'ok':'bueno';
+        return {
+          productoId: row.productoId, nombre: row.nombre, categoria: row.categoria,
+          unidadConteo: row.unidadConteo, fechaConteo: row.fechaConteo,
+          cantidadPiezas: Number(row.cantidadPiezas),
+          stockActualGramos: Math.round(stockG),
+          stockUnidades: Math.round(stockU*10)/10,
+          consumoPorDia: Math.round(gpd),
+          diasStock: Math.min(99,Math.round(dias*10)/10),
+          alerta, necesitaSurtido: dias<4,
+          unidadesASurtir: gpd>0?Math.max(0,Math.ceil((gpd*7-stockG)/row.pesoNetoPorUnidad)):0,
+        };
+      }).sort((a:any,b:any)=>a.diasStock-b.diasStock);
+    }),
 
 });

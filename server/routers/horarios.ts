@@ -135,10 +135,17 @@ export const horariosRouter = router({
       });
       const turnoId = (result as any).insertId as number;
 
-      // Insertar actividades asignadas
-      if (input.actividades.length > 0) {
+      // Insertar actividades: si no se pasan, usar catálogo completo
+      let clavesActividades = input.actividades;
+      if (clavesActividades.length === 0) {
+        const { actividadesCatalogo: ac } = await import("../../drizzle/schema");
+        const { eq: eqAc } = await import("drizzle-orm");
+        const cat = await db.select().from(ac).where(eqAc(ac.activa, true));
+        clavesActividades = cat.map((c: any) => c.clave);
+      }
+      if (clavesActividades.length > 0) {
         await db.insert(turnoActividades).values(
-          input.actividades.map(clave => ({
+          clavesActividades.map((clave: string) => ({
             turnoId,
             actividadClave: clave,
             esPendiente: false,

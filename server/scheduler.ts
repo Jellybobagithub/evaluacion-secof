@@ -300,130 +300,575 @@ async function alertaRetardosYAusencias() {
         });
       }
     }
-    console.log(`[Scheduler] Alertas retardos/ausencias procesadas: ${todasSucursales.length} sucursales`);
   } catch (err) {
     console.error("[Scheduler] Error en alertas de retardos/ausencias:", err);
   }
 }
 
-// ─── Alerta de Preparaciones por Vencer ───────────────────────────────────────────────────────────
-async function alertaPreparacionesPorVencer() {
-  try {
-    const { getDb } = await import("./db");
-    const db = await getDb();
-    if (!db) return;
-    const { preparaciones } = await import("../drizzle/schema");
-    const { eq, and, gt, lt } = await import("drizzle-orm");
-    const ahora = new Date();
-    // Buscar preparaciones activas que vencen en los próximos 50 minutos (margen para la alerta)
-    const en50min = new Date(ahora.getTime() + 50 * 60 * 1000);
-    const preps = await db.select().from(preparaciones)
-      .where(and(
-        eq(preparaciones.estado, "activa"),
-        gt(preparaciones.venceAt, ahora),
-        lt(preparaciones.venceAt, en50min)
-      ));
-    if (preps.length === 0) {
-      console.log(`[Scheduler] Alertas preparaciones: ninguna por vencer en los próximos 50 min`);
-      return;
-    }
-    const { RECETAS_CONFIG } = await import("./routers/preparaciones");
-    // Agrupar por sucursal
-    const porSucursal: Record<number, typeof preps> = {};
-    for (const p of preps) {
-      if (!porSucursal[p.sucursalId]) porSucursal[p.sucursalId] = [];
-      porSucursal[p.sucursalId].push(p);
-    }
-    for (const [sucursalId, items] of Object.entries(porSucursal)) {
-      const lineas = items.map(p => {
-        const cfg = RECETAS_CONFIG[p.receta as keyof typeof RECETAS_CONFIG];
-        const minutos = Math.floor((new Date(p.venceAt).getTime() - ahora.getTime()) / 60000);
-        const nombre = cfg?.nombre ?? p.receta;
-        return `• ${nombre} (${p.cantidad}) — vence en ${minutos} min`;
-      }).join("\n");
-      await notifyOwner({
-        title: `⏰ Preparaciones por vencer — Sucursal ${sucursalId}`,
-        content: `Las siguientes preparaciones están por vencer pronto:\n\n${lineas}\n\nRevisa el módulo de Preparaciones en Mi Turno para tomar acción.`,
-      });
-    }
-    console.log(`[Scheduler] Alertas preparaciones enviadas: ${preps.length} preparaciones`);
-  } catch (err) {
-    console.error("[Scheduler] Error en alertaPreparacionesPorVencer:", err);
-  }
-}
-
-// ─── Helpers de tiempo ────────────────────────────────────────────────────────────────────────────
-function msHastaProximoLunes8am(): number {
-  const ahora = new Date();
-  const resultado = new Date(ahora);
-  const diaSemana = ahora.getDay();
-  const diasHastaLunes = diaSemana === 1 ? 7 : (8 - diaSemana) % 7 || 7;
-  resultado.setDate(ahora.getDate() + diasHastaLunes);
-  resultado.setHours(8, 0, 0, 0);
-  return resultado.getTime() - ahora.getTime();
-}
-
-function msHastaHoraHoy(hora: number, minuto = 0): number {
-  const ahora = new Date();
-  const objetivo = new Date(ahora);
-  objetivo.setHours(hora, minuto, 0, 0);
-  if (objetivo <= ahora) {
-    // Ya pasó hoy, programar para mañana
-    objetivo.setDate(objetivo.getDate() + 1);
-  }
-  return objetivo.getTime() - ahora.getTime();
-}
-
-// ─── Inicialización ───────────────────────────────────────────────────────────
 export function initScheduler() {
-  if (schedulerInitialized) return;
-  schedulerInitialized = true;
+  // ── Sync nocturno Odoo + reporte diario por correo (22:15) ──────────────
+  const ahora = new Date();
+  const horasParaSync = (() => {
+    const target = new Date();
+    target.setHours(22, 15, 0, 0);
+    if (target <= ahora) target.setDate(target.getDate() + 1);
+    return (target.getTime() - ahora.getTime()) / 3600000;
+  })();
 
-  // 1. Reporte semanal: próximo lunes 8:00 AM
-  const msLunes = msHastaProximoLunes8am();
-  const diasLunes = (msLunes / (1000 * 60 * 60 * 24)).toFixed(1);
-  console.log(`[Scheduler] Reporte semanal programado en ${diasLunes} días (próximo lunes 8:00 AM)`);
-  setTimeout(() => {
-    enviarResumenSemanal();
-    setInterval(enviarResumenSemanal, 7 * 24 * 60 * 60 * 1000);
-  }, msLunes);
+  setTimeout(async function syncNocturno() {
+    try {
+      const { syncVentasDia } = await import("./services/syncService");
+      const hoy = new Date();
+      hoy.setHours(hoy.getHours() - 6); // ajuste UTC-6 México
+      const fecha = hoy.toISOString().split("T")[0];
+      console.log(`[Scheduler] Iniciando sync nocturno Odoo para ${fecha}...`);
+      await syncVentasDia(fecha);
+      console.log(`[Scheduler] Sync nocturno completado.`);
+    } catch (e) {
+      console.error("[Scheduler] Error en sync nocturno:", e);
+    }
+    // Repetir cada 24h
+    setTimeout(syncNocturno, 24 * 60 * 60 * 1000);
+  }, horasParaSync * 3600000);
 
-  // 2. Alerta reportes tardíos: cada día a las 22:00
-  const msReportes = msHastaHoraHoy(22, 0);
-  const hrsReportes = (msReportes / (1000 * 60 * 60)).toFixed(1);
-  console.log(`[Scheduler] Alerta reportes tardíos programada en ${hrsReportes} horas (22:00 diario)`);
-  setTimeout(() => {
-    alertaReportesTardios();
-    setInterval(alertaReportesTardios, 24 * 60 * 60 * 1000);
-  }, msReportes);
 
-  // 3. Alerta mermas y descuadres: cada día a las 23:00
-  const msMermas = msHastaHoraHoy(23, 0);
-  const hrsMermas = (msMermas / (1000 * 60 * 60)).toFixed(1);
-  console.log(`[Scheduler] Alerta mermas/descuadres programada en ${hrsMermas} horas (23:00 diario)`);
-  setTimeout(() => {
-    alertaMermasYDescuadres();
-    setInterval(alertaMermasYDescuadres, 24 * 60 * 60 * 1000);
-  }, msMermas);
+  // ── Auto-meta mensual: actualiza metaVentasMensual el 1ro de cada mes ────
+  const horasParaMeta = (() => {
+    const ahora = new Date();
+    const target = new Date(ahora.getFullYear(), ahora.getMonth()+1, 1, 6, 0, 0); // 1ro del mes siguiente a las 6am
+    return (target.getTime() - ahora.getTime()) / 3600000;
+  })();
 
-  // 4. Alerta preparaciones por vencer: cada 30 minutos (para detectar vencimientos inminentes)
-  console.log(`[Scheduler] Alerta preparaciones programada cada 30 minutos`);
-  setInterval(alertaPreparacionesPorVencer, 30 * 60 * 1000);
-  // Ejecutar también al arrancar (para detectar preparaciones que ya estén por vencer)
-  setTimeout(alertaPreparacionesPorVencer, 5000);
+  setTimeout(async function actualizarMeta() {
+    try {
+      const { getDb } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return;
 
-  // 5. Cálculo nocturno de nómina: cada día a las 23:30
-  const msNomina = msHastaHoraHoy(23, 30);
-  const hrsNomina = (msNomina / (1000 * 60 * 60)).toFixed(1);
-  console.log(`[Scheduler] Cálculo nocturno de nómina programado en ${hrsNomina} horas (23:30 diario)`);
-  setTimeout(() => {
-    calcularNominaAutomatica();
-    setInterval(calcularNominaAutomatica, 24 * 60 * 60 * 1000);
-  }, msNomina);
+      const ahora = new Date();
+      const anio = ahora.getFullYear();
+      const mes  = ahora.getMonth() + 1;
 
-  // 6. Alertas de retardos/ausencias: cada lunes a las 9:00 AM
-  const msAlertasAsistencia = msHastaProximoLunes8am() + (60 * 60 * 1000); // lunes 9am = lunes 8am + 1h
-  const diasAlertasAsist = (msAlertasAsistencia / (1000 * 60 * 60 * 24)).toFixed(1);
+      // Buscar meta precalculada
+      const rows = await db.execute(sql`
+        SELECT meta FROM metas_mensuales
+        WHERE sucursalId = 30001 AND anio = ${anio} AND mes = ${mes}
+      `);
+      const metaRows = rows[0] as any[];
+
+      let meta: number;
+      if (metaRows.length > 0) {
+        meta = metaRows[0].meta;
+      } else {
+        // Calcular: mismo mes año anterior + 3%
+        const mesStr = String(mes).padStart(2,'0');
+        const inicioAnt = `\${anio-1}-\${mesStr}-01`;
+        const finAnt    = `\${anio-1}-\${mesStr}-\${new Date(anio-1, mes, 0).getDate()}`;
+        const ventasRows = await db.execute(sql`
+          SELECT COALESCE(SUM(ventasTotales),0) as total
+          FROM reportes_diarios WHERE sucursalId=30001 AND fecha>=\${inicioAnt} AND fecha<=\${finAnt}
+        `);
+        const totalAnt = Number((ventasRows[0] as any[])[0]?.total ?? 0);
+        meta = totalAnt > 0 ? Math.round(totalAnt * 1.03) : 135000;
+
+        await db.execute(sql`
+          INSERT INTO metas_mensuales (sucursalId, anio, mes, meta, baseAnterior)
+          VALUES (30001, \${anio}, \${mes}, \${meta}, \${totalAnt})
+          ON DUPLICATE KEY UPDATE meta=\${meta}
+        `);
+      }
+
+      await db.execute(sql`UPDATE sucursales SET metaVentasMensual=\${meta} WHERE id=30001`);
+      console.log(`[Scheduler] Meta Plaza Patio \${mes}/\${anio} actualizada: $\${meta.toFixed(0)} MXN`);
+    } catch(e) {
+      console.error('[Scheduler] Error auto-meta:', e);
+    }
+    setTimeout(actualizarMeta, 30 * 24 * 60 * 60 * 1000); // repetir cada 30 días aprox
+  }, horasParaMeta * 3600000);
+
+
+  // ── Alerta planes de acción vencidos (9:00 AM diario) ───────────────────
+  const horasParaPlanes = (() => {
+    const ahora = new Date();
+    const target = new Date();
+    target.setHours(9, 0, 0, 0);
+    if (target <= ahora) target.setDate(target.getDate() + 1);
+    return (target.getTime() - ahora.getTime()) / 3600000;
+  })();
+
+  setTimeout(async function alertaPlanes() {
+    try {
+      const { getDb } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return;
+
+      const hoy = new Date().toISOString().split("T")[0];
+      const vencidos = await db.execute(sql`
+        SELECT pa.id, pa.area, pa.objetivo, pa.responsable, pa.fechaCompromiso,
+               pa.estado, s.nombre as sucursalNombre
+        FROM plan_accion pa
+        JOIN sucursales s ON s.id = pa.sucursalId
+        WHERE pa.estado != 'completado'
+          AND pa.fechaCompromiso IS NOT NULL
+          AND DATE(pa.fechaCompromiso) < ${hoy}
+        ORDER BY pa.fechaCompromiso ASC
+      `);
+
+      const planes = (vencidos[0] as any[]);
+      if (planes.length === 0) return;
+
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.default.createTransport({
+        host: "smtp.gmail.com", port: 587, secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      });
+
+      const fmt = (d: string) => new Date(d).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+      const rows = planes.map((p: any, i: number) => `
+        <tr style="border-bottom:1px solid #f3f4f6;background:${i%2===0?'#fff':'#fafafa'}">
+          <td style="padding:8px 12px;font-size:13px;color:#dc2626;font-weight:600">${p.sucursalNombre}</td>
+          <td style="padding:8px 12px;font-size:13px">${p.area}</td>
+          <td style="padding:8px 12px;font-size:13px;max-width:200px">${p.objetivo || p.area}</td>
+          <td style="padding:8px 12px;font-size:13px">${p.responsable || '—'}</td>
+          <td style="padding:8px 12px;font-size:13px;color:#dc2626;font-weight:600">${fmt(p.fechaCompromiso)}</td>
+          <td style="padding:8px 12px"><span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${p.estado === 'pendiente' ? 'Pendiente' : 'En proceso'}</span></td>
+        </tr>`).join('');
+
+      const html = `<!DOCTYPE html><html><body style="margin:0;background:#f3f4f6;font-family:-apple-system,sans-serif">
+<div style="max-width:650px;margin:0 auto;padding:24px 16px">
+  <div style="text-align:center;margin-bottom:20px">
+    <h1 style="margin:0;font-size:20px;color:#dc2626">⚠️ Planes de Acción Vencidos</h1>
+    <p style="color:#6b7280;font-size:14px;margin:4px 0 0">SECOF Snowtea · ${new Date().toLocaleDateString("es-MX", { weekday:"long", day:"numeric", month:"long", year:"numeric" })}</p>
+  </div>
+  <div style="background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+    <p style="margin:0 0 16px;font-size:14px;color:#374151">Los siguientes <strong>${planes.length} planes de acción</strong> están vencidos y sin cerrar. Por favor tomar acción inmediata:</p>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#fee2e2">
+        <th style="padding:8px 12px;text-align:left;color:#7f1d1d;font-size:12px">Tienda</th>
+        <th style="padding:8px 12px;text-align:left;color:#7f1d1d;font-size:12px">Área</th>
+        <th style="padding:8px 12px;text-align:left;color:#7f1d1d;font-size:12px">Objetivo</th>
+        <th style="padding:8px 12px;text-align:left;color:#7f1d1d;font-size:12px">Responsable</th>
+        <th style="padding:8px 12px;text-align:left;color:#7f1d1d;font-size:12px">Vencía</th>
+        <th style="padding:8px 12px;text-align:left;color:#7f1d1d;font-size:12px">Estado</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:16px;padding:12px;background:#fef3c7;border-radius:8px;border:1px solid #fde68a">
+      <p style="margin:0;font-size:13px;color:#92400e">
+        👉 Accede a <a href="https://secof.snowteatienda.com/plan-accion" style="color:#d97706;font-weight:600">SECOF → Plan de Acción</a> para actualizar o cerrar estos planes.
+      </p>
+    </div>
+  </div>
+  <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:12px">SECOF · secof.snowteatienda.com</p>
+</div></body></html>`;
+
+      const emails = (process.env.REPORT_EMAILS || "").split(",").map((e: string) => e.trim()).filter(Boolean);
+      await transporter.sendMail({
+        from: `"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+        to: emails.join(", "),
+        subject: `⚠️ ${planes.length} plan${planes.length > 1 ? 'es' : ''} de acción vencido${planes.length > 1 ? 's' : ''} sin cerrar — SECOF`,
+        html
+      });
+      console.log(`[Scheduler] Alerta planes vencidos enviada: ${planes.length} planes`);
+    } catch(e) {
+      console.error("[Scheduler] Error alerta planes:", e);
+    }
+    setTimeout(alertaPlanes, 24 * 60 * 60 * 1000);
+  }, horasParaPlanes * 3600000);
+  console.log(`[Scheduler] Alerta planes vencidos programada en ${horasParaPlanes.toFixed(1)} horas (9:00 AM diario)`);
+
+  // ── Recordatorio y alerta evaluación SECOF mensual ───────────────────────
+  // Corre diario a las 8:00 AM y decide qué hacer según la fecha
+  const horasParaSecofCheck = (() => {
+    const ahora = new Date();
+    const target = new Date();
+    target.setHours(8, 0, 0, 0);
+    if (target <= ahora) target.setDate(target.getDate() + 1);
+    return (target.getTime() - ahora.getTime()) / 3600000;
+  })();
+
+  setTimeout(async function checkSecofMensual() {
+    try {
+      const { getDb } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return;
+
+      const ahora = new Date();
+      const dia = ahora.getDate();
+      const mes = ahora.getMonth();
+      const anio = ahora.getFullYear();
+
+      // Calcular primer lunes del mes actual
+      const primerDia = new Date(anio, mes, 1);
+      const diaSemana = primerDia.getDay(); // 0=dom,1=lun
+      const primerLunes = new Date(anio, mes, 1 + (diaSemana === 1 ? 0 : (8 - diaSemana) % 7));
+      const diaLunes = primerLunes.getDate();
+      const diaRecordatorio = diaLunes - 4; // jueves previo
+
+      // Función para verificar si se hizo la evaluación este mes
+      const inicioMes = `${anio}-${String(mes+1).padStart(2,'0')}-01`;
+      const finMes = `${anio}-${String(mes+1).padStart(2,'0')}-${new Date(anio, mes+1, 0).getDate()}`;
+      const evalRows = await db.execute(sql`
+        SELECT COUNT(*) as total FROM evaluaciones
+        WHERE sucursalId = 30001
+          AND fecha >= ${inicioMes} AND fecha <= ${finMes}
+          AND estado = 'completada'
+      `);
+      const evalCount = Number((evalRows[0] as any[])[0]?.total ?? 0);
+      const seHizoEsteMes = evalCount > 0;
+
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.default.createTransport({
+        host: "smtp.gmail.com", port: 587, secure: false,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+      });
+      const emails = (process.env.REPORT_EMAILS || "").split(",").map((e: string) => e.trim()).filter(Boolean);
+      const fechaTexto = ahora.toLocaleDateString("es-MX", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+
+      // CASO 1: Recordatorio (jueves previo al primer lunes)
+      if (dia === diaRecordatorio && !seHizoEsteMes) {
+        const html = `<!DOCTYPE html><html><body style="margin:0;background:#f3f4f6;font-family:-apple-system,sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:24px 16px">
+  <div style="text-align:center;margin-bottom:20px">
+    <h1 style="margin:0;font-size:20px;color:#1B5E37">📋 Recordatorio: Evaluación SECOF</h1>
+    <p style="color:#6b7280;font-size:14px;margin:4px 0 0">SECOF Snowtea · ${fechaTexto}</p>
+  </div>
+  <div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+    <p style="font-size:15px;color:#111827;margin:0 0 16px">Hola,</p>
+    <p style="font-size:14px;color:#374151;margin:0 0 16px">
+      Este es un recordatorio de que la <strong>evaluación SECOF mensual de Plaza Patio</strong> debe realizarse el próximo 
+      <strong>lunes ${diaLunes} de ${ahora.toLocaleDateString("es-MX",{month:"long"})}</strong>.
+    </p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:16px">
+      <p style="margin:0;font-size:13px;color:#166534">
+        ✅ <strong>¿Quién realiza la evaluación?</strong> Sandra Lazarin (Control Operativo)<br>
+        📅 <strong>Fecha límite:</strong> Lunes ${diaLunes} de ${ahora.toLocaleDateString("es-MX",{month:"long"})}<br>
+        ⏰ <strong>Extensión máxima:</strong> Hasta el día 10 del mes
+      </p>
+    </div>
+    <div style="text-align:center">
+      <a href="https://secof.snowteatienda.com/evaluacion/nueva" 
+         style="display:inline-block;background:#1B5E37;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Ir a realizar evaluación SECOF →
+      </a>
+    </div>
+  </div>
+  <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:12px">SECOF · secof.snowteatienda.com</p>
+</div></body></html>`;
+        await transporter.sendMail({
+          from: `"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+          to: emails.join(", "),
+          subject: `📋 Recordatorio: Evaluación SECOF mensual — Plaza Patio (lunes ${diaLunes})`,
+          html
+        });
+        console.log(`[Scheduler] Recordatorio SECOF mensual enviado (lunes ${diaLunes})`);
+      }
+
+      // CASO 2: Alerta el mismo lunes — no se realizó
+      if (dia === diaLunes && !seHizoEsteMes) {
+        const html = `<!DOCTYPE html><html><body style="margin:0;background:#f3f4f6;font-family:-apple-system,sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:24px 16px">
+  <div style="text-align:center;margin-bottom:20px">
+    <h1 style="margin:0;font-size:20px;color:#d97706">⚠️ Evaluación SECOF No Realizada</h1>
+    <p style="color:#6b7280;font-size:14px;margin:4px 0 0">SECOF Snowtea · ${fechaTexto}</p>
+  </div>
+  <div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+    <p style="font-size:14px;color:#374151;margin:0 0 16px">
+      La evaluación SECOF mensual de <strong>Plaza Patio</strong> <strong>no fue realizada</strong> el día de hoy (primer lunes del mes).
+    </p>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:16px;margin-bottom:16px">
+      <p style="margin:0;font-size:13px;color:#92400e">
+        ⏰ <strong>Aún puedes realizarla.</strong> Tienes hasta el <strong>día 10 de ${ahora.toLocaleDateString("es-MX",{month:"long"})}</strong> para completarla sin penalización.
+      </p>
+    </div>
+    <div style="text-align:center">
+      <a href="https://secof.snowteatienda.com/evaluacion/nueva"
+         style="display:inline-block;background:#d97706;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Realizar evaluación ahora →
+      </a>
+    </div>
+  </div>
+  <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:12px">SECOF · secof.snowteatienda.com</p>
+</div></body></html>`;
+        await transporter.sendMail({
+          from: `"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+          to: emails.join(", "),
+          subject: `⚠️ Evaluación SECOF no realizada — tienes hasta el día 10`,
+          html
+        });
+        console.log(`[Scheduler] Alerta SECOF no realizado (día ${dia})`);
+      }
+
+      // CASO 3: Día 10 — vencido definitivo
+      if (dia === 10 && !seHizoEsteMes) {
+        const html = `<!DOCTYPE html><html><body style="margin:0;background:#f3f4f6;font-family:-apple-system,sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:24px 16px">
+  <div style="text-align:center;margin-bottom:20px">
+    <h1 style="margin:0;font-size:20px;color:#dc2626">🚨 Evaluación SECOF Vencida</h1>
+    <p style="color:#6b7280;font-size:14px;margin:4px 0 0">SECOF Snowtea · ${fechaTexto}</p>
+  </div>
+  <div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+    <p style="font-size:14px;color:#374151;margin:0 0 16px">
+      La evaluación SECOF mensual de <strong>Plaza Patio</strong> está <strong style="color:#dc2626">VENCIDA</strong>. 
+      No fue realizada en el período establecido (del ${diaLunes} al 10 de ${ahora.toLocaleDateString("es-MX",{month:"long"})}).
+    </p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin-bottom:16px">
+      <p style="margin:0;font-size:13px;color:#991b1b">
+        🚨 <strong>Acción requerida:</strong> Realizar la evaluación SECOF de inmediato y notificar al Director General.<br>
+        📊 Este incumplimiento afecta el <strong>KPI de cumplimiento operativo</strong> de Sandra.
+      </p>
+    </div>
+    <div style="text-align:center">
+      <a href="https://secof.snowteatienda.com/evaluacion/nueva"
+         style="display:inline-block;background:#dc2626;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+        Realizar evaluación urgente →
+      </a>
+    </div>
+  </div>
+  <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:12px">SECOF · secof.snowteatienda.com</p>
+</div></body></html>`;
+        await transporter.sendMail({
+          from: `"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+          to: emails.join(", "),
+          subject: `🚨 URGENTE: Evaluación SECOF vencida — Plaza Patio`,
+          html
+        });
+        console.log(`[Scheduler] Alerta SECOF vencido definitivo (día 10)`);
+      }
+    } catch(e) {
+      console.error("[Scheduler] Error check SECOF mensual:", e);
+    }
+    setTimeout(checkSecofMensual, 24 * 60 * 60 * 1000);
+  }, horasParaSecofCheck * 3600000);
+
+
+  // ── Snapshot KPIs mensual (1ro del mes 6:30 AM) ──────────────────────────
+  const horasParaKpiSnapshot = (() => {
+    const ahora = new Date();
+    const target = new Date(ahora.getFullYear(), ahora.getMonth()+1, 1, 6, 30, 0);
+    return (target.getTime() - ahora.getTime()) / 3600000;
+  })();
+
+  setTimeout(async function calcularSnapshotMensual() {
+    try {
+      const mesAnterior = new Date();
+      mesAnterior.setDate(0); // último día del mes anterior
+      const mes = mesAnterior.toISOString().slice(0,7);
+      const { calcularKpiSnapshotMensual } = await import("./services/kpiService");
+      const resultado = await calcularKpiSnapshotMensual(30001, mes);
+      console.log(`[Scheduler] Snapshot KPI ${mes}: score=${resultado.scoreTotalPct}% estado=${resultado.estado}`);
+
+      // Enviar correo con resumen a los dueños
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.default.createTransport({
+        host:"smtp.gmail.com", port:587, secure:false,
+        auth:{user:process.env.SMTP_USER, pass:process.env.SMTP_PASS}
+      });
+      const [y,m] = mes.split("-");
+      const mesNombre = new Date(Number(y), Number(m)-1).toLocaleDateString("es-MX",{month:"long",year:"numeric"});
+      const color = resultado.estado==="excelente"?"#16a34a":resultado.estado==="cumple"?"#2563eb":resultado.estado==="riesgo"?"#d97706":"#dc2626";
+      const emoji = resultado.estado==="excelente"?"🌟":resultado.estado==="cumple"?"✅":resultado.estado==="riesgo"?"⚠️":"🚨";
+      const fmt = (v: number|null, sfx="") => v !== null && v !== undefined ? `${v}${sfx}` : "—";
+
+      const html = `<!DOCTYPE html><html><body style="margin:0;background:#f3f4f6;font-family:-apple-system,sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:24px 16px">
+  <div style="text-align:center;margin-bottom:20px">
+    <h1 style="margin:0;font-size:22px;color:#111827">${emoji} Reporte KPI Mensual — Líder</h1>
+    <p style="color:#6b7280;font-size:14px;margin:4px 0 0">Plaza Patio · ${mesNombre}</p>
+  </div>
+  <div style="background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-bottom:16px">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:11px;color:#6b7280;font-weight:700;letter-spacing:.05em;margin-bottom:8px">SCORE TOTAL PONDERADO</div>
+      <div style="font-size:52px;font-weight:900;color:${color};line-height:1">${resultado.scoreTotalPct}%</div>
+      <div style="display:inline-block;background:${color}22;color:${color};padding:4px 16px;border-radius:20px;font-size:13px;font-weight:600;margin-top:8px;text-transform:uppercase">${resultado.estado}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f9fafb">
+        <th style="padding:8px 12px;text-align:left;font-size:12px;color:#6b7280">KPI</th>
+        <th style="padding:8px 12px;text-align:center;font-size:12px;color:#6b7280">Resultado</th>
+        <th style="padding:8px 12px;text-align:center;font-size:12px;color:#6b7280">Meta</th>
+        <th style="padding:8px 12px;text-align:center;font-size:12px;color:#6b7280">Estado</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px 12px;font-size:13px">💰 Ventas vs meta</td><td style="padding:8px 12px;text-align:center;font-weight:600">${fmt(resultado.ventasPct,'%')}</td><td style="padding:8px 12px;text-align:center;color:#6b7280">≥100%</td><td style="padding:8px 12px;text-align:center">${(resultado.ventasPct||0)>=100?'✅':resultado.ventasPct>=80?'⚠️':'🔴'}</td></tr>
+        <tr style="border-bottom:1px solid #f3f4f6;background:#fafafa"><td style="padding:8px 12px;font-size:13px">📋 Score SECOF</td><td style="padding:8px 12px;text-align:center;font-weight:600">${fmt(resultado.scoreSecof,'%')}</td><td style="padding:8px 12px;text-align:center;color:#6b7280">≥85%</td><td style="padding:8px 12px;text-align:center">${(resultado.scoreSecof||0)>=85?'✅':(resultado.scoreSecof||0)>=70?'⚠️':'🔴'}</td></tr>
+        <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px 12px;font-size:13px">⏰ Puntualidad equipo</td><td style="padding:8px 12px;text-align:center;font-weight:600">${fmt(resultado.puntualidadPct,'%')}</td><td style="padding:8px 12px;text-align:center;color:#6b7280">≥95%</td><td style="padding:8px 12px;text-align:center">${(resultado.puntualidadPct||0)>=95?'✅':(resultado.puntualidadPct||0)>=80?'⚠️':'🔴'}</td></tr>
+        <tr style="border-bottom:1px solid #f3f4f6;background:#fafafa"><td style="padding:8px 12px;font-size:13px">🧪 Preparaciones</td><td style="padding:8px 12px;text-align:center;font-weight:600">${fmt(resultado.preparacionesPct,'%')}</td><td style="padding:8px 12px;text-align:center;color:#6b7280">≥90%</td><td style="padding:8px 12px;text-align:center">${(resultado.preparacionesPct||0)>=90?'✅':(resultado.preparacionesPct||0)>=70?'⚠️':'🔴'}</td></tr>
+        <tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px 12px;font-size:13px">🔐 Aperturas/cierres</td><td style="padding:8px 12px;text-align:center;font-weight:600">${fmt(resultado.aperturasPct,'%')}</td><td style="padding:8px 12px;text-align:center;color:#6b7280">≥90%</td><td style="padding:8px 12px;text-align:center">${(resultado.aperturasPct||0)>=90?'✅':(resultado.aperturasPct||0)>=70?'⚠️':'🔴'}</td></tr>
+        <tr style="border-bottom:1px solid #f3f4f6;background:#fafafa"><td style="padding:8px 12px;font-size:13px">😊 Servicio al cliente</td><td style="padding:8px 12px;text-align:center;font-weight:600">${fmt(resultado.servicioScore,'%')}</td><td style="padding:8px 12px;text-align:center;color:#6b7280">≥85%</td><td style="padding:8px 12px;text-align:center">${(resultado.servicioScore||0)>=85?'✅':(resultado.servicioScore||0)>=70?'⚠️':'🔴'}</td></tr>
+        <tr><td style="padding:8px 12px;font-size:13px">🥤 Precisión preparación</td><td style="padding:8px 12px;text-align:center;font-weight:600">${fmt(resultado.preparacionScore,'%')}</td><td style="padding:8px 12px;text-align:center;color:#6b7280">≥85%</td><td style="padding:8px 12px;text-align:center">${(resultado.preparacionScore||0)>=85?'✅':(resultado.preparacionScore||0)>=70?'⚠️':'🔴'}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="text-align:center;margin-bottom:16px">
+    <a href="https://secof.snowteatienda.com/kpi-lider" style="display:inline-block;background:#1B5E37;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver KPIs completos en SECOF →</a>
+  </div>
+  <p style="text-align:center;color:#9ca3af;font-size:12px;margin:0">SECOF · secof.snowteatienda.com</p>
+</div></body></html>`;
+
+      const emails = (process.env.REPORT_EMAILS||"").split(",").map((e:string)=>e.trim()).filter(Boolean);
+      await transporter.sendMail({
+        from:`"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+        to: emails.join(", "),
+        subject:`${emoji} KPI Mensual Líder — Plaza Patio ${mesNombre}: ${resultado.scoreTotalPct}% (${resultado.estado})`,
+        html
+      });
+      console.log(`[Scheduler] Reporte KPI mensual enviado: ${resultado.scoreTotalPct}% ${resultado.estado}`);
+    } catch(e) { console.error("[Scheduler] Error snapshot KPI:", e); }
+    setTimeout(calcularSnapshotMensual, 30*24*60*60*1000);
+  }, horasParaKpiSnapshot * 3600000);
+
+
+  // ── Auto-generación de horario semanal (jueves 6:00 PM) ─────────────────
+  const horasParaAutoHorario = (() => {
+    const ahora = new Date();
+    // Próximo jueves a las 18:00
+    const target = new Date(ahora);
+    const diaSemana = ahora.getDay(); // 0=dom,1=lun,...,4=jue
+    const diasHastaJueves = (4 - diaSemana + 7) % 7 || 7;
+    target.setDate(ahora.getDate() + diasHastaJueves);
+    target.setHours(18, 0, 0, 0);
+    if (target <= ahora) target.setDate(target.getDate() + 7);
+    return (target.getTime() - ahora.getTime()) / 3600000;
+  })();
+
+  setTimeout(async function autoHorarioSemanal() {
+    try {
+      const { getDb } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return;
+
+      // Calcular rango de la semana siguiente (lunes a domingo)
+      const ahora = new Date();
+      const diaSemana = ahora.getDay();
+      const diasHastaLunes = (8 - diaSemana) % 7 || 7;
+      const lunes = new Date(ahora);
+      lunes.setDate(ahora.getDate() + diasHastaLunes);
+      lunes.setHours(0,0,0,0);
+
+      const semanaFechas: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(lunes);
+        d.setDate(lunes.getDate() + i);
+        semanaFechas.push(d.toISOString().split('T')[0]);
+      }
+
+      const semana = Math.ceil((lunes.getTime() - new Date(lunes.getFullYear(),0,1).getTime()) / (7*86400000));
+      const anio = lunes.getFullYear();
+
+      console.log(`[Scheduler] Auto-horario semana ${semana}/${anio}: ${semanaFechas[0]} → ${semanaFechas[6]}`);
+
+      // Obtener empleados activos de Plaza Patio con horarioPersonal
+      const empRows = await db.execute(sql`
+        SELECT id, nombre, horarioPersonal FROM empleados
+        WHERE sucursalId = 30001 AND activo = 1 AND horarioPersonal IS NOT NULL
+      `);
+      const empleados = (empRows[0] as any[]);
+
+      // Obtener catálogo de actividades
+      const catRows = await db.execute(sql`SELECT clave FROM actividades_catalogo WHERE activa=1`);
+      const claves = (catRows[0] as any[]).map((r: any) => r.clave);
+
+      let creados = 0;
+      for (const emp of empleados) {
+        let hp: Record<number,any> = {};
+        try { hp = typeof emp.horarioPersonal==='string' ? JSON.parse(emp.horarioPersonal) : (emp.horarioPersonal??{}); } catch {}
+
+        for (let i = 0; i < 7; i++) {
+          const diaSem = (i + 1) % 7; // lunes=1,...,domingo=0
+          const turnoConfig = hp[diaSem];
+          if (!turnoConfig) continue; // no trabaja ese día
+
+          const fecha = semanaFechas[i];
+
+          // Verificar si ya existe turno
+          const existeRows = await db.execute(sql`
+            SELECT id FROM turnos_semana
+            WHERE sucursalId=30001 AND empleadoId=${emp.id} AND fecha=${fecha}
+            LIMIT 1
+          `);
+          if ((existeRows[0] as any[]).length > 0) continue;
+
+          const entrada = turnoConfig.entrada ?? '09:00';
+          const salida  = turnoConfig.salida  ?? '17:00';
+          const horaH = parseInt(entrada.split(':')[0]);
+          const tipo = horaH < 12 ? 'matutino' : horaH < 15 ? 'intermedio' : 'vespertino';
+
+          const res = await db.execute(sql`
+            INSERT INTO turnos_semana
+              (sucursalId, empleadoId, fecha, semana, anio, turno, horaInicio, horaFin, rolPrincipal, createdBy)
+            VALUES
+              (30001, ${emp.id}, ${fecha}, ${semana}, ${anio}, ${tipo}, ${entrada}, ${salida}, 'Auto-generado', 1)
+          `);
+          const turnoId = (res[0] as any).insertId;
+
+          // Asignar actividades del catálogo
+          for (const clave of claves) {
+            await db.execute(sql`
+              INSERT IGNORE INTO turno_actividades (turnoId, actividadClave, esPendiente)
+              VALUES (${turnoId}, ${clave}, 0)
+            `);
+          }
+          creados++;
+        }
+      }
+
+      console.log(`[Scheduler] Auto-horario generado: ${creados} turnos para semana ${semana}`);
+
+      // Notificar a Emily que el horario está listo para revisar
+      const nodemailer = await import("nodemailer");
+      const transporter = nodemailer.default.createTransport({
+        host:"smtp.gmail.com", port:587, secure:false,
+        auth:{user:process.env.SMTP_USER, pass:process.env.SMTP_PASS}
+      });
+      await transporter.sendMail({
+        from:`"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+        to: "lider.patio.snowtea@gmail.com," + (process.env.REPORT_EMAILS||""),
+        subject:`📅 Horario semana ${semana} generado automáticamente — Plaza Patio`,
+        html:`<div style="font-family:sans-serif;max-width:500px;margin:auto;padding:20px;background:#f3f4f6">
+          <div style="background:#fff;border-radius:12px;padding:24px">
+            <h2 style="color:#1B5E37;margin:0 0 12px">📅 Horario Semanal Generado</h2>
+            <p style="color:#374151">El horario de la semana <strong>${semanaFechas[0]} al ${semanaFechas[6]}</strong> ha sido generado automáticamente en SECOF con base en los horarios fijos del equipo.</p>
+            <p style="color:#374151"><strong>${creados} turnos</strong> creados con actividades asignadas.</p>
+            <div style="background:#fef3c7;border-radius:8px;padding:12px;margin:16px 0">
+              <p style="margin:0;color:#92400e;font-size:13px">⚠️ Revisa y ajusta si hay cambios antes del <strong>viernes 4:00 PM</strong>. Usa Ajuste Eventual para modificaciones.</p>
+            </div>
+            <a href="https://secof.snowteatienda.com/rotacion-areas" style="display:inline-block;background:#1B5E37;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">Ver horario en SECOF →</a>
+          </div>
+        </div>`
+      });
+      console.log(`[Scheduler] Notificación auto-horario enviada`);
+    } catch(e) { console.error("[Scheduler] Error auto-horario:", e); }
+    setTimeout(autoHorarioSemanal, 7*24*60*60*1000); // repetir cada semana
+  }, horasParaAutoHorario * 3600000);
+
+  console.log(`[Scheduler] Auto-horario semanal programado en ${horasParaAutoHorario.toFixed(1)} horas (próximo jueves 6:00 PM)`);
+
+  console.log(`[Scheduler] Snapshot KPI mensual programado en ${horasParaKpiSnapshot.toFixed(1)} horas (1ro del mes 6:30 AM)`);
+
+  console.log(`[Scheduler] Check SECOF mensual programado en ${horasParaSecofCheck.toFixed(1)} horas (8:00 AM diario)`);
+
+  console.log(`[Scheduler] Alerta planes vencidos programada en ${horasParaPlanes.toFixed(1)} horas (9:00 AM diario)`);
+
+  console.log(`[Scheduler] Auto-meta mensual programada en ${horasParaMeta.toFixed(1)} horas (1ro del mes)`);
+
+  console.log(`[Scheduler] Sync nocturno Odoo programado en ${horasParaSync.toFixed(1)} horas (22:15 diario)`);
+
+  // Calcular próximo lunes 9:00 AM para alertas de retardos
+  const msAlertasAsistencia = (() => {
+    const ahora = new Date();
+    const diaSemana = ahora.getDay();
+    const diasHastaLunes = (8 - diaSemana) % 7 || 7;
+    const proximoLunes = new Date(ahora);
+    proximoLunes.setDate(ahora.getDate() + diasHastaLunes);
+    proximoLunes.setHours(9, 0, 0, 0);
+    return proximoLunes.getTime() - ahora.getTime();
+  })();
+  const diasAlertasAsist = (msAlertasAsistencia / (24*60*60*1000)).toFixed(1);
   console.log(`[Scheduler] Alertas retardos/ausencias programadas en ${diasAlertasAsist} días (próximo lunes 9:00 AM)`);
   setTimeout(() => {
     alertaRetardosYAusencias();

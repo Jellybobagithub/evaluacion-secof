@@ -1688,7 +1688,68 @@ export const appRouter = router({
         } catch (_) {
           // No bloquear el cierre si falla el registro de asistencia
         }
-        return { success: true, id };
+        
+        
+        // ── Cruce automático vasos Odoo ─────────────────────────────────
+        try {
+          const { sql: sqlOdoo } = await import("drizzle-orm");
+          const { getDb } = await import("./db");
+          const db2 = await getDb();
+          if (db2) {
+            const odooRows = await db2.execute(sqlOdoo`
+              SELECT COALESCE(SUM(vc.cantidad), 0) as total
+              FROM inv_ventas_captura vc
+              JOIN inv_productos_venta pv ON pv.id = vc.productoVentaId
+              WHERE vc.sucursalId = ${input.sucursalId}
+                AND vc.fecha = ${input.fecha}
+                AND pv.nombre NOT LIKE '%Topping%'
+                AND pv.nombre NOT LIKE '%Cortesia%'
+            `);
+            const vasosOdoo = Number((odooRows[0] as any[])[0]?.total ?? 0);
+            const vasosSelladoras = input.vasosVendidosSelladora ?? 0;
+            const diferencia = vasosOdoo > 0 && vasosSelladoras > 0
+              ? Math.abs(vasosOdoo - vasosSelladoras) : null;
+            const alerta = diferencia !== null && diferencia > 5;
+            await db2.execute(sqlOdoo`
+              UPDATE turno_cierre SET vasosOdoo = ${vasosOdoo},
+              diferenciaCuadre = ${diferencia ?? 0}, alertaCuadre = ${alerta ? 1 : 0}
+              WHERE id = ${id}
+            `);
+            if (alerta && vasosOdoo > 0) {
+              const nodemailer = await import("nodemailer");
+              const transporter = nodemailer.default.createTransport({
+                host:"smtp.gmail.com", port:587, secure:false,
+                auth:{user:process.env.SMTP_USER, pass:process.env.SMTP_PASS}
+              });
+              const sucRows = await db2.execute(sqlOdoo`SELECT nombre FROM sucursales WHERE id = ${input.sucursalId}`);
+              const sucNombre = (sucRows[0] as any[])[0]?.nombre ?? "Tienda";
+              const turno = input.tipoTurno === "matutino" ? "Matutino" : "Vespertino";
+              const fmt = (n: number) => n.toLocaleString("es-MX");
+              const color = diferencia > 15 ? "#dc2626" : "#d97706";
+              const emails = (process.env.REPORT_EMAILS||"").split(",").map((e:string)=>e.trim()).filter(Boolean);
+              await transporter.sendMail({
+                from:`"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+                to: emails.join(", "),
+                subject:`🥤 Alerta: ${fmt(diferencia!)} vasos diferencia — ${sucNombre} ${turno} ${input.fecha}`,
+                html:`<div style="font-family:sans-serif;max-width:500px;margin:auto;padding:20px">
+                  <h2 style="color:${color}">🥤 Cuadre de Vasos — Alerta</h2>
+                  <p><b>${sucNombre}</b> · Turno ${turno} · ${input.fecha}</p>
+                  <table style="width:100%;border-collapse:collapse;margin:16px 0">
+                    <tr><td style="padding:8px;background:#f0fdf4"><b>Odoo:</b></td><td style="padding:8px">${fmt(vasosOdoo)} vasos</td></tr>
+                    <tr><td style="padding:8px;background:#fef3c7"><b>Selladora:</b></td><td style="padding:8px">${fmt(vasosSelladoras)} vasos</td></tr>
+                    <tr><td style="padding:8px;background:#fef2f2"><b>Diferencia:</b></td><td style="padding:8px;color:${color};font-weight:700">${fmt(diferencia!)} vasos</td></tr>
+                  </table>
+                  <p style="color:#991b1b">⚠️ Revisar posible merma, venta no capturada o descuadre en selladora.</p>
+                </div>`
+              });
+              console.log(`[Cuadre] Alerta enviada: ${diferencia} vasos (${sucNombre} ${turno})`);
+            } else if (vasosOdoo > 0) {
+              console.log(`[Cuadre] OK: Odoo=${vasosOdoo} Selladora=${vasosSelladoras} Diff=${diferencia}`);
+            }
+          }
+        } catch(cuadreErr) { console.error("[Cuadre] Error:", cuadreErr); }
+        // ────────────────────────────────────────────────────────────────
+return { success: true, id };
       }),
 
     // Obtener cierre de hoy
@@ -1983,6 +2044,37 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+    // Snapshot mensual — historial de KPIs por mes
+    snapshotHistorial: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        meses: z.number().default(6),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner','superadmin','manager','leader'].includes(ctx.user.role))
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        const { getDb } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const db = await getDb();
+        if (!db) return [];
+        const rows = await db.execute(sql`
+          SELECT * FROM kpi_snapshot_mensual
+          WHERE sucursalId = ${input.sucursalId} AND puesto = 'lider'
+          ORDER BY mes DESC LIMIT ${input.meses}
+        `);
+        return (rows[0] as any[]).reverse();
+      }),
+
+    // Calcular y guardar snapshot del mes actual (llamado manual o por scheduler)
+    calcularSnapshot: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), mes: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner','superadmin','manager'].includes(ctx.user.role))
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        const { calcularKpiSnapshotMensual } = await import('./services/kpiService');
+        return calcularKpiSnapshotMensual(input.sucursalId, input.mes);
+      }),
+
   }),
 });
 

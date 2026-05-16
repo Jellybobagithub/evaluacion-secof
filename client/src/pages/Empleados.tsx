@@ -118,7 +118,7 @@ export default function Empleados() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const canEdit = ["owner", "superadmin", "manager"].includes(user?.role ?? "");
+  const canEdit = ["owner", "superadmin", "manager", "leader"].includes(user?.role ?? "");
 
   function openCreate() {
     setEditId(null);
@@ -329,7 +329,7 @@ export default function Empleados() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent position="item-aligned">
                   <SelectItem value="anfitrion">Anfitrión</SelectItem>
-                  <SelectItem value="lider">Líder</SelectItem>
+                  {["owner","superadmin","manager"].includes(user?.role ?? "") && <SelectItem value="lider">Líder</SelectItem>}
                   <SelectItem value="administrador">Administrador</SelectItem>
                 </SelectContent>
               </Select>

@@ -159,11 +159,6 @@ export default function Inventario() {
             <TabsTrigger value="conteo" className="gap-1">
               <ClipboardList className="w-4 h-4" /> Conteo Físico
             </TabsTrigger>
-            {isSupervisor && (
-              <TabsTrigger value="teorico" className="gap-1">
-                <BarChart3 className="w-4 h-4" /> Teórico
-              </TabsTrigger>
-            )}
 
             <TabsTrigger value="comparativa" className="gap-1">
               <BarChart3 className="w-4 h-4" /> Comparativa
@@ -193,17 +188,7 @@ export default function Inventario() {
               semana={semana}
             /> : <div className="py-10 text-center text-muted-foreground">Selecciona o crea un almacén en la tab Configuración.</div>}
           </TabsContent>
-          {/* Teórico (solo supervisores) */}
-          {isSupervisor && (
-            <TabsContent value="teorico">
-              {almacenId ? <TeoricoTab
-                sucursalId={sucursalId}
-                almacenId={almacenId}
-                productos={productos ?? []}
-                semana={semana}
-              /> : <div className="py-10 text-center text-muted-foreground">Selecciona o crea un almacén en la tab Configuración.</div>}
-            </TabsContent>
-          )}
+
           {/* Tab Ventas eliminada — usar Importar Ventas Odoo */}
           <TabsContent value="comparativa">
             {almacenId && <ComparativaTab

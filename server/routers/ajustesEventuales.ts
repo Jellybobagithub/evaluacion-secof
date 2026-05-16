@@ -53,6 +53,44 @@ export const ajustesEventualesRouter = router({
           creadoPorId = ${ctx.user.id},
           updatedAt   = NOW()
       `);
+
+      // Auto-crear turnosSemana si no existe, para que aparezca en Mi Turno
+      if (!input.ausente && input.horaEntrada && input.horaSalida) {
+        const existeTurno = await db.execute(sql`
+          SELECT id FROM turnos_semana
+          WHERE sucursalId=${input.sucursalId} AND empleadoId=${input.empleadoId} AND fecha=${input.fecha}
+          LIMIT 1
+        `);
+        if ((existeTurno[0] as any[]).length === 0) {
+          const h = parseInt(input.horaEntrada.split(":")[0]);
+          const tipo = h < 11 ? "matutino" : h < 14 ? "intermedio" : "vespertino";
+          const d = new Date(input.fecha + "T12:00:00Z");
+          const jan1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+          const sem = Math.ceil(((d.getTime()-jan1.getTime())/86400000 + jan1.getUTCDay()+1)/7);
+          const res = await db.execute(sql`
+            INSERT INTO turnos_semana
+              (sucursalId, empleadoId, fecha, semana, anio, turno, horaInicio, horaFin, rolPrincipal, createdBy)
+            VALUES
+              (${input.sucursalId}, ${input.empleadoId}, ${input.fecha},
+               ${sem}, ${d.getUTCFullYear()}, ${tipo},
+               ${input.horaEntrada}, ${input.horaSalida}, 'Ajuste eventual', ${ctx.user.id})
+          `);
+          const turnoId = (res[0] as any).insertId;
+          const catRows = await db.execute(sql`SELECT clave FROM actividades_catalogo WHERE activa=1`);
+          for (const r of (catRows[0] as any[])) {
+            await db.execute(sql`
+              INSERT IGNORE INTO turno_actividades (turnoId, actividadClave, esPendiente)
+              VALUES (${turnoId}, ${r.clave}, 0)
+            `);
+          }
+        } else {
+          // Actualizar horario del turno existente
+          await db.execute(sql`
+            UPDATE turnos_semana SET horaInicio=${input.horaEntrada}, horaFin=${input.horaSalida}
+            WHERE sucursalId=${input.sucursalId} AND empleadoId=${input.empleadoId} AND fecha=${input.fecha}
+          `);
+        }
+      }
       return { ok: true };
     }),
 

@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Calendar, BarChart3, Tag } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, X, Calendar, BarChart3, Tag, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import * as XLSX from "xlsx";
 
 const MESES: Record<string,string> = {
@@ -168,6 +168,36 @@ export default function ImportarVentasOdoo() {
     onError: (e) => toast.error("Error: " + e.message),
   });
 
+  // ─── Sync directo desde Odoo ──────────────────────────────────────────────
+  const [fechaInicioSync, setFechaInicioSync] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split("T")[0];
+  });
+  const [fechaFinSync, setFechaFinSync] = useState(new Date().toISOString().split("T")[0]);
+  const [resultadoSync, setResultadoSync] = useState<{insertados:number;diasImportados:number;noMapeados:string[]} | null>(null);
+  const [sucursalIdSync, setSucursalIdSync] = useState<number | null>(null);
+
+  const { data: statusOdoo } = trpc.inventario.ventas.testOdoo.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const syncMut = trpc.inventario.ventas.syncFromOdoo.useMutation({
+    onSuccess: (res) => {
+      setResultadoSync({ insertados: res.insertados, diasImportados: res.diasImportados, noMapeados: res.noMapeados });
+      toast.success(`✅ ${res.insertados} productos sincronizados en ${res.diasImportados} días`);
+      if (res.noMapeados.length > 0) toast.warning(`⚠️ ${res.noMapeados.length} sin mapeo: ${res.noMapeados.slice(0,3).join(", ")}`);
+    },
+    onError: (e) => toast.error("Error sync: " + e.message),
+  });
+
+  const handleSync = () => {
+    const sid = sucursalIdSync ?? sucursales[0]?.id;
+    if (!sid) return toast.error("Selecciona una sucursal");
+    syncMut.mutate({ sucursalId: sid, fechaInicio: fechaInicioSync, fechaFin: fechaFinSync, reemplazar: true });
+  };
+
   const procesarArchivo = useCallback(async (file: File) => {
     if (!file.name.match(/\.(xlsx|xls)$/i)) { toast.error("Solo .xlsx o .xls"); return; }
     setArchivo(file); setResultado(null);
@@ -190,7 +220,70 @@ export default function ImportarVentasOdoo() {
   const tienePrecios = parsed && parsed.totalIngresos > 0;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="space-y-6 p-6 max-w-3xl mx-auto">
+      {/* ── Panel Sync Directo Odoo ─────────────────────────────────────────── */}
+      <Card className="border-green-200 bg-green-50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-green-800">
+            {statusOdoo?.ok
+              ? <><Wifi className="h-5 w-5 text-green-600" /> Sincronizar desde Odoo</>
+              : <><WifiOff className="h-5 w-5 text-red-500" /> Conexión Odoo</>
+            }
+            {statusOdoo?.ok && (
+              <span className="ml-2 text-xs font-normal bg-green-200 text-green-800 px-2 py-0.5 rounded-full">
+                Conectado ✓
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {statusOdoo?.ok === false ? (
+            <p className="text-sm text-red-600">No se puede conectar con Odoo. Verifica el servidor.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Sucursal</label>
+                  <select
+                    className="w-full border rounded px-2 py-1.5 text-sm"
+                    value={sucursalIdSync ?? ""}
+                    onChange={e => setSucursalIdSync(Number(e.target.value))}
+                  >
+                    {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  </select>
+                </div>
+                <div />
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Desde</label>
+                  <input type="date" className="w-full border rounded px-2 py-1.5 text-sm"
+                    value={fechaInicioSync} onChange={e => setFechaInicioSync(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1 block">Hasta</label>
+                  <input type="date" className="w-full border rounded px-2 py-1.5 text-sm"
+                    value={fechaFinSync} onChange={e => setFechaFinSync(e.target.value)} />
+                </div>
+              </div>
+              <Button onClick={handleSync} disabled={syncMut.isPending}
+                className="w-full bg-green-700 hover:bg-green-800 text-white gap-2">
+                <RefreshCw className={`h-4 w-4 ${syncMut.isPending ? "animate-spin" : ""}`} />
+                {syncMut.isPending ? "Sincronizando..." : "Sincronizar Ventas"}
+              </Button>
+              {resultadoSync && (
+                <div className="bg-white border border-green-200 rounded p-3 text-sm space-y-1">
+                  <p className="font-medium text-green-800">✅ Sincronización completada</p>
+                  <p className="text-gray-600">{resultadoSync.insertados} productos · {resultadoSync.diasImportados} días</p>
+                  {resultadoSync.noMapeados.length > 0 && (
+                    <p className="text-amber-600 text-xs">Sin mapeo: {resultadoSync.noMapeados.join(", ")}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── XLSX Manual (abajo, como opción alternativa) ──────────────────── */}
       <div>
         <h1 className="text-xl font-bold flex items-center gap-2">
           <FileSpreadsheet className="w-5 h-5 text-teal-600" />

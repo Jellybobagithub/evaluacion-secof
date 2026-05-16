@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ChevronDown, RefreshCw, Pencil, Wand2, ChevronLeft, ChevronRight, CalendarDays, UserX, UserCheck, Clock } from "lucide-react";
+import { ChevronDown, RefreshCw, Pencil, Wand2, ChevronLeft, ChevronRight, CalendarDays, UserX, UserCheck, Clock, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -147,6 +147,53 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
     return m;
   }, [rotacion]);
 
+
+  // ── Generar PDF del horario semanal ──────────────────────────────────────
+  const generarPDFHorario = () => {
+    const semanaLabel = `Semana ${fechaInicio} — ${fechaFin}`;
+    const filas = (turnos as any[]).map(t => {
+      const emp = empleadosData?.find((e: any) => e.id === t.empleadoId);
+      return `<tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:500">${emp?.nombre ?? '—'} ${emp?.apellido ?? ''}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${t.fecha}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-transform:capitalize">${t.turno}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${t.horaInicio} — ${t.horaFin}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${t.rolPrincipal ?? '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Horario Semanal Snowtea</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; color: #111; }
+      h1 { color: #1B5E37; margin-bottom: 4px; font-size: 20px; }
+      p { color: #6b7280; font-size: 13px; margin: 0 0 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      thead tr { background: #1B5E37; color: white; }
+      thead th { padding: 10px 12px; text-align: left; }
+      tbody tr:nth-child(even) { background: #f9fafb; }
+      .footer { margin-top: 24px; font-size: 11px; color: #9ca3af; text-align: center; }
+    </style></head>
+    <body>
+      <h1>🗓 Horario Semanal — Plaza Patio</h1>
+      <p>${semanaLabel}</p>
+      <table>
+        <thead><tr>
+          <th>Empleado</th><th>Fecha</th><th>Turno</th><th>Horario</th><th>Rol</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="footer">Generado por SECOF · secof.snowteatienda.com · ${new Date().toLocaleDateString('es-MX')}</div>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (win) {
+      win.onload = () => { win.print(); };
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -159,6 +206,10 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
           disabled={!sucursalId || generarMut.isPending} className="bg-violet-600 hover:bg-violet-700">
           <Wand2 className="w-4 h-4 mr-2" />
           {generarMut.isPending ? "Generando..." : "Sugerir semana"}
+        </Button>
+        <Button variant="outline" onClick={generarPDFHorario} disabled={!sucursalId} className="gap-2">
+          <Download className="w-4 h-4" />
+          PDF
         </Button>
         <button onClick={() => refetch()} className="ml-auto text-xs text-muted-foreground flex items-center gap-1">
           <RefreshCw className="w-3 h-3" /> Actualizar
@@ -325,21 +376,58 @@ function AjusteEventualTab({ sucursalId }: { sucursalId: number | null }) {
 
   const handleGuardar = async () => {
     if (!sucursalId) return;
-    for (const emp of empsProgramados) {
+    const todosEmps = [...empsProgramados, ...empsExtraDetalle];
+    for (const emp of todosEmps) {
       const aj = ajustes[emp.id];
       if (aj) {
         await guardarMut.mutateAsync({
           sucursalId, empleadoId: emp.id, fecha,
           ausente: aj.ausente,
-          horaEntrada: aj.ausente ? undefined : (aj.entrada || emp.entradaFija),
-          horaSalida:  aj.ausente ? undefined : (aj.salida  || emp.salidaFija),
+          horaEntrada: aj.ausente ? undefined : (aj.entrada || emp.entradaFija || "09:00"),
+          horaSalida:  aj.ausente ? undefined : (aj.salida  || emp.salidaFija  || "17:00"),
           motivo: aj.motivo || undefined,
+        });
+      } else if (empsExtraDetalle.find((e: any) => e.id === emp.id)) {
+        // Empleado extra sin ajuste configurado — guardar con horario vacío
+        await guardarMut.mutateAsync({
+          sucursalId, empleadoId: emp.id, fecha,
+          ausente: false,
+          horaEntrada: "09:00",
+          horaSalida: "17:00",
+          motivo: "Turno extra",
         });
       }
     }
     refetchAjustes();
     toast.success("Ajustes guardados");
   };
+
+  // Empleados extra (no programados ese día pero agregados manualmente)
+  const [empsExtra, setEmpsExtra] = useState<number[]>([]);
+  const [showAddExtra, setShowAddExtra] = useState(false);
+
+  const empsNoProgram = useMemo(() =>
+    empleados.filter((e: any) => !empsProgramados.find((ep: any) => ep.id === e.id)),
+    [empleados, empsProgramados]
+  );
+
+  const agregarExtra = (empId: number) => {
+    if (!empsExtra.includes(empId)) setEmpsExtra(prev => [...prev, empId]);
+    setShowAddExtra(false);
+  };
+
+  const quitarExtra = (empId: number) => {
+    setEmpsExtra(prev => prev.filter(id => id !== empId));
+    setAjustes(prev => { const n = {...prev}; delete n[empId]; return n; });
+  };
+
+  const empsExtraDetalle = useMemo(() =>
+    empsExtra.map(id => {
+      const e = empleados.find((e: any) => e.id === id);
+      return e ? { ...e, entradaFija: "", salidaFija: "" } : null;
+    }).filter(Boolean),
+    [empsExtra, empleados]
+  );
 
   const setAj = (empId: number, campo: string, valor: any) => {
     setAjustes(prev => ({ ...prev, [empId]: { ausente: false, entrada: "", salida: "", motivo: "", ...prev[empId], [campo]: valor } }));
@@ -429,8 +517,79 @@ function AjusteEventualTab({ sucursalId }: { sucursalId: number | null }) {
         </div>
       )}
 
+      {/* ── Agregar empleado extra ─────────────────────────────────────── */}
+      <div className="border border-dashed border-violet-300 rounded-xl p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-violet-700">Empleados adicionales para este día</span>
+          {empsNoProgram.length > 0 && (
+            <button onClick={() => setShowAddExtra(v => !v)}
+              className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium">
+              <span className="text-lg leading-none">+</span> Agregar empleado
+            </button>
+          )}
+        </div>
+        {showAddExtra && (
+          <div className="mb-3 grid grid-cols-1 gap-1 max-h-48 overflow-y-auto">
+            {empsNoProgram.map((e: any) => (
+              <button key={e.id} onClick={() => agregarExtra(e.id)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-violet-50 text-left text-sm border border-transparent hover:border-violet-200 transition-colors">
+                <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-xs font-semibold shrink-0">
+                  {e.nombre.charAt(0)}
+                </div>
+                <span>{e.nombre} {e.apellido ?? ""}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{e.puesto ?? ""}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {empsExtraDetalle.length === 0 && !showAddExtra && (
+          <p className="text-xs text-muted-foreground">No hay empleados extra agregados para este día.</p>
+        )}
+        {empsExtraDetalle.map((emp: any) => {
+          const aj = ajustes[emp.id];
+          const ausente = aj?.ausente ?? false;
+          return (
+            <div key={emp.id} className={`rounded-xl border p-4 mb-2 transition-colors ${ausente ? "bg-red-50 border-red-200" : "bg-violet-50 border-violet-200"}`}>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="w-9 h-9 rounded-full bg-violet-200 text-violet-700 flex items-center justify-center font-semibold text-sm shrink-0">
+                  {emp.nombre.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{emp.nombre} {emp.apellido ?? ""}</p>
+                  <p className="text-xs text-violet-500">Turno extra · no programado</p>
+                </div>
+                <button onClick={() => setAj(emp.id, "ausente", !ausente)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    ausente ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  }`}>
+                  {ausente ? <><UserX className="w-3.5 h-3.5" /> Ausente</> : <><UserCheck className="w-3.5 h-3.5" /> Presente</>}
+                </button>
+                <button onClick={() => quitarExtra(emp.id)}
+                  className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50">✕</button>
+              </div>
+              {!ausente && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Entrada</label>
+                    <input type="time" value={aj?.entrada ?? "09:00"}
+                      onChange={e => setAj(emp.id, "entrada", e.target.value)}
+                      className="w-full h-8 px-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Salida</label>
+                    <input type="time" value={aj?.salida ?? "17:00"}
+                      onChange={e => setAj(emp.id, "salida", e.target.value)}
+                      className="w-full h-8 px-2 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       {/* Acciones */}
-      {empsProgramados.length > 0 && (
+      {(empsProgramados.length > 0 || empsExtraDetalle.length > 0) && (
         <div className="flex gap-3 flex-wrap pt-2">
           <Button variant="outline" onClick={handleGuardar} disabled={guardarMut.isPending}>
             {guardarMut.isPending ? "Guardando..." : "💾 Guardar ajustes"}

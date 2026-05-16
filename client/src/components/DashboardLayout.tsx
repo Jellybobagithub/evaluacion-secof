@@ -123,10 +123,10 @@ const ALL_NAV_GROUPS = [
     id: "colaboradores",
     label: "Colaboradores",
     icon: ShieldCheck,
-    minRole: "owner",
+    minRole: "leader",
     path: "/admin/usuarios",
     items: [
-      { icon: Users, label: "Usuarios y Roles", path: "/admin/usuarios", minRole: "owner" },
+      { icon: Users, label: "Usuarios y Roles", path: "/admin/usuarios", minRole: "leader" },
     ],
   },
   {
