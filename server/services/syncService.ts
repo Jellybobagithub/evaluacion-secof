@@ -1,15 +1,38 @@
 import { fetchVentasOdoo } from "./odooService";
 import { enviarReporteDiario, ReporteDiarioData } from "./emailService";
 
-const SUCURSALES = [
-  { id: 30001, nombre: "Plaza Patio", meta: 135000 },
-];
-
 export async function syncVentasDia(fecha: string): Promise<void> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
   if (!db) throw new Error("DB no disponible");
+
+  // ── Deduplicación: evitar reenvío si ya se procesó esta fecha hoy ────────
+  const [y, m, d] = fecha.split("-");
+  const hoyStr = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().split("T")[0];
+  if (fecha < hoyStr) {
+    // fecha pasada: solo re-sincronizar si el registro fue creado hoy
+    const checkRows = await db.execute(sql`
+      SELECT id, DATE(createdAt) as creado FROM reportes_diarios
+      WHERE sucursalId = 30001 AND fecha = ${fecha} LIMIT 1
+    `);
+    const existing = (checkRows[0] as any[])[0];
+    if (existing && existing.creado !== hoyStr) {
+      console.log("[Sync] Fecha " + fecha + " ya procesada (" + existing.creado + "). Omitiendo re-envió.");
+      return;
+    }
+  }
+
+  // ── Leer sucursales activas + meta mensual actual desde BD ───────────────
+  const sucRows = await db.execute(sql`
+    SELECT id, nombre, COALESCE(metaVentasMensual, 135000) as meta
+    FROM sucursales WHERE activa = 1 AND id = 30001
+  `);
+  const SUCURSALES = (sucRows[0] as any[]).map((r: any) => ({
+    id: r.id as number,
+    nombre: r.nombre as string,
+    meta: Number(r.meta),
+  }));
 
   const reportesData: ReporteDiarioData[] = [];
 

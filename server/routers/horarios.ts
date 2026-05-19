@@ -342,7 +342,120 @@ export const horariosRouter = router({
         ))
         .orderBy(turnosSemana.horaInicio);
 
-      if (turnos.length === 0) return null;
+      // ── Fallback: crear turno desde rotacion_areas si no existe en turnos_semana ──
+      if (turnos.length === 0) {
+        const { rotacionAreas } = await import("../../drizzle/schema");
+        const { inArray: _ia } = await import("drizzle-orm");
+
+        const rotaciones = await db.select().from(rotacionAreas)
+          .where(and(
+            eq(rotacionAreas.sucursalId, input.sucursalId),
+            eq(rotacionAreas.empleadoId, input.empleadoId),
+            eq((rotacionAreas as any).fecha, input.fecha),
+          ))
+          .orderBy((rotacionAreas as any).horaInicio);
+
+        if (rotaciones.length === 0) return null;
+
+        // Hora actual en Mexico City (UTC-6)
+        const now = new Date();
+        const offsetMs = -6 * 60 * 60 * 1000;
+        const mxNow = new Date(now.getTime() + offsetMs);
+        const horaActualStr = `${String(mxNow.getUTCHours()).padStart(2,'0')}:${String(mxNow.getUTCMinutes()).padStart(2,'0')}`;
+
+        // Primer y último slot del día
+        const primeraRot = rotaciones[0];
+        const ultimaRot  = rotaciones[rotaciones.length - 1];
+        const horaIni    = (primeraRot as any).horaInicio ?? '09:00';
+        const horaFinDia = (ultimaRot as any).horaFin    ?? '21:30';
+
+        // Turno según hora de entrada
+        const horaIniNum = parseInt(horaIni.replace(':', ''), 10);
+        const turnoNombre: 'matutino' | 'intermedio' | 'vespertino' =
+          horaIniNum < 1300 ? 'matutino' : horaIniNum < 1700 ? 'intermedio' : 'vespertino';
+
+        // Slot activo en este momento (para determinar rolPrincipal)
+        const rotActual = rotaciones.find((r: any) =>
+          r.horaInicio && r.horaFin &&
+          r.horaInicio <= horaActualStr && horaActualStr < r.horaFin
+        ) ?? primeraRot;
+
+        const areaToRol: Record<string, string> = {
+          caja:               'Caja',
+          preparacion:        'Preparación',
+          comodin:            'Comodín',
+          caja_y_preparacion: 'Caja+Prep',
+        };
+        const rolPrincipal = areaToRol[(rotActual as any).area] ?? (rotActual as any).area;
+
+        // Número de semana ISO simple
+        const fechaObj   = new Date(input.fecha + 'T12:00:00Z');
+        const startOfYear = new Date(Date.UTC(fechaObj.getUTCFullYear(), 0, 1));
+        const diffDays    = Math.floor((fechaObj.getTime() - startOfYear.getTime()) / 86400000);
+        const semana      = Math.ceil((diffDays + startOfYear.getUTCDay() + 1) / 7);
+
+        // Crear entrada en turnos_semana
+        const [insertResult] = await db.insert(turnosSemana).values({
+          sucursalId:   input.sucursalId,
+          empleadoId:   input.empleadoId,
+          fecha:        input.fecha,
+          semana,
+          anio:         fechaObj.getUTCFullYear(),
+          turno:        turnoNombre,
+          horaInicio:   horaIni,
+          horaFin:      horaFinDia,
+          rolPrincipal,
+          cerrado:      false,
+        } as any);
+        const nuevoTurnoId = (insertResult as any).insertId as number;
+
+        // Actividades del catálogo filtradas por área
+        const { actividadesCatalogo: acCat } = await import("../../drizzle/schema");
+        const catalogo = await db.select().from(acCat)
+          .where(eq(acCat.activa, true))
+          .orderBy(acCat.categoria, acCat.orden);
+
+        const areaActual = (rotActual as any).area as string;
+        const actFiltradas = catalogo.filter((a: any) => {
+          const compat = a.areaCompatible ?? 'todas';
+          if (compat === 'todas')                        return true;
+          if (areaActual === 'caja_y_preparacion')       return true;
+          if (areaActual === 'comodin')                  return true;
+          return compat === areaActual;
+        });
+
+        if (actFiltradas.length > 0) {
+          await db.insert(turnoActividades).values(
+            actFiltradas.map((a: any) => ({
+              turnoId:       nuevoTurnoId,
+              actividadClave: a.clave,
+              completada:    false,
+              esPendiente:   false,
+            }))
+          );
+        }
+
+        // Retornar turno recién creado
+        const [turnoCreado] = await db.select().from(turnosSemana)
+          .where(eq(turnosSemana.id, nuevoTurnoId));
+        const actividadesCreadas = await db.select().from(turnoActividades)
+          .where(eq(turnoActividades.turnoId, nuevoTurnoId))
+          .orderBy(turnoActividades.actividadClave);
+
+        const catMap: Record<string, any> = {};
+        for (const c of catalogo) catMap[c.clave] = c;
+
+        return {
+          turno: turnoCreado,
+          actividades: actividadesCreadas.map((a: any) => ({
+            ...a,
+            descripcion:    catMap[a.actividadClave]?.descripcion ?? a.actividadClave,
+            categoria:      catMap[a.actividadClave]?.categoria   ?? 'D',
+            areaCompatible: catMap[a.actividadClave]?.areaCompatible ?? 'todas',
+          })),
+        };
+      }
+      // ── Fin fallback ──────────────────────────────────────────────────────────
 
       const turno = turnos[0];
       const actividades = await db.select().from(turnoActividades)

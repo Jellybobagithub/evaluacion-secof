@@ -306,11 +306,11 @@ async function alertaRetardosYAusencias() {
 }
 
 export function initScheduler() {
-  // ── Sync nocturno Odoo + reporte diario por correo (22:15) ──────────────
+  // ── Sync nocturno Odoo + reporte diario por correo (03:30 UTC = 21:30 MX) ─
   const ahora = new Date();
   const horasParaSync = (() => {
     const target = new Date();
-    target.setHours(22, 15, 0, 0);
+    target.setUTCHours(3, 30, 0, 0);
     if (target <= ahora) target.setDate(target.getDate() + 1);
     return (target.getTime() - ahora.getTime()) / 3600000;
   })();
@@ -318,9 +318,8 @@ export function initScheduler() {
   setTimeout(async function syncNocturno() {
     try {
       const { syncVentasDia } = await import("./services/syncService");
-      const hoy = new Date();
-      hoy.setHours(hoy.getHours() - 6); // ajuste UTC-6 México
-      const fecha = hoy.toISOString().split("T")[0];
+      const mxNow = new Date(Date.now() - 6 * 60 * 60 * 1000);
+      const fecha = mxNow.toISOString().split("T")[0]; // fecha México CDT (UTC-6)
       console.log(`[Scheduler] Iniciando sync nocturno Odoo para ${fecha}...`);
       await syncVentasDia(fecha);
       console.log(`[Scheduler] Sync nocturno completado.`);
