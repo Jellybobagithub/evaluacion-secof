@@ -174,14 +174,6 @@ export default function Finanzas(){
                             </td>
                           </tr>
                           <tr className="text-muted-foreground text-xs">
-                            <td className="pl-4 py-0.5">Mat. prima (recetas)</td>
-                            <td className="text-right">
-                              {((resumen as any).cmvRecetas??0)>0
-                                ? fmt((resumen as any).cmvRecetas)
-                                : <span className="text-amber-500">Sin costos cargados</span>}
-                            </td><td/>
-                          </tr>
-                          <tr className="text-muted-foreground text-xs">
                             <td className="pl-4 py-0.5">Compras Jellyboba</td>
                             <td className="text-right font-medium">{(resumen as any).cmvJellyboba>0?fmt((resumen as any).cmvJellyboba):<span className="text-amber-500 text-xs">Sin órdenes en periodo</span>}</td><td/>
                           </tr>
