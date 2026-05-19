@@ -139,7 +139,7 @@ const ALL_NAV_GROUPS = [
       { icon: Building2, label: "Sucursales", path: "/sucursales", minRole: "manager" },
       { icon: Users, label: "Empleados", path: "/empleados", minRole: "manager" },
       { icon: ClipboardCheck, label: "Evaluaciones", path: "/evaluaciones-periodo", minRole: "manager" },
-      { icon: History, label: "Ventas Históricas", path: "/ventas-historicas", minRole: "manager" },
+// OBSOLETO — oculto:       { icon: History, label: "Ventas Históricas", path: "/ventas-historicas", minRole: "manager" },
       { icon: Bell, label: "Avisos Generales", path: "/avisos-generales", minRole: "manager" },
       { icon: ClipboardList, label: "Admin Preguntas", path: "/admin/preguntas", minRole: "superadmin" },
       { icon: ClipboardList, label: "Actividades de Limpieza", path: "/admin/actividades", minRole: "superadmin" },
