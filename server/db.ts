@@ -1217,8 +1217,9 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
       const asistRow = asistByEmpFecha.get(asistKey);
 
       // Timestamps efectivos de entrada y salida (combinar ambas fuentes)
-      const tsEntradaEfectiva = apertura?.timestamp ?? asistRow?.entrada ?? null;
-      const tsSalidaEfectiva = cierre?.timestamp ?? asistRow?.salida ?? null;
+      // QR tiene prioridad sobre turno_apertura/cierre (más confiable)
+      const tsEntradaEfectiva = asistRow?.entrada ?? apertura?.timestamp ?? null;
+      const tsSalidaEfectiva = asistRow?.salida ?? cierre?.timestamp ?? null;
 
       let estado: InsertRegistroNomina["estado"] = "sin_horario";
       let horasTrabajadas: number | null = null;
