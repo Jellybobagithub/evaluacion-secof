@@ -1,32 +1,30 @@
 # ESTADO.md — SECOF Snowtea
 **Última actualización:** 19 de Mayo 2026  
-**Último commit:** ver `git log --oneline -1`
+**Último commit:** ver `git log --oneline -1`  
 **PM2 proceso:** `secof` ID 1 — Puerto 5000  
 **Dominio:** https://secof.snowteatienda.com  
 **Repo:** https://github.com/Jellybobagithub/evaluacion-secof
 
 ---
 
-## COMANDO DE INICIO PM2
-```bash
-cd /var/www/secof && JWT_SECRET=SnowteaSECOF2026SecretKeyJellyboba VITE_APP_ID=secof-snowtea GOOGLE_CLIENT_ID=302803392762-gg4r8ckp7ejubbt843gmj7pnlae41idq.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=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 OAUTH_SERVER_URL=https://secof.snowteatienda.com OWNER_EMAIL=franquicias@snowtea.com.mx APP_URL=https://secof.snowteatienda.com NODE_ENV=production PORT=5000 DATABASE_URL="mysql://secof_user:Snowtea2026Secof@localhost:3306/secof_db" pm2 start dist/index.js --name secof
-```
-
-## DEPLOY
+## COMANDO DE DEPLOY
 ```bash
 cd /var/www/secof && git pull origin main && pnpm build && pm2 restart secof
 ```
 
+## DB
+```bash
+mysql -u secof_user -pSnowtea2026Secof secof_db
+```
+
 ---
 
-## STACK TÉCNICO
+## STACK
 - Frontend: React 19 + Vite + TypeScript + Tailwind + shadcn/ui
 - Backend: Express + tRPC + Drizzle ORM
-- DB: MySQL 8.0 — `secof_db` usuario `secof_user` contraseña `Snowtea2026Secof`
+- DB: MySQL 8.0 local
 - Auth: Google OAuth
-- Package manager: pnpm
-- Node: 20.20.2, pnpm 10.33.0
-- Nginx reverse proxy + PM2
+- Deploy: PM2 + Nginx en VPS Vultr 216.238.81.192
 
 ---
 
@@ -34,86 +32,99 @@ cd /var/www/secof && git pull origin main && pnpm build && pm2 restart secof
 | ID | Nombre | Meta mensual |
 |---|---|---|
 | 1 | Plaza Portal | $90,000 (cierra jun 2026) |
-| 30001 | Plaza Patio | $175,012 (auto-calc +3%) |
+| 30001 | Plaza Patio | $175,012 |
 | 60001 | Tienda Demo | — |
-
-## EMPLEADOS CLAVE
-| Empleado | userId | Rol | Sucursal |
-|---|---|---|---|
-| Miguel Moreno | 600001 | superadmin | todas |
-| Emily Medina | 2580048 | leader | Plaza Patio |
-| Penélope Herrera | — | owner | todas |
-| Jorge Moreno | — | owner | todas |
-| Tienda Demo | 5495509 | manager | 60001 |
-| tiendademosnowtea@gmail.com | — | — | — |
 
 ---
 
 ## MÓDULOS ACTIVOS
-- SECOF (evaluaciones de calidad)
+- SECOF evaluaciones de calidad
 - Mi Turno + Preparaciones + Actividades de Limpieza
 - Rotación de Áreas + Checador QR
+- Control de Asistencias → Semana/Nómina + Exportar Excel
 - KPIs Anfitriones / Líder / Admin
 - Cuadre de Vasos
-- Inventario (Conteo, Comparativa, Historial, Recetas, Configuración)
-- Compras Jellyboba (historial, detalle, upload PDF, nueva orden)
-- Rentabilidad (P&L: CMV Jellyboba + compras externas + gastos op.)
+- Inventario (Conteo, Comparativa, Historial, Recetas, Config)
+- Compras Jellyboba (historial, detalle, upload PDF, Nueva Orden)
+- Rentabilidad (P&L: CMV Jellyboba + compras externas + gastos)
+- Reporte Diario automático (9:30pm México)
 - Plan de Acción + Evaluaciones Periodo de Prueba
 - Supervisión de Actividades
-- Reportes Diarios (sync Odoo 9:30pm)
-- Asistente FAQ
-- Horarios/Rotación + PDF horario semanal
-- Avisos Generales
-- Usuarios y Roles
 
 ---
 
 ## RENTABILIDAD / CMV
-- CMV = compras Jellyboba del periodo (tabla `compras`) + compras externas (`compras_externas`)
-- Mat. prima (recetas) eliminada del P&L — usada solo para control de mermas
-- Gastos operativos desde `fin_gastos` (fijos, nómina, variable, ingreso extra)
-- Meta mensual desde `sucursales.metaVentasMensual` (auto-actualiza el 1ro de cada mes)
+- CMV = compras Jellyboba del periodo (`compras`) + compras externas (`compras_externas`)
+- Mat. prima (recetas) eliminada del P&L
+- Gastos desde `fin_gastos` (fijos, nómina, variable, ingreso extra)
+- Meta desde `sucursales.metaVentasMensual`
+
+**Abril 2026:**
+- Ventas: $251,650 | CMV: $53,645 (21.3%) | Margen: 78.7% | Utilidad: $76,432 (30.4%)
+
+---
+
+## NÓMINA / CONTROL DE ASISTENCIAS
+- Fuente de horas: registros QR (`asistencia` tabla, 160+ registros, timestamp bigint ms)
+- Cálculo: entrada → siguiente salida dentro de 14h
+- Timezone: UTC-6 (México) para agrupar por fecha
+- Retardos: entrada QR > hora programada + 10 min
+- Ajustes eventuales: `ajustes_eventuales` tabla (14 registros) — override de hora esperada
+- Ausencias: día con horario programado sin registro QR
+- Export: Excel desde "Exportar Excel (nómina)" en Control de Asistencias
+- Outsourcing: C&H (quincena día 1 y 16)
+
+**Fixes aplicados 19-may-2026:**
+- Timezone: agrupación UTC→México evita horas negativas
+- Salida < entrada: validación antes de calcular horas
+- QR tiene prioridad sobre turno_apertura/cierre
+- Ajustes eventuales aplican en cálculo de retardos
+
+---
 
 ## COMPRAS JELLYBOBA
-- 11 órdenes cargadas (OV09632 al OV09882)
-- Tabla `compras` + `compras_detalle` (constraint único uq_compra_sku)
-- PDFs se guardan en `/dist/public/pdfs/compras/`
-- Botón "Nueva Orden" para captura manual + upload PDF
+- 11 órdenes cargadas (OV09632–OV09882), total $155,429.78
+- Tablas: `compras` + `compras_detalle` (constraint único uq_compra_sku)
+- PDFs: `/dist/public/pdfs/compras/`
+- Botón "Nueva Orden" en UI para captura manual + upload PDF
 - Auto-sync desde Odoo Jellyboba: PENDIENTE
 
 ---
 
-## SCHEDULER (server/scheduler.ts)
-| Tarea | Hora UTC | Hora MX |
+## SCHEDULER (UTC)
+| Tarea | UTC | México CDT |
 |---|---|---|
-| Sync Odoo + reporte diario | 03:30 UTC | 21:30 CDT |
-| Alerta reportes faltantes | 22:00 UTC | 16:00 CDT |
-| Auto-meta mensual | 1ro del mes 06:00 UTC | — |
-| Auto-horario semanal | Jueves 18:00 UTC | — |
-| secof-api (viejo) | DETENIDO | — |
+| Sync Odoo + reporte diario | 03:30 | 21:30 |
+| Alerta reportes faltantes | 22:00 | 16:00 |
+| Auto-meta mensual | 1ro mes 06:00 | — |
+| secof-api | DETENIDO | — |
 
 ---
 
-## FIXES CONOCIDOS / DEUDA TÉCNICA
-1. `inventario.ts` tiene 2 warnings de llaves duplicadas: `factorConversion` (línea 1281) y `surtidoIslaConfirmar` (líneas 1452/1503) — no afectan funcionalidad, pendiente limpiar
-2. `alert-dialog.tsx` error TS2657 — preexistente, no afecta build
-3. `asistenteRouter` importado dos veces en routers.ts — no afecta funcionalidad
+## EMPLEADOS CON QR ACTIVO (Plaza Patio)
+| empleadoId | Nombre | Registros |
+|---|---|---|
+| 30001 | Luz | 24 |
+| 120001 | Tamara | 23 |
+| 150001 | Emily | 50 |
+| 180001 | Alma Valeria | 43 |
+| 180005 | (nuevo) | 5 |
+| 180006 | Ana Claudia | 4 |
 
-## NOTAS DE DESARROLLO
-- Archivos grandes transferir vía base64: `base64 archivo | tr -d '\n' > archivo.b64` → scp → `base64 -d archivo.b64 > destino`
-- Python patches: usar heredoc `python3 << 'PYEOF'` directamente en VPS
-- VPS timezone: UTC → México CDT = UTC-6
-- `inv_recetas` tiene 349 registros pero solo para productos "Snowtea Clásico" — pendiente cargar recetas del PDF Vs032025 para todos los productos
-- `preparaciones` tabla: registra lotes de producción (base_snowtea, tapioca, jarabe_longan, sustituto_azucar) — NO individual por producto
+---
+
+## DEUDA TÉCNICA
+1. `inventario.ts` warnings: `factorConversion` duplicado (L1281) y `surtidoIslaConfirmar` duplicado (L1452/1503) — no afectan funcionalidad
+2. Módulo `Nomina.tsx` + router `nominaHoras` creados pero ocultos del menú (duplica Control de Asistencias)
 
 ---
 
 ## PENDIENTES
 | # | Pendiente | Prioridad |
 |---|---|---|
-| 1 | Reporte de horas reales del equipo para cálculo de nómina | 🔴 Alta |
-| 2 | Auto-sync Compras Jellyboba desde Odoo Jellyboba (sale.order) | 🟡 Media |
-| 3 | Revisar/cargar recetas completas desde PDF Vs032025 | 🟡 Media |
-| 4 | Descuento automático inventario desde preparaciones (ver Pronóstico Surtido) | 🟡 Media |
-| 5 | Bugs warnings inventario.ts (factorConversion, surtidoIslaConfirmar) | 🟢 Baja |
-| 6 | Usuario Demo: verificar login Google OAuth tiendademosnowtea@gmail.com | 🟢 Baja |
+| 1 | Auto-sync Compras Jellyboba desde Odoo (sale.order) | 🟡 Media |
+| 2 | Revisar/cargar recetas completas desde PDF Vs032025 | 🟡 Media |
+| 3 | Descuento automático inventario desde preparaciones | 🟡 Media |
+| 4 | Bugs warnings inventario.ts | 🟢 Baja |
+| 5 | Verificar login Demo tiendademosnowtea@gmail.com | 🟢 Baja |
+| 6 | Expandir SECOF a franquicias | 🔵 Futuro |
