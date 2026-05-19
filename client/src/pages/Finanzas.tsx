@@ -181,7 +181,11 @@ export default function Finanzas(){
                             </td><td/>
                           </tr>
                           <tr className="text-muted-foreground text-xs">
-                            <td className="pl-4 py-0.5">Compras externas</td>
+                            <td className="pl-4 py-0.5">Compras Jellyboba</td>
+                            <td className="text-right font-medium">{(resumen as any).cmvJellyboba>0?fmt((resumen as any).cmvJellyboba):<span className="text-amber-500 text-xs">Sin órdenes en periodo</span>}</td><td/>
+                          </tr>
+                          <tr className="text-muted-foreground text-xs">
+                            <td className="pl-4 py-0.5">Compras externas (hielos, etc.)</td>
                             <td className="text-right">{fmt((resumen as any).cmvExternas??0)}</td><td/>
                           </tr>
                           <tr className="font-semibold border-t border-b">
