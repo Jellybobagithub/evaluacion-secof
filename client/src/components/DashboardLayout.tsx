@@ -22,7 +22,7 @@ import { ShoppingCart,
 } from "@/components/ui/sidebar";
 import { ShoppingCart, getLoginUrl } from "@/const";
 import { ShoppingCart, useIsMobile } from "@/hooks/useMobile";
-import { ShoppingCart, CalendarClock, ScanLine,
+import { ShoppingCart, Clock, CalendarClock, ScanLine,
   LayoutDashboard,
   LogOut,
   PanelLeft,

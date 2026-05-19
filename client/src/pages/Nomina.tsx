@@ -130,7 +130,7 @@ export default function Nomina() {
   const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const [sucursalId, setSucursalId] = useState<number>(30001);
 
-  const { data: reporte, isLoading } = trpc.nomina.reporte.useQuery(
+  const { data: reporte, isLoading } = trpc.nominaHoras.reporte.useQuery(
     { sucursalId, fechaInicio: periodo.inicio, fechaFin: periodo.fin },
     { enabled: !!sucursalId }
   );

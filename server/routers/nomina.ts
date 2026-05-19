@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
 
-export const nominaRouter = router({
+export const nominaHorasRouter = router({
 
   reporte: protectedProcedure
     .input(z.object({
