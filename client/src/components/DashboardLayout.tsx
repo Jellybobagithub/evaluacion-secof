@@ -1,16 +1,16 @@
-import { ClipboardCheck,
+import { ShoppingCart, ClipboardCheck,
  useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import {
+import { ShoppingCart, trpc } from "@/lib/trpc";
+import { ShoppingCart, Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ShoppingCart, Badge } from "@/components/ui/badge";
+import { ShoppingCart,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
+import { ShoppingCart,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -20,9 +20,9 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
-import { useIsMobile } from "@/hooks/useMobile";
-import { CalendarClock, ScanLine,
+import { ShoppingCart, getLoginUrl } from "@/const";
+import { ShoppingCart, useIsMobile } from "@/hooks/useMobile";
+import { ShoppingCart, CalendarClock, ScanLine,
   LayoutDashboard,
   LogOut,
   PanelLeft,
@@ -115,6 +115,7 @@ const ALL_NAV_GROUPS = [
       { icon: DollarSign, label: "KPIs Admin (Nivel 3)", path: "/kpi-admin", minRole: "manager" },
       { icon: Scale, label: "Cuadre de Vasos", path: "/cuadre-vasos", minRole: "leader" },
       { icon: Package, label: "Inventario", path: "/inventario", minRole: "leader" },
+      { icon: ShoppingCart, label: "Compras Jellyboba", path: "/compras-jellyboba", minRole: "manager" },
       { icon: DollarSign, label: "Rentabilidad", path: "/finanzas", minRole: "manager" },
       { icon: Eye, label: "Supervisión de Actividades", path: "/supervision", minRole: "leader" },
     ],
