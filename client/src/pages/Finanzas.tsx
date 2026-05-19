@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -211,11 +211,7 @@ export default function Finanzas(){
                           </tr>
                         </tbody>
                       </table>
-                      {((resumen as any).cmvRecetas??0)===0 && (
-                        <p className="text-xs text-amber-600 mt-3 p-2 bg-amber-50 rounded">
-                          ⚠️ CMV de recetas en $0 — carga costoXGramo en Inventario → Insumos.
-                        </p>
-                      )}
+
                     </CardContent>
                   </Card>
 
