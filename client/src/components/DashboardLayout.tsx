@@ -116,6 +116,7 @@ const ALL_NAV_GROUPS = [
       { icon: Scale, label: "Cuadre de Vasos", path: "/cuadre-vasos", minRole: "leader" },
       { icon: Package, label: "Inventario", path: "/inventario", minRole: "leader" },
       { icon: ShoppingCart, label: "Compras Jellyboba", path: "/compras-jellyboba", minRole: "manager" },
+      { icon: Clock, label: "Nómina / Horas", path: "/nomina", minRole: "manager" },
       { icon: DollarSign, label: "Rentabilidad", path: "/finanzas", minRole: "manager" },
       { icon: Eye, label: "Supervisión de Actividades", path: "/supervision", minRole: "leader" },
     ],

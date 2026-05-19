@@ -39,6 +39,7 @@ import ImportarVentasOdoo from "@/pages/ImportarVentasOdoo";
 import Inventario from "./pages/Inventario";
 import InventarioStock from "./pages/InventarioStock";
 import Finanzas from "./pages/Finanzas";
+import Nomina from "./pages/Nomina";
 import ComprasJellyboba from "./pages/ComprasJellyboba";
 import EvaluacionesPeriodo from "./pages/EvaluacionesPeriodo";
 import Supervision from "./pages/Supervision";
@@ -196,6 +197,9 @@ function Router() {
         </Route>
         <Route path="/compras-jellyboba">
           <ProtectedRoute component={ComprasJellyboba} minRole="manager" />
+        </Route>
+        <Route path="/nomina">
+          <ProtectedRoute component={Nomina} minRole="manager" />
         </Route>
         <Route path="/inventario/stock">
           <ProtectedRoute component={InventarioStock} minRole="leader" />

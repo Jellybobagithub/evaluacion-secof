@@ -25,6 +25,7 @@ import { horariosRouter } from "./routers/horarios";
 import { preparacionesRouter } from "./routers/preparaciones";
 import { observacionRouter } from "./routers/observacion";
 import { inventarioRouter } from "./routers/inventario";
+import { nominaRouter } from "./routers/nomina";
 import { comprasJellybobaRouter } from "./routers/comprasJellyboba";
 import { menuPermisosRouter } from "./routers/menuPermisos";
 import { storagePut } from "./storage";
@@ -35,6 +36,7 @@ export const appRouter = router({
   observacion: observacionRouter,
   inventario: inventarioRouter,
   comprasJellyboba: comprasJellybobaRouter,
+  nomina: nominaRouter,
   menuPermisos: menuPermisosRouter,
 
   auth: router({
