@@ -1136,7 +1136,6 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
       AND fecha BETWEEN ${fechaInicio} AND ${fechaFin}
   `);
   const ajustes = ajustesRows[0] as any[];
-
   // 2. Obtener aperturas y cierres en el rango (turno_apertura/cierre con foto)
   const aperturas = await db.select().from(turnoApertura)
     .where(and(
@@ -1247,6 +1246,27 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
       })();
 
       // Buscar ajuste eventual para este empleado y fecha
+
+      if (ajuste?.ausente) {
+        const reg: InsertRegistroNomina = {
+          sucursalId, empleadoId: emp.id, fecha,
+          estado: "ausente", horasTrabajadas: undefined,
+          editadoManualmente: false,
+        };
+        if (existente.length > 0) {
+          await db.update(registroNomina).set(reg).where(eq(registroNomina.id, existente[0].id));
+        } else {
+          await db.insert(registroNomina).values(reg);
+        }
+        resultados.push(reg);
+        continue;
+      }
+
+      // Override hora entrada esperada con ajuste eventual
+      if (ajuste?.horaEntrada) horaEntradaEsperada = ajuste.horaEntrada;
+      if (ajuste?.horaSalida)  horaSalidaEsperada  = ajuste.horaSalida;
+
+      // Buscar ajuste eventual para este empleado y fecha
       const ajuste = ajustes.find((a: any) => a.empleadoId === emp.id && a.fecha === fecha);
 
       // Si hay ajuste con ausente=1 → justificada
@@ -1265,10 +1285,6 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
         continue;
       }
 
-      // Override hora entrada esperada con ajuste eventual
-      if (ajuste?.horaEntrada) horaEntradaEsperada = ajuste.horaEntrada;
-      if (ajuste?.horaSalida)  horaSalidaEsperada  = ajuste.horaSalida;
-
       if (horarioEmp === null && turnoAsignado !== "D") {
         // Dia de descanso segun horarioPersonal
         estado = "descanso";
@@ -1276,9 +1292,9 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
         estado = "descanso";
       } else if (horarioEmp?.entrada && horarioEmp?.salida) {
         // Usar horarioPersonal del empleado
-        horaEntradaEsperada = horarioEmp.entrada;
-        horaSalidaEsperada = horarioEmp.salida;
-        const tsEntradaEsperada = horaFechaToTs(fecha, horarioEmp.entrada);
+        horaEntradaEsperada = ajuste?.horaEntrada ?? horarioEmp.entrada;
+        horaSalidaEsperada  = ajuste?.horaSalida  ?? horarioEmp.salida;
+        const tsEntradaEsperada = horaFechaToTs(fecha, horaEntradaEsperada!);
 
         if (!tsEntradaEfectiva) {
           estado = "ausente";
