@@ -1128,6 +1128,15 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
     .where(and(eq(empleados.sucursalId, sucursalId), eq(empleados.activo, true)));
   if (emps.length === 0) return [];
 
+  // 1b. Obtener ajustes eventuales del periodo
+  const ajustesRows = await db.execute(sql`
+    SELECT empleadoId, fecha, ausente, horaEntrada, horaSalida, motivo
+    FROM ajustes_eventuales
+    WHERE sucursalId = ${sucursalId}
+      AND fecha BETWEEN ${fechaInicio} AND ${fechaFin}
+  `);
+  const ajustes = ajustesRows[0] as any[];
+
   // 2. Obtener aperturas y cierres en el rango (turno_apertura/cierre con foto)
   const aperturas = await db.select().from(turnoApertura)
     .where(and(
@@ -1237,6 +1246,29 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
         } catch { return null; }
       })();
 
+      // Buscar ajuste eventual para este empleado y fecha
+      const ajuste = ajustes.find((a: any) => a.empleadoId === emp.id && a.fecha === fecha);
+
+      // Si hay ajuste con ausente=1 → justificada
+      if (ajuste?.ausente) {
+        const reg: InsertRegistroNomina = {
+          sucursalId, empleadoId: emp.id, fecha,
+          estado: "justificado", horasTrabajadas: 0,
+          editadoManualmente: false,
+        };
+        if (existente.length > 0) {
+          await db.update(registroNomina).set(reg).where(eq(registroNomina.id, existente[0].id));
+        } else {
+          await db.insert(registroNomina).values(reg);
+        }
+        resultados.push(reg);
+        continue;
+      }
+
+      // Override hora entrada esperada con ajuste eventual
+      if (ajuste?.horaEntrada) horaEntradaEsperada = ajuste.horaEntrada;
+      if (ajuste?.horaSalida)  horaSalidaEsperada  = ajuste.horaSalida;
+
       if (horarioEmp === null && turnoAsignado !== "D") {
         // Dia de descanso segun horarioPersonal
         estado = "descanso";
@@ -1255,7 +1287,7 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
           minutosRetardo = retrasoMin;
           estado = retrasoMin > TOLERANCIA_RETARDO_MIN ? "retardo" : "presente";
 
-          if (tsSalidaEfectiva) {
+          if (tsSalidaEfectiva && tsSalidaEfectiva > tsEntradaEfectiva) {
             horasTrabajadas = Math.round(((tsSalidaEfectiva - tsEntradaEfectiva) / 3600000) * 100) / 100;
           }
         }
