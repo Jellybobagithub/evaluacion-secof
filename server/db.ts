@@ -1155,7 +1155,7 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
   // Agrupar asistencia por empleadoId y fecha (YYYY-MM-DD en UTC)
   const asistByEmpFecha = new Map<string, { entrada: number | null; salida: number | null }>();
   for (const row of asistenciaRows) {
-    const fechaRow = new Date(row.timestamp).toISOString().split("T")[0];
+    const fechaRow = new Date(row.timestamp - 6*3600000).toISOString().split("T")[0]; // UTC-6 México
     const key = `${row.empleadoId}|${fechaRow}`;
     if (!asistByEmpFecha.has(key)) asistByEmpFecha.set(key, { entrada: null, salida: null });
     const entry = asistByEmpFecha.get(key)!;
