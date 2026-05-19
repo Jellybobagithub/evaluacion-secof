@@ -167,7 +167,7 @@ export default function Finanzas(){
                             </tr>
                           )}
                           <tr className="font-semibold text-orange-700 border-t">
-                            <td className="py-1">📦 CMV</td>
+                            <td className="py-1">📦 CMV (Costo de Mercancía Vendida)</td>
                             <td className="text-right py-1 text-orange-700">-{fmt((resumen as any).cmvTotal??0)}</td>
                             <td className="text-right py-1 text-muted-foreground">
                               {resumen.totalIngresos>0?pct(((resumen as any).cmvTotal??0)/resumen.totalIngresos*100):"—"}
