@@ -53,8 +53,9 @@ export default function Finanzas(){
     {sucursalId:sucursalId!,periodo},{enabled:!!sucursalId}
   );
   const {data:gastos=[]}=trpc.finanzas.gastos.getByPeriodo.useQuery(
-    {sucursalId:sucursalId!,periodo},{enabled:!!sucursalId,onSuccess:(d:any[])=>{if(!gastosEditado)setLineasGasto(d);}}
+    {sucursalId:sucursalId!,periodo},{enabled:!!sucursalId}
   );
+  useEffect(()=>{if(gastos.length>0 && !gastosEditado) setLineasGasto(gastos as any[]);},[gastos]);
   const {data:precios=[]}=trpc.finanzas.precios.list.useQuery();
   const {data:comprasExt=[],refetch:refetchCompras}=trpc.finanzas.comprasExternas.list.useQuery(
     {sucursalId:sucursalId!,periodo},{enabled:!!sucursalId}
