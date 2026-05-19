@@ -1,143 +1,119 @@
-# ESTADO SECOF — Snowtea Sistema de Gestión Integral
-**Última actualización:** 15 de Mayo 2026
-**VPS:** 216.238.81.192 | **App:** /var/www/secof | **DB:** secof_db (MySQL) | **PM2:** secof (port 5000)
-**Stack:** Node/TypeScript, React, tRPC, Drizzle ORM | **Repo:** https://github.com/Jellybobagithub/evaluacion-secof
+# ESTADO.md — SECOF Snowtea
+**Última actualización:** 19 de Mayo 2026  
+**Último commit:** ver `git log --oneline -1`
+**PM2 proceso:** `secof` ID 1 — Puerto 5000  
+**Dominio:** https://secof.snowteatienda.com  
+**Repo:** https://github.com/Jellybobagithub/evaluacion-secof
 
 ---
 
-## ENTORNO
+## COMANDO DE INICIO PM2
+```bash
+cd /var/www/secof && JWT_SECRET=SnowteaSECOF2026SecretKeyJellyboba VITE_APP_ID=secof-snowtea GOOGLE_CLIENT_ID=302803392762-gg4r8ckp7ejubbt843gmj7pnlae41idq.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=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 OAUTH_SERVER_URL=https://secof.snowteatienda.com OWNER_EMAIL=franquicias@snowtea.com.mx APP_URL=https://secof.snowteatienda.com NODE_ENV=production PORT=5000 DATABASE_URL="mysql://secof_user:Snowtea2026Secof@localhost:3306/secof_db" pm2 start dist/index.js --name secof
+```
 
-| Servicio | Puerto | Estado |
-|---|---|---|
-| SECOF App | 5000 | ✅ PM2 id=1 |
-| Nginx | 443 | ✅ secof.snowteatienda.com |
-| MySQL | 3306 | ✅ secof_db |
-| Odoo Snowtea | 8069 | ✅ snow.cloudpepper.site |
-| MCP Snowtea | ngrok | ✅ PM2 id=9 |
+## DEPLOY
+```bash
+cd /var/www/secof && git pull origin main && pnpm build && pm2 restart secof
+```
 
-**Credenciales DB:** secof_user / Snowtea2026Secof
-**SMTP:** sistemas.snowtea@gmail.com / rcxlvrmzzcuvpmjd
-**REPORT_EMAILS:** jorge.moreno@snowtea.com.mx, sandrasnowtea@gmail.com, miguel.moreno@jellyboba.com, emilyaylinms@gmail.com
-**Odoo:** snow.cloudpepper.site, admin, f7b0100211d40de00242b1d4b2168086919291da
-**POS Patio:** ID 2
+---
+
+## STACK TÉCNICO
+- Frontend: React 19 + Vite + TypeScript + Tailwind + shadcn/ui
+- Backend: Express + tRPC + Drizzle ORM
+- DB: MySQL 8.0 — `secof_db` usuario `secof_user` contraseña `Snowtea2026Secof`
+- Auth: Google OAuth
+- Package manager: pnpm
+- Node: 20.20.2, pnpm 10.33.0
+- Nginx reverse proxy + PM2
 
 ---
 
 ## SUCURSALES
-
 | ID | Nombre | Meta mensual |
 |---|---|---|
-| 1 | Plaza Portal | $90,000 |
-| 30001 | Plaza Patio | $135,000 (auto-calc +3%) |
+| 1 | Plaza Portal | $90,000 (cierra jun 2026) |
+| 30001 | Plaza Patio | $175,012 (auto-calc +3%) |
 | 60001 | Tienda Demo | — |
 
 ## EMPLEADOS CLAVE
-
-| Empleado | ID | userId | Rol | Sucursal |
-|---|---|---|---|---|
-| Emily Medina | 150001 | 2580048 | leader | Plaza Patio |
-| Alma | 180001 | — | anfitrion | Plaza Patio |
+| Empleado | userId | Rol | Sucursal |
+|---|---|---|---|
+| Miguel Moreno | 600001 | superadmin | todas |
+| Emily Medina | 2580048 | leader | Plaza Patio |
+| Penélope Herrera | — | owner | todas |
+| Jorge Moreno | — | owner | todas |
+| Tienda Demo | 5495509 | manager | 60001 |
+| tiendademosnowtea@gmail.com | — | — | — |
 
 ---
 
-## COMPLETADO EN SESIÓN 15-MAY-2026
+## MÓDULOS ACTIVOS
+- SECOF (evaluaciones de calidad)
+- Mi Turno + Preparaciones + Actividades de Limpieza
+- Rotación de Áreas + Checador QR
+- KPIs Anfitriones / Líder / Admin
+- Cuadre de Vasos
+- Inventario (Conteo, Comparativa, Historial, Recetas, Configuración)
+- Compras Jellyboba (historial, detalle, upload PDF, nueva orden)
+- Rentabilidad (P&L: CMV Jellyboba + compras externas + gastos op.)
+- Plan de Acción + Evaluaciones Periodo de Prueba
+- Supervisión de Actividades
+- Reportes Diarios (sync Odoo 9:30pm)
+- Asistente FAQ
+- Horarios/Rotación + PDF horario semanal
+- Avisos Generales
+- Usuarios y Roles
 
-### Bugs corregidos
-- `asc` no importado en db.ts → sucursales vacías para Emily (Fix: agregar `asc` al import)
-- `diasAlertasAsist` no definido en scheduler → 502 Bad Gateway (Fix: recalcular variable)
-- `initScheduler` sin export → app no arrancaba (Fix: agregar export function + wrapper)
-- `Download` icon no importado en HorariosRotacion.tsx (Fix: agregar al import)
-- Modal preparaciones se abría arriba en móvil (Fix: `top-[50%] translate-y-[-50%]`)
-- SelectContent bloqueado por overflow en modal (Fix: `position="popper" z-[200]`)
+---
 
-### Módulos nuevos
-- **Cuadre automático de vasos** al registrar cierre: cruza vs Odoo, alerta si diff >5
-  - Tabla: `turno_cierre.vasosOdoo`, `diferenciaCuadre`, `alertaCuadre`
-- **Plan de Acción con badge vencido** — fondo rojo + alerta 9AM diaria
-- **KPI Snapshot mensual** — calcula score ponderado el 1ro de cada mes 6:30AM
-  - Tabla: `kpi_snapshot_mensual`
-  - Service: `server/services/kpiService.ts`
-- **Recordatorio SECOF mensual** — 3 niveles: jueves previo / lunes / día 10
-- **Auto-horario semanal** — genera turnos automáticamente cada jueves 6PM
-  - Notifica a Emily por email cuando está listo para revisar
-- **Botón PDF** en Rotación Semanal para compartir por WhatsApp
-- **4 KPIs nuevos** para líder: merma, rotación personal, cobertura turnos, reportes diarios
-  - IDs: 33 (mermas), 34 (rotacion), 35 (cobertura), 36 (reportes)
-- **Alta de empleados por líder** — Emily puede crear anfitriones en Colaboradores
-- **Tab Teórico eliminado** del módulo Inventario (redundante con Pronóstico de Surtido)
+## RENTABILIDAD / CMV
+- CMV = compras Jellyboba del periodo (tabla `compras`) + compras externas (`compras_externas`)
+- Mat. prima (recetas) eliminada del P&L — usada solo para control de mermas
+- Gastos operativos desde `fin_gastos` (fijos, nómina, variable, ingreso extra)
+- Meta mensual desde `sucursales.metaVentasMensual` (auto-actualiza el 1ro de cada mes)
 
-### Módulo de Compras Jellyboba
-- Tablas nuevas: `compras`, `compras_detalle`, `insumos_costos`
-- 9 órdenes cargadas (OV09632 → OV09833) marzo-abril 2026
-- 29 insumos con precio por caja y costo por gramo (`costoXGramo` en `inv_productos`)
-- CMV real calculable por receta: ~22% food cost en abril
-- **Pendiente:** compras externas (hielos, film, azúcar, leche soya) — agregar módulo de captura manual
+## COMPRAS JELLYBOBA
+- 11 órdenes cargadas (OV09632 al OV09882)
+- Tabla `compras` + `compras_detalle` (constraint único uq_compra_sku)
+- PDFs se guardan en `/dist/public/pdfs/compras/`
+- Botón "Nueva Orden" para captura manual + upload PDF
+- Auto-sync desde Odoo Jellyboba: PENDIENTE
 
-### Scheduler activo (todos corriendo)
-| Tarea | Hora | Estado |
+---
+
+## SCHEDULER (server/scheduler.ts)
+| Tarea | Hora UTC | Hora MX |
 |---|---|---|
-| Sync Odoo | 22:15 diario | ✅ |
-| Auto-meta mensual | 1ro del mes | ✅ |
-| Snapshot KPI | 1ro del mes 6:30AM | ✅ |
-| Check SECOF mensual | 8:00AM diario | ✅ |
-| Alerta planes vencidos | 9:00AM diario | ✅ |
-| Auto-horario semanal | Jueves 6PM | ✅ |
-| Alerta preparaciones | cada 30 min | ✅ (notif no configurada) |
-| Alertas retardos | Lunes 9AM | ✅ |
+| Sync Odoo + reporte diario | 03:30 UTC | 21:30 CDT |
+| Alerta reportes faltantes | 22:00 UTC | 16:00 CDT |
+| Auto-meta mensual | 1ro del mes 06:00 UTC | — |
+| Auto-horario semanal | Jueves 18:00 UTC | — |
+| secof-api (viejo) | DETENIDO | — |
+
+---
+
+## FIXES CONOCIDOS / DEUDA TÉCNICA
+1. `inventario.ts` tiene 2 warnings de llaves duplicadas: `factorConversion` (línea 1281) y `surtidoIslaConfirmar` (líneas 1452/1503) — no afectan funcionalidad, pendiente limpiar
+2. `alert-dialog.tsx` error TS2657 — preexistente, no afecta build
+3. `asistenteRouter` importado dos veces en routers.ts — no afecta funcionalidad
+
+## NOTAS DE DESARROLLO
+- Archivos grandes transferir vía base64: `base64 archivo | tr -d '\n' > archivo.b64` → scp → `base64 -d archivo.b64 > destino`
+- Python patches: usar heredoc `python3 << 'PYEOF'` directamente en VPS
+- VPS timezone: UTC → México CDT = UTC-6
+- `inv_recetas` tiene 349 registros pero solo para productos "Snowtea Clásico" — pendiente cargar recetas del PDF Vs032025 para todos los productos
+- `preparaciones` tabla: registra lotes de producción (base_snowtea, tapioca, jarabe_longan, sustituto_azucar) — NO individual por producto
 
 ---
 
 ## PENDIENTES
-
-### Alta prioridad
-1. **Compras externas** (hielos, film de sellado, azúcar, leche soya) — formulario captura manual de precios para completar CMV
-2. **Nómina** — reporte de horas reales del equipo desde ajustes eventuales y turnos_semana
-3. **Usuario Demo** — crear cuenta Gmail para Tienda Demo (sucursalId=60001) y dar acceso
-
-### Media prioridad
-4. **SSH acceso directo** — bloqueado por CloudPepper, requiere pedirles apertura
-5. **Rentabilidad con CMV real** — conectar `getKpiRentabilidad` con costos reales de recetas (actualmente usa costoProducto manual en gastosOperativos)
-6. **Timeline visual de horarios** — Fase 2: bloques de solapamiento automático por hora del día
-
-### Capacitación Emily (en curso)
-| Sesión | Fecha | Tema |
+| # | Pendiente | Prioridad |
 |---|---|---|
-| S1 | 19 mayo | Apertura/cierre SECOF — **CRÍTICA** |
-| S2 | 26 mayo | Horarios y rotación |
-| S3 | 2 junio | Inventario y conteo físico |
-| S4 | 9 junio | Reportes, KPIs, SECOF |
-| S5 | 16 junio | Evaluación final y certificación |
-
-**Evaluación formal Emily:** 31 Mayo 2026 — criterios: ≥80% continúa, 60-79% extensión, <60% concluye
-**Score actual Emily (abril):** 82% CUMPLE
-
----
-
-## ARQUITECTURA CLAVE
-
-### Rutas importantes
-- `server/scheduler.ts` — todas las tareas automáticas (export function initScheduler)
-- `server/services/kpiService.ts` — cálculo snapshot KPI mensual
-- `server/services/syncService.ts` — sync Odoo
-- `server/services/emailService.ts` — emails
-- `server/routers/inventario.ts` — incluye stockTeorico y pronosticoSurtido
-- `client/src/pages/PronosticoSurtido.tsx` — módulo principal de inventario/surtido
-
-### Tablas nuevas en esta sesión
-```sql
-compras (id, numeroOrden, proveedor, fecha, subtotal, iva, total, sucursalId)
-compras_detalle (id, compraId, sku, descripcion, cantidad, precioUnitario, importe, categoria)
-insumos_costos (id, clave, nombre, categoria, precioCaja, contenidoCaja, precioXUnidad)
-kpi_snapshot_mensual (id, sucursalId, puesto, mes, ventasPct, scoreSecof, ..., scoreTotalPct, estado)
--- Columnas agregadas:
-turno_cierre: vasosOdoo, diferenciaCuadre, alertaCuadre
-inv_productos: costoXGramo, insumoClave
-```
-
-### KPI config líder (eval_kpi_config)
-IDs 1-10: originales | IDs 33-36: nuevos (mermas, rotación, cobertura, reportes)
-
-### Corrección scheduler (importante)
-El archivo scheduler.ts tiene `async function alertaRetardosYAusencias()` como función standalone
-seguida de `export function initScheduler()`. Si se edita scheduler.ts verificar que ambas funciones
-estén correctamente cerradas y exportadas.
+| 1 | Reporte de horas reales del equipo para cálculo de nómina | 🔴 Alta |
+| 2 | Auto-sync Compras Jellyboba desde Odoo Jellyboba (sale.order) | 🟡 Media |
+| 3 | Revisar/cargar recetas completas desde PDF Vs032025 | 🟡 Media |
+| 4 | Descuento automático inventario desde preparaciones (ver Pronóstico Surtido) | 🟡 Media |
+| 5 | Bugs warnings inventario.ts (factorConversion, surtidoIslaConfirmar) | 🟢 Baja |
+| 6 | Usuario Demo: verificar login Google OAuth tiendademosnowtea@gmail.com | 🟢 Baja |
