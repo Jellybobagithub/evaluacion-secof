@@ -69,6 +69,50 @@ export const comprasJellybobaRouter = router({
       return { ok: true, pdfUrl };
     }),
 
+  crear: protectedProcedure
+    .input(z.object({
+      numeroOrden:  z.string(),
+      proveedor:    z.string().default("Jellyboba"),
+      fecha:        z.string(),
+      subtotal:     z.number(),
+      iva:          z.number().default(0),
+      total:        z.number(),
+      sucursalId:   z.number().default(30001),
+      notas:        z.string().optional(),
+      pdfBase64:    z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (!["superadmin","owner","manager"].includes(ctx.user.role))
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // Insertar orden
+      await db.execute(sql`
+        INSERT INTO compras (numeroOrden, proveedor, fecha, subtotal, iva, total, sucursalId, notas)
+        VALUES (${input.numeroOrden}, ${input.proveedor}, ${input.fecha},
+                ${input.subtotal}, ${input.iva}, ${input.total},
+                ${input.sucursalId}, ${input.notas ?? null})
+      `);
+      const rows = await db.execute(sql`SELECT id FROM compras WHERE numeroOrden=${input.numeroOrden} LIMIT 1`);
+      const compraId = (rows[0] as any[])[0]?.id as number;
+
+      // Subir PDF si viene
+      let pdfUrl: string | null = null;
+      if (input.pdfBase64 && compraId) {
+        try {
+          const dir = path.join(process.cwd(), "dist", "public", "pdfs", "compras");
+          fs.mkdirSync(dir, { recursive: true });
+          const filename = `${input.numeroOrden}.pdf`;
+          const b64 = input.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+          fs.writeFileSync(path.join(dir, filename), Buffer.from(b64, "base64"));
+          pdfUrl = `/pdfs/compras/${filename}`;
+          await db.execute(sql`UPDATE compras SET pdfUrl=${pdfUrl} WHERE id=${compraId}`);
+        } catch(e) { console.error("PDF upload error:", e); }
+      }
+      return { ok: true, compraId, pdfUrl };
+    }),
+
   resumenPorCategoria: protectedProcedure
     .input(z.object({ compraId: z.number() }))
     .query(async ({ input }) => {

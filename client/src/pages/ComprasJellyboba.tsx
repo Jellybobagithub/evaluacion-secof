@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShoppingCart, ChevronDown, ChevronRight, FileText, Upload, Package } from "lucide-react";
+import { ShoppingCart, ChevronDown, ChevronRight, FileText, Upload, Package, Plus, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 2 }).format(n);
@@ -120,7 +122,25 @@ function OrdenRow({ orden, onPdfUploaded }: { orden: any; onPdfUploaded: () => v
 }
 
 export default function ComprasJellyboba() {
+  const [modalNueva, setModalNueva] = useState(false);
+  const [nuevaOrden, setNuevaOrden] = useState({
+    numeroOrden: "", proveedor: "Jellyboba", fecha: new Date().toISOString().split("T")[0],
+    subtotal: 0, iva: 0, total: 0, notas: "", pdfBase64: "",
+  });
+  const [pdfNombreNueva, setPdfNombreNueva] = useState("");
+  const fileNuevaRef = useRef<HTMLInputElement>(null);
+
   const { data: ordenes = [], refetch, isLoading } = trpc.comprasJellyboba.list.useQuery({ sucursalId: 30001 });
+  const crearOrden = trpc.comprasJellyboba.crear.useMutation({
+    onSuccess: () => {
+      toast.success("Orden creada correctamente");
+      refetch();
+      setModalNueva(false);
+      setNuevaOrden({ numeroOrden:"", proveedor:"Jellyboba", fecha:new Date().toISOString().split("T")[0], subtotal:0, iva:0, total:0, notas:"", pdfBase64:"" });
+      setPdfNombreNueva("");
+    },
+    onError: (e) => toast.error("Error: " + e.message),
+  });
 
   const totalCompras = (ordenes as any[]).reduce((s, o) => s + Number(o.total), 0);
   const totalItems = (ordenes as any[]).reduce((s, o) => s + Number(o.numItems), 0);
@@ -156,13 +176,81 @@ export default function ComprasJellyboba() {
         </Card>
       </div>
 
+      {/* Modal Nueva Orden */}
+      <Dialog open={modalNueva} onOpenChange={setModalNueva}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Nueva Orden Jellyboba</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium">Número de Orden</label>
+                <Input value={nuevaOrden.numeroOrden} onChange={e=>setNuevaOrden(p=>({...p,numeroOrden:e.target.value}))}
+                  placeholder="OV09900" className="h-8 text-sm mt-1"/>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Fecha</label>
+                <Input type="date" value={nuevaOrden.fecha} onChange={e=>setNuevaOrden(p=>({...p,fecha:e.target.value}))} className="h-8 text-sm mt-1"/>
+              </div>
+              <div>
+                <label className="text-xs font-medium">Subtotal $</label>
+                <Input type="number" value={nuevaOrden.subtotal||""} placeholder="0.00"
+                  onChange={e=>setNuevaOrden(p=>({...p,subtotal:Number(e.target.value)}))} className="h-8 text-sm mt-1"/>
+              </div>
+              <div>
+                <label className="text-xs font-medium">IVA $</label>
+                <Input type="number" value={nuevaOrden.iva||""} placeholder="0.00"
+                  onChange={e=>setNuevaOrden(p=>({...p,iva:Number(e.target.value),total:nuevaOrden.subtotal+Number(e.target.value)}))} className="h-8 text-sm mt-1"/>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium">Total $</label>
+              <Input type="number" value={nuevaOrden.total||""}
+                onChange={e=>setNuevaOrden(p=>({...p,total:Number(e.target.value)}))}
+                placeholder="0.00" className="h-8 text-sm mt-1 font-semibold"/>
+            </div>
+            <div>
+              <label className="text-xs font-medium">PDF de la orden (opcional)</label>
+              <div className="flex gap-2 mt-1">
+                <input ref={fileNuevaRef} type="file" accept="application/pdf" className="hidden"
+                  onChange={e=>{
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setPdfNombreNueva(file.name);
+                    const reader = new FileReader();
+                    reader.onload = () => setNuevaOrden(p=>({...p,pdfBase64:reader.result as string}));
+                    reader.readAsDataURL(file);
+                  }}/>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1 flex-1"
+                  onClick={()=>fileNuevaRef.current?.click()}>
+                  <Upload className="h-3 w-3"/>
+                  {pdfNombreNueva || "Seleccionar PDF"}
+                </Button>
+                {pdfNombreNueva && <button onClick={()=>{setPdfNombreNueva("");setNuevaOrden(p=>({...p,pdfBase64:""}));}}><X className="h-4 w-4 text-red-400"/></button>}
+              </div>
+            </div>
+            <Input placeholder="Notas opcionales..." value={nuevaOrden.notas}
+              onChange={e=>setNuevaOrden(p=>({...p,notas:e.target.value}))} className="h-8 text-sm"/>
+            <Button onClick={()=>{
+              if (!nuevaOrden.numeroOrden || nuevaOrden.total<=0) { toast.error("Número de orden y total son requeridos"); return; }
+              crearOrden.mutate({ ...nuevaOrden, sucursalId: 30001 });
+            }} disabled={crearOrden.isPending} className="w-full bg-blue-600 hover:bg-blue-700">
+              {crearOrden.isPending ? "Guardando..." : "Crear orden"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Lista */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="h-4 w-4"/>
             Historial de órdenes
-            <span className="ml-auto text-sm font-normal text-muted-foreground">{totalItems} productos en total</span>
+            <span className="text-sm font-normal text-muted-foreground">{totalItems} productos en total</span>
+            <Button size="sm" className="ml-auto h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700"
+              onClick={()=>setModalNueva(true)}>
+              <Plus className="h-3 w-3"/> Nueva Orden
+            </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
