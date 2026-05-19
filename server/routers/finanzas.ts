@@ -158,8 +158,16 @@ export const finanzasRouter = router({
 
       const totalIngresos = totalVentas + totalExtrasIngreso;
       const totalEgresos = totalGastosFijos + totalNomina + totalVariable;
-      const utilidad = totalIngresos - totalEgresos;
-      const margen = totalIngresos > 0 ? (utilidad / totalIngresos) * 100 : 0;
+      // CMV: materia prima recetas x costos
+      const cmvRR = await db.execute(sql`SELECT COALESCE(SUM(vc.cantidad*r.cantidad*ic.costoXGramo),0) as t FROM inv_ventas_captura vc JOIN inv_recetas r ON r.productoVentaId=vc.productoVentaId JOIN insumos_costos ic ON ic.id=r.insumoId WHERE vc.sucursalId=${input.sucursalId} AND vc.fecha BETWEEN ${fechaInicio} AND ${fechaFin}`);
+      const cmvRecetas = Number((cmvRR[0] as any[])[0]?.t ?? 0);
+      const cmvER = await db.execute(sql`SELECT COALESCE(SUM(total),0) as t FROM compras_externas WHERE sucursalId=${input.sucursalId} AND periodo=${input.periodo}`);
+      const cmvExternas = Number((cmvER[0] as any[])[0]?.t ?? 0);
+      const cmvTotal = cmvRecetas + cmvExternas;
+      const utilidadBruta = totalIngresos - cmvTotal;
+      const margenBruto = totalIngresos > 0 ? (utilidadBruta/totalIngresos)*100 : 0;
+      const utilidad = utilidadBruta - totalEgresos;
+      const margen = totalIngresos > 0 ? (utilidad/totalIngresos)*100 : 0;
 
       // Ticket promedio
       const ticketPromedio = totalVasos > 0 ? totalVentas / totalVasos : 0;
@@ -181,6 +189,17 @@ export const finanzasRouter = router({
         ticketPromedio,
         ventasPorProducto,
         gastos: gastosList,
+        cmvRecetas,
+        cmvExternas,
+        cmvTotal,
+        utilidadBruta,
+        margenBruto,
       };
     }),
+
+  comprasExternas: {
+    list: protectedProcedure.input(z.object({sucursalId:z.number(),periodo:z.string()})).query(async({input})=>{const db=await getDb();if(!db)throw new TRPCError({code:'INTERNAL_SERVER_ERROR'});const r=await db.execute(sql`SELECT id,fecha,concepto,proveedor,cantidad,unidad,precioUnitario,total,notas FROM compras_externas WHERE sucursalId=${input.sucursalId} AND periodo=${input.periodo} ORDER BY fecha DESC`);return(r[0] as any[]);}),
+    guardar: protectedProcedure.input(z.object({sucursalId:z.number(),periodo:z.string(),fecha:z.string(),concepto:z.string(),proveedor:z.string().default('Externo'),cantidad:z.number().default(1),unidad:z.string().default('pz'),precioUnitario:z.number(),total:z.number(),notas:z.string().optional()})).mutation(async({ctx,input})=>{const db=await getDb();if(!db)throw new TRPCError({code:'INTERNAL_SERVER_ERROR'});if(!['superadmin','owner','manager','leader'].includes(ctx.user.role))throw new TRPCError({code:'FORBIDDEN'});await db.execute(sql`INSERT INTO compras_externas(sucursalId,periodo,fecha,concepto,proveedor,cantidad,unidad,precioUnitario,total,notas,capturoId)VALUES(${input.sucursalId},${input.periodo},${input.fecha},${input.concepto},${input.proveedor},${input.cantidad},${input.unidad},${input.precioUnitario},${input.total},${input.notas??null},${ctx.user.id})`);return{ok:true};}),
+    eliminarById: protectedProcedure.input(z.object({id:z.number()})).mutation(async({ctx,input})=>{const db=await getDb();if(!db)throw new TRPCError({code:'INTERNAL_SERVER_ERROR'});if(!['superadmin','owner','manager','leader'].includes(ctx.user.role))throw new TRPCError({code:'FORBIDDEN'});await db.execute(sql`DELETE FROM compras_externas WHERE id=${input.id}`);return{ok:true};}),
+  },
 });
