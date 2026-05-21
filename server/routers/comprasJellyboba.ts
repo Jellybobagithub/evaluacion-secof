@@ -140,7 +140,7 @@ export const comprasJellybobaRouter = router({
           p.nombre as invNombre, p.unidadConteo,
           ROUND(cd.cantidad * m.piezasPorUnidadCompra, 0) as cantidadEsperada
         FROM compras_detalle cd
-        JOIN compras_sku_mapping m ON m.sku = cd.sku
+        JOIN compras_sku_mapping m ON m.sku = cd.sku AND m.inv_productoId > 0
         JOIN inv_productos p ON p.id = m.inv_productoId
         WHERE cd.compraId = ${input.compraId}
         ORDER BY p.categoria, p.nombre
