@@ -55,7 +55,7 @@ export const comprasJellybobaRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       // Escribir PDF en disco
-      const dir = path.join(process.cwd(), "dist", "public", "pdfs", "compras");
+      const dir = path.join(process.cwd(), "storage", "pdfs", "compras");
       fs.mkdirSync(dir, { recursive: true });
 
       const filename  = `${input.numeroOrden}.pdf`;
@@ -63,7 +63,7 @@ export const comprasJellybobaRouter = router({
       const b64data   = input.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
       fs.writeFileSync(filepath, Buffer.from(b64data, "base64"));
 
-      const pdfUrl = `/pdfs/compras/${filename}`;
+      const pdfUrl = `/storage/pdfs/compras/${filename}`;
       await db.execute(sql`UPDATE compras SET pdfUrl = ${pdfUrl} WHERE id = ${input.compraId}`);
 
       return { ok: true, pdfUrl };
@@ -101,12 +101,12 @@ export const comprasJellybobaRouter = router({
       let pdfUrl: string | null = null;
       if (input.pdfBase64 && compraId) {
         try {
-          const dir = path.join(process.cwd(), "dist", "public", "pdfs", "compras");
+          const dir = path.join(process.cwd(), "storage", "pdfs", "compras");
           fs.mkdirSync(dir, { recursive: true });
           const filename = `${input.numeroOrden}.pdf`;
           const b64 = input.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
           fs.writeFileSync(path.join(dir, filename), Buffer.from(b64, "base64"));
-          pdfUrl = `/pdfs/compras/${filename}`;
+          pdfUrl = `/storage/pdfs/compras/${filename}`;
           await db.execute(sql`UPDATE compras SET pdfUrl=${pdfUrl} WHERE id=${compraId}`);
         } catch(e) { console.error("PDF upload error:", e); }
       }
@@ -252,11 +252,11 @@ export const comprasJellybobaRouter = router({
       // 2. Guardar PDF en disco
       let pdfUrl: string | null = null;
       try {
-        const dir = path.join(process.cwd(), "dist", "public", "pdfs", "compras");
+        const dir = path.join(process.cwd(), "storage", "pdfs", "compras");
         fs.mkdirSync(dir, { recursive: true });
         const fname = (parsed.numeroOrden ?? Date.now()).toString().replace(/[^a-zA-Z0-9_-]/g,"_") + ".pdf";
         fs.writeFileSync(path.join(dir, fname), Buffer.from(pdfData, "base64"));
-        pdfUrl = `/pdfs/compras/${fname}`;
+        pdfUrl = `/storage/pdfs/compras/${fname}`;
       } catch(e) { console.error("PDF save error:", e); }
 
       // 3. Insertar compra
