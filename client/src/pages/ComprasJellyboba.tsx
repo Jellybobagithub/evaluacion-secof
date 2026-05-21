@@ -326,8 +326,6 @@ export default function ComprasJellyboba() {
                 </Button>
                 {pdfNombreNueva && <button onClick={()=>{setPdfNombreNueva("");setNuevaOrden(p=>({...p,pdfBase64:""}));}}><X className="h-4 w-4 text-red-400"/></button>}
               </div>
-              {parsingPdf && <p className="text-xs text-blue-600 animate-pulse">⏳ Analizando PDF con IA...</p>}
-              {!parsingPdf && pdfNombreNueva && nuevaOrden.numeroOrden && <p className="text-xs text-green-600">✅ Datos extraídos del PDF</p>}
             </div>
             <Input placeholder="Notas opcionales..." value={nuevaOrden.notas}
               onChange={e=>setNuevaOrden(p=>({...p,notas:e.target.value}))} className="h-8 text-sm"/>
