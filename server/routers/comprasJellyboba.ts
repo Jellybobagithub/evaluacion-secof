@@ -259,7 +259,18 @@ export const comprasJellybobaRouter = router({
         pdfUrl = `/storage/pdfs/compras/${fname}`;
       } catch(e) { console.error("PDF save error:", e); }
 
-      // 3. Insertar compra
+      // 3. Verificar si ya existe la orden
+      const existe = await db.execute(sql`SELECT id, pdfUrl FROM compras WHERE numeroOrden=${parsed.numeroOrden} LIMIT 1`);
+      const existeRow = (existe[0] as any[])[0];
+      if (existeRow) {
+        // Solo actualizar pdfUrl si no tenía
+        if (!existeRow.pdfUrl && pdfUrl) {
+          await db.execute(sql`UPDATE compras SET pdfUrl=${pdfUrl} WHERE id=${existeRow.id}`);
+        }
+        return { ok: true, compraId: existeRow.id, numeroOrden: parsed.numeroOrden, itemsInsertados: 0, total: parsed.total, duplicado: true };
+      }
+
+      // 3. Insertar compra (nueva)
       await db.execute(sql`
         INSERT INTO compras (numeroOrden, proveedor, fecha, subtotal, iva, total, sucursalId, pdfUrl)
         VALUES (${parsed.numeroOrden ?? "SIN-NUMERO"}, ${parsed.proveedor ?? "Jellyboba"},
