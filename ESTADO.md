@@ -128,3 +128,29 @@ mysql -u secof_user -pSnowtea2026Secof secof_db
 | 4 | Bugs warnings inventario.ts | 🟢 Baja |
 | 5 | Verificar login Demo tiendademosnowtea@gmail.com | 🟢 Baja |
 | 6 | Expandir SECOF a franquicias | 🔵 Futuro |
+
+---
+## CAMBIOS SESIÓN 21-MAY-2026 (tarde)
+
+### Inventario
+- Columna `pesoNeto` agregada a `inv_productos` y poblada para 36 productos
+- Perlas Explosivas: pesoNeto = 1920g (masa drenada, no peso bruto 3200g)
+- Fix `stockInicial` en Pronóstico Surtido: `piezas × pesoNeto + gramosAbiertos`
+
+### Compras Externas
+- Nueva página independiente `/compras-externas` con form completo (cantidad, unidad, precio unitario)
+- Accesos rápidos: Hielos, Film, Azúcar, Leche Soya, Galletas Oreo
+- Tab "Compras Ext." eliminado de Rentabilidad
+- Los registros siguen alimentando el CMV en Rentabilidad automáticamente
+
+### Nómina
+- Fix timezone UTC→México para agrupación de registros QR
+- Fix validación salida > entrada (evita horas negativas)
+- Fix ajustes_eventuales aplicados correctamente al cálculo de retardos
+- QR tiene prioridad sobre turno_apertura/cierre como fuente de horas
+
+### Pendientes nuevos identificados
+- PDF Jellyboba → parsear y crear inv_surtidos (compra no actualiza inventario)
+- Compras Externas → agregar actualización de inventario al guardar
+- Consumo preparaciones en Pronóstico Surtido (lógica lista, pendiente implementar)
+- Mapeo SKU compras_detalle → inv_productos (solo AZUCAR mapeado actualmente)
