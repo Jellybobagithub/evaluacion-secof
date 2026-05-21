@@ -108,17 +108,17 @@ function OrdenRow({ orden, onPdfUploaded }: { orden: any; onPdfUploaded: () => v
                 <Upload className="h-3 w-3"/>
                 {subirPdf.isPending ? "Subiendo..." : "Subir PDF"}
               </Button>
-              {!(orden as any).recibida ? (
-                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50"
-                  onClick={()=>{setCompraRecibiendo({id:orden.id,numeroOrden:orden.numeroOrden,fecha:orden.fecha});setModalRecepcion(true);}}>
-                  <Truck className="h-3 w-3"/> Recibir
-                </Button>
-              ) : (
-                <span className="flex items-center gap-1 text-xs text-green-700">
-                  <CheckCircle2 className="h-3 w-3"/> Recibida
-                </span>
-              )}
             </>
+          )}
+          {!(orden as any).recibida ? (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50"
+              onClick={()=>{setCompraRecibiendo({id:orden.id,numeroOrden:orden.numeroOrden,fecha:orden.fecha});setModalRecepcion(true);}}>
+              <Truck className="h-3 w-3"/> Recibir
+            </Button>
+          ) : (
+            <span className="flex items-center gap-1 text-xs text-green-700">
+              <CheckCircle2 className="h-3 w-3"/> Recibida
+            </span>
           )}
         </div>
       </div>
