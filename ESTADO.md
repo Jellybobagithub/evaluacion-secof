@@ -154,3 +154,13 @@ mysql -u secof_user -pSnowtea2026Secof secof_db
 - Compras Externas → agregar actualización de inventario al guardar
 - Consumo preparaciones en Pronóstico Surtido (lógica lista, pendiente implementar)
 - Mapeo SKU compras_detalle → inv_productos (solo AZUCAR mapeado actualmente)
+
+## COMPRAS JELLYBOBA — FLUJO COMPLETO (21-may-2026)
+- Subir OV (PDF) → Claude extrae automáticamente orden + 17 productos
+- PDFs persistentes en /storage/pdfs/compras/ (sobreviven rebuilds)
+- Botón "Recibir" en cada orden → modal con productos ajustables
+- Se pueden agregar productos extra no incluidos en OV
+- Confirmar → crea inv_surtido confirmado → actualiza inventario Pronóstico
+- 40 SKUs mapeados en compras_sku_mapping (ENV01 excluido = envío)
+- OV09919 pendiente de recibir físicamente (viernes 22-may-2026)
+- Órdenes anteriores marcadas como recibidas sin afectar inventario
