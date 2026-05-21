@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -267,25 +267,34 @@ export default function ComprasJellyboba() {
               </div>
             ))}
             {/* Agregar producto extra */}
-            <div className="border rounded-lg p-2 bg-amber-50 border-amber-200">
-              <p className="text-xs font-medium text-amber-800 mb-2">+ Agregar producto no incluido en OV</p>
-              <div className="flex gap-2 items-center">
-                <select className="flex-1 border rounded h-8 text-xs px-2"
-                  onChange={e=>{
-                    const id = Number(e.target.value);
-                    if (!id) return;
-                    if (itemsRecepcion.find((i:any) => i.inv_productoId === id)) return;
-                    const opt = e.target.options[e.target.selectedIndex];
-                    setItemsRecepcion(p=>[...p, { inv_productoId: id, invNombre: opt.text, unidadConteo: "pz", cantidadEsperada: 0, cantidadRecibida: 1 }]);
-                    e.target.value = "";
-                  }}>
-                  <option value="">Seleccionar producto...</option>
-                  {(productosInv as any[]).map((p:any) => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            {(()=>{
+              const [extraId, setExtraId] = React.useState(0);
+              const [extraQty, setExtraQty] = React.useState(1);
+              return (
+              <div className="border rounded-lg p-2 bg-amber-50 border-amber-200">
+                <p className="text-xs font-medium text-amber-800 mb-2">+ Agregar producto extra (no estaba en OV)</p>
+                <div className="flex gap-2 items-center">
+                  <select className="flex-1 border rounded h-8 text-xs px-2" value={extraId}
+                    onChange={e=>setExtraId(Number(e.target.value))}>
+                    <option value={0}>Seleccionar producto...</option>
+                    {(productosInv as any[]).map((p:any) => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                  <input type="number" min={1} value={extraQty} onChange={e=>setExtraQty(Number(e.target.value))}
+                    className="w-16 border rounded h-8 text-center text-sm" placeholder="Cant"/>
+                  <button onClick={()=>{
+                    if (!extraId) return;
+                    if (itemsRecepcion.find((i:any)=>i.inv_productoId===extraId)) return;
+                    const opt = (productosInv as any[]).find((p:any)=>p.id===extraId);
+                    setItemsRecepcion(p=>[...p,{inv_productoId:extraId,invNombre:opt?.nombre??"",unidadConteo:"pz",cantidadEsperada:0,cantidadRecibida:extraQty}]);
+                    setExtraId(0); setExtraQty(1);
+                  }} className="px-3 h-8 bg-amber-600 text-white rounded text-xs hover:bg-amber-700">
+                    + Agregar
+                  </button>
+                </div>
+              </div>);
+            })()}
 
             {itemsRecepcion.length > 0 && (
               <Button onClick={()=>{
