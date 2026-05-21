@@ -154,6 +154,7 @@ export default function ComprasJellyboba() {
     if (itemsQuery && itemsQuery.length > 0) setItemsRecepcion(itemsQuery.map((i:any) => ({...i})));
   }, [itemsQuery]);
 
+  const { data: productosInv = [] } = trpc.inventario.productos.list.useQuery({ soloActivos: true } as any);
   const confirmarRecepcion = trpc.comprasJellyboba.confirmarRecepcion.useMutation({
     onSuccess: () => {
       toast.success("Recepción confirmada — inventario actualizado");
@@ -265,6 +266,27 @@ export default function ComprasJellyboba() {
                 )}
               </div>
             ))}
+            {/* Agregar producto extra */}
+            <div className="border rounded-lg p-2 bg-amber-50 border-amber-200">
+              <p className="text-xs font-medium text-amber-800 mb-2">+ Agregar producto no incluido en OV</p>
+              <div className="flex gap-2 items-center">
+                <select className="flex-1 border rounded h-8 text-xs px-2"
+                  onChange={e=>{
+                    const id = Number(e.target.value);
+                    if (!id) return;
+                    if (itemsRecepcion.find((i:any) => i.inv_productoId === id)) return;
+                    const opt = e.target.options[e.target.selectedIndex];
+                    setItemsRecepcion(p=>[...p, { inv_productoId: id, invNombre: opt.text, unidadConteo: "pz", cantidadEsperada: 0, cantidadRecibida: 1 }]);
+                    e.target.value = "";
+                  }}>
+                  <option value="">Seleccionar producto...</option>
+                  {(productosInv as any[]).map((p:any) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {itemsRecepcion.length > 0 && (
               <Button onClick={()=>{
                 if (!compraRecibiendo) return;
