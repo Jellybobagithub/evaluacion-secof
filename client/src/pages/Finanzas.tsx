@@ -57,14 +57,6 @@ export default function Finanzas(){
   );
   useEffect(()=>{if(gastos.length>0 && !gastosEditado) setLineasGasto(gastos as any[]);},[gastos]);
   const {data:precios=[]}=trpc.finanzas.precios.list.useQuery();
-  const {data:comprasExt=[],refetch:refetchCompras}=trpc.finanzas.comprasExternas.list.useQuery(
-    {sucursalId:sucursalId!,periodo},{enabled:!!sucursalId}
-  );
-
-  const guardarGastos=trpc.finanzas.gastos.guardar.useMutation({onSuccess:()=>{
-    setGastosEditado(false);utils.finanzas.gastos.getByPeriodo.invalidate();
-    utils.finanzas.resumen.invalidate();toast.success("Gastos guardados");
-  }});
   const actualizarPrecio=trpc.finanzas.precios.update.useMutation({
     onSuccess:()=>{utils.finanzas.precios.list.invalidate();toast.success("Precio actualizado");}
   });
@@ -80,7 +72,7 @@ export default function Finanzas(){
   const semaforoLabel:{[k:string]:string}={green:"✅ Rentable",yellow:"⚠️ Margen ajustado",red:"🔴 En riesgo",gray:"Sin datos"};
   const TABS=[
     {id:"resumen",label:"📊 Resumen"},{id:"gastos",label:"💸 Gastos"},
-    {id:"compras",label:"📦 Compras Ext."},{id:"precios",label:"🏷️ Precios"}
+    {id:"precios",label:"🏷️ Precios"}
   ] as const;
 
   return (
