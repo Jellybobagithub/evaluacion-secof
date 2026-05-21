@@ -615,7 +615,11 @@ export const inventarioRouter = router({
         const c = consumo[prod.id];
         const cantFisica = fisico?.cantidadPiezas ?? 0;
         const cantGramos = fisico?.cantidadGramos ?? 0;
-        const stockInicial = prod.puedeAbrirse ? (fisico?.cantidadGramos ?? 0) : cantFisica;
+        // stockInicial: piezas*pesoNeto (cerradas) + gramos (abiertas en Isla)
+        const pesoNeto = Number((prod as any).pesoNeto ?? 0);
+        const gramosEnPiezas = (fisico?.cantidadPiezas ?? 0) * pesoNeto;
+        const gramosAbiertos = fisico?.cantidadGramos ?? 0;
+        const stockInicial = prod.puedeAbrirse ? (gramosEnPiezas + gramosAbiertos) : cantFisica;
         const surtidoEntrada = surtidosMap[prod.id] ?? 0;
         const consumoCalc = c ? (prod.puedeAbrirse ? Math.round(c.gramos*100)/100 : Math.round(c.piezas*100)/100) : 0;
         const cantTeorica = Math.max(0, stockInicial + surtidoEntrada - consumoCalc);

@@ -22,7 +22,7 @@ import { ShoppingCart,
 } from "@/components/ui/sidebar";
 import { ShoppingCart, getLoginUrl } from "@/const";
 import { ShoppingCart, useIsMobile } from "@/hooks/useMobile";
-import { ShoppingCart, Clock, CalendarClock, ScanLine,
+import { ShoppingCart, ShoppingBag, Clock, CalendarClock, ScanLine,
   LayoutDashboard,
   LogOut,
   PanelLeft,
@@ -116,6 +116,7 @@ const ALL_NAV_GROUPS = [
       { icon: Scale, label: "Cuadre de Vasos", path: "/cuadre-vasos", minRole: "leader" },
       { icon: Package, label: "Inventario", path: "/inventario", minRole: "leader" },
       { icon: ShoppingCart, label: "Compras Jellyboba", path: "/compras-jellyboba", minRole: "manager" },
+      { icon: ShoppingBag, label: "Compras Extras", path: "/compras-externas", minRole: "manager" },
       { icon: DollarSign, label: "Rentabilidad", path: "/finanzas", minRole: "manager" },
       { icon: Eye, label: "Supervisión de Actividades", path: "/supervision", minRole: "leader" },
     ],

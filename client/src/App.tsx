@@ -40,6 +40,7 @@ import Inventario from "./pages/Inventario";
 import InventarioStock from "./pages/InventarioStock";
 import Finanzas from "./pages/Finanzas";
 import Nomina from "./pages/Nomina";
+import ComprasExternas from "./pages/ComprasExternas";
 import ComprasJellyboba from "./pages/ComprasJellyboba";
 import EvaluacionesPeriodo from "./pages/EvaluacionesPeriodo";
 import Supervision from "./pages/Supervision";
@@ -194,6 +195,9 @@ function Router() {
         </Route>
         <Route path="/inventario">
           <ProtectedRoute component={Inventario} minRole="leader" />
+        </Route>
+        <Route path="/compras-externas">
+          <ProtectedRoute component={ComprasExternas} minRole="manager" />
         </Route>
         <Route path="/compras-jellyboba">
           <ProtectedRoute component={ComprasJellyboba} minRole="manager" />
