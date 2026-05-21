@@ -362,10 +362,7 @@ export default function ComprasJellyboba() {
                 <Upload className="h-3 w-3"/>
                 {subiendoPdf ? "Procesando PDF..." : "Subir OV (PDF)"}
               </Button>
-              <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700"
-                onClick={()=>setModalNueva(true)}>
-                <Plus className="h-3 w-3"/> Nueva Manual
-              </Button>
+
             </div>
           </CardTitle>
         </CardHeader>
