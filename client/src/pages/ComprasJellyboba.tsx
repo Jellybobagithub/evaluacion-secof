@@ -148,8 +148,11 @@ export default function ComprasJellyboba() {
 
   const { data: itemsQuery, isLoading: loadingItems } = trpc.comprasJellyboba.obtenerItemsRecepcion.useQuery(
     { compraId: compraRecibiendo?.id ?? 0 },
-    { enabled: !!compraRecibiendo, onSuccess: (d:any[]) => setItemsRecepcion(d.map((i:any)=>({...i}))) }
+    { enabled: !!compraRecibiendo }
   );
+  useEffect(() => {
+    if (itemsQuery && itemsQuery.length > 0) setItemsRecepcion(itemsQuery.map((i:any) => ({...i})));
+  }, [itemsQuery]);
 
   const confirmarRecepcion = trpc.comprasJellyboba.confirmarRecepcion.useMutation({
     onSuccess: () => {
