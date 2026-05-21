@@ -152,22 +152,15 @@ export default function ComprasJellyboba() {
     onError: (e) => toast.error("Error: " + e.message),
   });
 
-  const [parsingPdf, setParsingPdf] = useState(false);
-  const parsearPdf = trpc.comprasJellyboba.parsearPdf.useMutation({
+  const [subiendoPdf, setSubiendoPdf] = useState(false);
+  const fileOvRef = useRef<HTMLInputElement>(null);
+  const subirPdfYCrear = trpc.comprasJellyboba.subirPdfYCrear.useMutation({
     onSuccess: (data: any) => {
-      setNuevaOrden(p => ({
-        ...p,
-        numeroOrden: data.numeroOrden ?? p.numeroOrden,
-        fecha: data.fecha ?? p.fecha,
-        subtotal: data.subtotal ?? p.subtotal,
-        iva: data.iva ?? p.iva,
-        total: data.total ?? p.total,
-        proveedor: data.proveedor ?? "Jellyboba",
-      }));
-      setParsingPdf(false);
-      toast.success("PDF analizado — revisa y confirma los datos");
+      setSubiendoPdf(false);
+      toast.success('OV ' + data.numeroOrden + ' creada — ' + data.itemsInsertados + ' productos importados');
+      refetch();
     },
-    onError: () => { setParsingPdf(false); toast.error("No se pudo leer el PDF"); },
+    onError: (e) => { setSubiendoPdf(false); toast.error("Error: " + e.message); },
   });
 
   const crearOrden = trpc.comprasJellyboba.crear.useMutation({
@@ -355,10 +348,27 @@ export default function ComprasJellyboba() {
             <Package className="h-4 w-4"/>
             Historial de órdenes
             <span className="text-sm font-normal text-muted-foreground">{totalItems} productos en total</span>
-            <Button size="sm" className="ml-auto h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700"
-              onClick={()=>setModalNueva(true)}>
-              <Plus className="h-3 w-3"/> Nueva Orden
-            </Button>
+            <div className="ml-auto flex gap-2">
+              <input ref={fileOvRef} type="file" accept="application/pdf" className="hidden"
+                onChange={e=>{
+                  const file=e.target.files?.[0];
+                  if(!file) return;
+                  setSubiendoPdf(true);
+                  const reader=new FileReader();
+                  reader.onload=()=>subirPdfYCrear.mutate({pdfBase64:reader.result as string,sucursalId:30001});
+                  reader.readAsDataURL(file);
+                  e.target.value="";
+                }}/>
+              <Button size="sm" className="h-7 text-xs gap-1 bg-green-600 hover:bg-green-700"
+                onClick={()=>fileOvRef.current?.click()} disabled={subiendoPdf}>
+                <Upload className="h-3 w-3"/>
+                {subiendoPdf ? "Procesando PDF..." : "Subir OV (PDF)"}
+              </Button>
+              <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700"
+                onClick={()=>setModalNueva(true)}>
+                <Plus className="h-3 w-3"/> Nueva Manual
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>

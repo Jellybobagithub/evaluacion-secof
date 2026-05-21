@@ -213,36 +213,79 @@ export const comprasJellybobaRouter = router({
 
       return { ok: true, surtidoId };
     }),
-  parsearPdf: protectedProcedure
-    .input(z.object({ pdfBase64: z.string() }))
+  // Subir PDF y crear orden completa automáticamente (Claude lee el PDF)
+  subirPdfYCrear: protectedProcedure
+    .input(z.object({
+      pdfBase64:  z.string(),
+      sucursalId: z.number().default(30001),
+    }))
     .mutation(async ({ ctx, input }) => {
       if (!["superadmin","owner","manager"].includes(ctx.user.role))
         throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      // 1. Extraer datos del PDF con Claude
+      const pdfData = input.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+      const aiResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 2048,
+          messages: [{ role: "user", content: [
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfData } },
+            { type: "text", text: "Extrae TODOS los datos de esta orden de compra/factura de Jellyboba. Responde SOLO con JSON valido sin markdown ni explicaciones: {\"numeroOrden\":\"\",\"fecha\":\"YYYY-MM-DD\",\"proveedor\":\"Jellyboba\",\"subtotal\":0,\"iva\":0,\"total\":0,\"items\":[{\"sku\":\"\",\"descripcion\":\"\",\"cantidad\":0,\"precioUnitario\":0,\"importe\":0}]}" }
+          ]}]
+        }),
+      });
+      const aiData = await aiResp.json();
+      const rawText = (aiData.content?.[0]?.text ?? "{}").replace(/```json|```/g,"").trim();
+      let parsed: any;
+      try { parsed = JSON.parse(rawText); }
+      catch(e) { throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Claude no pudo extraer los datos del PDF" }); }
+
+      // 2. Guardar PDF en disco
+      let pdfUrl: string | null = null;
       try {
-        const pdfData = input.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
-            max_tokens: 512,
-            messages: [{ role: "user", content: [
-              { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfData } },
-              { type: "text", text: "Extrae de esta OV/factura: numeroOrden, fecha (YYYY-MM-DD), subtotal, iva, total. Responde SOLO JSON sin markdown: {}" }
-            ]}]
-          }),
-        });
-        const data = await response.json();
-        const text = (data.content?.[0]?.text ?? "{}").replace(/```json|```/g,"").trim();
-        return JSON.parse(text);
-      } catch(e) {
-        console.error("parsearPdf:", e);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No se pudo parsear el PDF" });
+        const dir = path.join(process.cwd(), "dist", "public", "pdfs", "compras");
+        fs.mkdirSync(dir, { recursive: true });
+        const fname = (parsed.numeroOrden ?? Date.now()).toString().replace(/[^a-zA-Z0-9_-]/g,"_") + ".pdf";
+        fs.writeFileSync(path.join(dir, fname), Buffer.from(pdfData, "base64"));
+        pdfUrl = `/pdfs/compras/${fname}`;
+      } catch(e) { console.error("PDF save error:", e); }
+
+      // 3. Insertar compra
+      await db.execute(sql`
+        INSERT INTO compras (numeroOrden, proveedor, fecha, subtotal, iva, total, sucursalId, pdfUrl)
+        VALUES (${parsed.numeroOrden ?? "SIN-NUMERO"}, ${parsed.proveedor ?? "Jellyboba"},
+                ${parsed.fecha ?? new Date().toISOString().split("T")[0]},
+                ${parsed.subtotal ?? 0}, ${parsed.iva ?? 0}, ${parsed.total ?? 0},
+                ${input.sucursalId}, ${pdfUrl})
+      `);
+      const compraRow = await db.execute(sql`SELECT LAST_INSERT_ID() as id`);
+      const compraId = (compraRow[0] as any[])[0]?.id as number;
+
+      // 4. Insertar detalle de productos
+      const items = parsed.items ?? [];
+      let itemsInsertados = 0;
+      for (const item of items) {
+        if (!item.sku && !item.descripcion) continue;
+        try {
+          await db.execute(sql`
+            INSERT INTO compras_detalle (compraId, sku, descripcion, cantidad, precioUnitario, importe, unidad)
+            VALUES (${compraId}, ${item.sku ?? ""}, ${item.descripcion ?? ""},
+                    ${item.cantidad ?? 0}, ${item.precioUnitario ?? 0}, ${item.importe ?? 0}, "pz")
+          `);
+          itemsInsertados++;
+        } catch(e) { console.error("detalle insert:", e); }
       }
+
+      return { ok: true, compraId, numeroOrden: parsed.numeroOrden, itemsInsertados, total: parsed.total };
     }),
 
 });
