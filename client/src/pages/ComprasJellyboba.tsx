@@ -54,7 +54,7 @@ function DetalleOrden({ compraId }: { compraId: number }) {
   );
 }
 
-function OrdenRow({ orden, onPdfUploaded }: { orden: any; onPdfUploaded: () => void }) {
+function OrdenRow({ orden, onPdfUploaded, onRecibir }: { orden: any; onPdfUploaded: () => void; onRecibir: () => void }) {
   const [expandida, setExpandida] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const subirPdf = trpc.comprasJellyboba.subirPdf.useMutation({
@@ -112,7 +112,7 @@ function OrdenRow({ orden, onPdfUploaded }: { orden: any; onPdfUploaded: () => v
           )}
           {!(orden as any).recibida ? (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50"
-              onClick={()=>{setCompraRecibiendo({id:orden.id,numeroOrden:orden.numeroOrden,fecha:orden.fecha});setModalRecepcion(true);}}>
+              onClick={onRecibir}>
               <Truck className="h-3 w-3"/> Recibir
             </Button>
           ) : (
@@ -382,7 +382,7 @@ export default function ComprasJellyboba() {
         <CardContent>
           {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
           {(ordenes as any[]).map((o: any) => (
-            <OrdenRow key={o.id} orden={o} onPdfUploaded={refetch}/>
+            <OrdenRow key={o.id} orden={o} onPdfUploaded={refetch} onRecibir={()=>{setCompraRecibiendo({id:o.id,numeroOrden:o.numeroOrden,fecha:o.fecha});setModalRecepcion(true);}}/>
           ))}
         </CardContent>
       </Card>
