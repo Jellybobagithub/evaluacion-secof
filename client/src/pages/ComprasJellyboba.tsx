@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShoppingCart, ChevronDown, ChevronRight, FileText, Upload, Package, Plus, X } from "lucide-react";
+import { ShoppingCart, ChevronDown, ChevronRight, FileText, Upload, Package, Plus, X, Truck, CheckCircle2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -131,6 +131,27 @@ export default function ComprasJellyboba() {
   const fileNuevaRef = useRef<HTMLInputElement>(null);
 
   const { data: ordenes = [], refetch, isLoading } = trpc.comprasJellyboba.list.useQuery({ sucursalId: 30001 });
+  // Recepción de mercancía
+  const [modalRecepcion, setModalRecepcion] = useState(false);
+  const [compraRecibiendo, setCompraRecibiendo] = useState<{id:number,numeroOrden:string,fecha:string}|null>(null);
+  const [itemsRecepcion, setItemsRecepcion] = useState<any[]>([]);
+
+  const { data: itemsQuery, isLoading: loadingItems } = trpc.comprasJellyboba.obtenerItemsRecepcion.useQuery(
+    { compraId: compraRecibiendo?.id ?? 0 },
+    { enabled: !!compraRecibiendo, onSuccess: (d:any[]) => setItemsRecepcion(d.map((i:any)=>({...i}))) }
+  );
+
+  const confirmarRecepcion = trpc.comprasJellyboba.confirmarRecepcion.useMutation({
+    onSuccess: () => {
+      toast.success("Recepción confirmada — inventario actualizado");
+      refetch();
+      setModalRecepcion(false);
+      setCompraRecibiendo(null);
+      setItemsRecepcion([]);
+    },
+    onError: (e) => toast.error("Error: " + e.message),
+  });
+
   const crearOrden = trpc.comprasJellyboba.crear.useMutation({
     onSuccess: () => {
       toast.success("Orden creada correctamente");
@@ -175,6 +196,68 @@ export default function ComprasJellyboba() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal Recepción de Mercancía */}
+      <Dialog open={modalRecepcion} onOpenChange={setModalRecepcion}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5 text-blue-600"/>
+              Recibir Mercancía — {compraRecibiendo?.numeroOrden}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <p className="text-xs text-muted-foreground bg-blue-50 p-2 rounded">
+              Ajusta las cantidades reales recibidas. Si un producto no llegó, pon 0. Si llegó de más, aumenta la cantidad.
+            </p>
+            {loadingItems && <p className="text-sm text-center py-4 text-muted-foreground">Cargando productos del pedido...</p>}
+            {itemsRecepcion.length === 0 && !loadingItems && (
+              <div className="text-center py-4">
+                <AlertCircle className="h-8 w-8 text-amber-500 mx-auto mb-2"/>
+                <p className="text-sm text-amber-700">No se encontraron productos mapeados en esta orden.</p>
+                <p className="text-xs text-muted-foreground mt-1">Verifica que los SKUs estén en la tabla de mapeo.</p>
+              </div>
+            )}
+            {itemsRecepcion.map((item: any, i: number) => (
+              <div key={item.inv_productoId} className="flex items-center gap-3 p-2 border rounded-lg">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{item.invNombre}</p>
+                  <p className="text-xs text-muted-foreground">Pedido: {item.cantidadEsperada} {item.unidadConteo}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={()=>{const n=[...itemsRecepcion];n[i]={...n[i],cantidadRecibida:Math.max(0,n[i].cantidadRecibida-1)};setItemsRecepcion(n);}}
+                    className="w-7 h-7 rounded border flex items-center justify-center text-lg font-bold hover:bg-slate-100">−</button>
+                  <input type="number" min={0}
+                    value={item.cantidadRecibida}
+                    onChange={e=>{const n=[...itemsRecepcion];n[i]={...n[i],cantidadRecibida:Number(e.target.value)};setItemsRecepcion(n);}}
+                    className={`w-16 text-center border rounded h-8 text-sm font-semibold ${item.cantidadRecibida !== item.cantidadEsperada ? "border-amber-400 bg-amber-50" : "border-green-400 bg-green-50"}`}/>
+                  <button onClick={()=>{const n=[...itemsRecepcion];n[i]={...n[i],cantidadRecibida:n[i].cantidadRecibida+1};setItemsRecepcion(n);}}
+                    className="w-7 h-7 rounded border flex items-center justify-center text-lg font-bold hover:bg-slate-100">+</button>
+                </div>
+                {item.cantidadRecibida !== item.cantidadEsperada && (
+                  <span className="text-xs text-amber-600 font-medium">
+                    {item.cantidadRecibida < item.cantidadEsperada ? `−${item.cantidadEsperada-item.cantidadRecibida}` : `+${item.cantidadRecibida-item.cantidadEsperada}`}
+                  </span>
+                )}
+              </div>
+            ))}
+            {itemsRecepcion.length > 0 && (
+              <Button onClick={()=>{
+                if (!compraRecibiendo) return;
+                confirmarRecepcion.mutate({
+                  compraId: compraRecibiendo.id,
+                  sucursalId: 30001,
+                  fecha: compraRecibiendo.fecha,
+                  items: itemsRecepcion.map((i:any)=>({inv_productoId:i.inv_productoId,cantidadRecibida:i.cantidadRecibida})),
+                });
+              }} disabled={confirmarRecepcion.isPending} className="w-full bg-blue-600 hover:bg-blue-700 gap-2">
+                <CheckCircle2 className="h-4 w-4"/>
+                {confirmarRecepcion.isPending ? "Confirmando..." : "Confirmar recepción — actualizar inventario"}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal Nueva Orden */}
       <Dialog open={modalNueva} onOpenChange={setModalNueva}>
