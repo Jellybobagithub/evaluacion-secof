@@ -16,7 +16,7 @@ export const comprasJellybobaRouter = router({
       const cond = input.sucursalId ? `WHERE c.sucursalId = ${input.sucursalId}` : "";
       const rows = await db.execute(sql`
         SELECT c.id, c.numeroOrden, c.proveedor, c.fecha,
-               c.subtotal, c.iva, c.total, c.pdfUrl, c.vendedor, c.notas,
+               c.subtotal, c.iva, c.total, c.pdfUrl, c.vendedor, c.notas, c.recibida,
                COUNT(d.id) as numItems
         FROM compras c
         LEFT JOIN compras_detalle d ON d.compraId = c.id
@@ -213,4 +213,36 @@ export const comprasJellybobaRouter = router({
 
       return { ok: true, surtidoId };
     }),
+  parsearPdf: protectedProcedure
+    .input(z.object({ pdfBase64: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!["superadmin","owner","manager"].includes(ctx.user.role))
+        throw new TRPCError({ code: "FORBIDDEN" });
+      try {
+        const pdfData = input.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 512,
+            messages: [{ role: "user", content: [
+              { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfData } },
+              { type: "text", text: "Extrae de esta OV/factura: numeroOrden, fecha (YYYY-MM-DD), subtotal, iva, total. Responde SOLO JSON sin markdown: {}" }
+            ]}]
+          }),
+        });
+        const data = await response.json();
+        const text = (data.content?.[0]?.text ?? "{}").replace(/```json|```/g,"").trim();
+        return JSON.parse(text);
+      } catch(e) {
+        console.error("parsearPdf:", e);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No se pudo parsear el PDF" });
+      }
+    }),
+
 });

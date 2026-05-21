@@ -152,6 +152,24 @@ export default function ComprasJellyboba() {
     onError: (e) => toast.error("Error: " + e.message),
   });
 
+  const [parsingPdf, setParsingPdf] = useState(false);
+  const parsearPdf = trpc.comprasJellyboba.parsearPdf.useMutation({
+    onSuccess: (data: any) => {
+      setNuevaOrden(p => ({
+        ...p,
+        numeroOrden: data.numeroOrden ?? p.numeroOrden,
+        fecha: data.fecha ?? p.fecha,
+        subtotal: data.subtotal ?? p.subtotal,
+        iva: data.iva ?? p.iva,
+        total: data.total ?? p.total,
+        proveedor: data.proveedor ?? "Jellyboba",
+      }));
+      setParsingPdf(false);
+      toast.success("PDF analizado — revisa y confirma los datos");
+    },
+    onError: () => { setParsingPdf(false); toast.error("No se pudo leer el PDF"); },
+  });
+
   const crearOrden = trpc.comprasJellyboba.crear.useMutation({
     onSuccess: () => {
       toast.success("Orden creada correctamente");
@@ -300,7 +318,12 @@ export default function ComprasJellyboba() {
                     if (!file) return;
                     setPdfNombreNueva(file.name);
                     const reader = new FileReader();
-                    reader.onload = () => setNuevaOrden(p=>({...p,pdfBase64:reader.result as string}));
+                    reader.onload = () => {
+                      const b64 = reader.result as string;
+                      setNuevaOrden(p=>({...p,pdfBase64:b64}));
+                      setParsingPdf(true);
+                      parsearPdf.mutate({ pdfBase64: b64 });
+                    };
                     reader.readAsDataURL(file);
                   }}/>
                 <Button variant="outline" size="sm" className="h-8 text-xs gap-1 flex-1"
@@ -310,6 +333,8 @@ export default function ComprasJellyboba() {
                 </Button>
                 {pdfNombreNueva && <button onClick={()=>{setPdfNombreNueva("");setNuevaOrden(p=>({...p,pdfBase64:""}));}}><X className="h-4 w-4 text-red-400"/></button>}
               </div>
+              {parsingPdf && <p className="text-xs text-blue-600 animate-pulse">⏳ Analizando PDF con IA...</p>}
+              {!parsingPdf && pdfNombreNueva && nuevaOrden.numeroOrden && <p className="text-xs text-green-600">✅ Datos extraídos del PDF</p>}
             </div>
             <Input placeholder="Notas opcionales..." value={nuevaOrden.notas}
               onChange={e=>setNuevaOrden(p=>({...p,notas:e.target.value}))} className="h-8 text-sm"/>
