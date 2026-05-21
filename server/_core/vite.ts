@@ -59,7 +59,7 @@ export function serveStatic(app: Express) {
   }
 
   // Servir archivos persistentes (PDFs, uploads) desde /storage/
-  const storagePath = path.resolve(import.meta.dirname, "../..", "storage");
+  const storagePath = path.resolve(process.cwd(), "storage");
   app.use("/storage", express.static(storagePath));
 
   app.use(express.static(distPath));
