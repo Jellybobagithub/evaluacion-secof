@@ -79,6 +79,33 @@ export async function syncVentasDia(fecha: string): Promise<void> {
 
     topProductos.sort((a, b) => b.total - a.total);
 
+    // 3b. Descontar ingredientes del inventario por ventas Odoo
+    // Solo materias primas directas; subproductos se descuentan via preparaciones
+    await db.execute(sql`
+      DELETE FROM inv_movimientos
+      WHERE sucursalId = ${suc.id} AND referenciaTipo = 'venta_odoo'
+      AND DATE(createdAt) = ${fecha}
+    `);
+    for (const [nombre, data] of Object.entries(agrupado)) {
+      const productoId = prodMap[nombre];
+      if (!productoId) continue;
+      const recetaRows = await db.execute(sql`
+        SELECT materiasPrimaId, cantidadGramos, cantidadPiezas
+        FROM inv_recetas
+        WHERE productoVentaId = ${productoId} AND esSubproducto = 0 AND materiasPrimaId IS NOT NULL
+      `);
+      for (const ing of (recetaRows[0] as any[])) {
+        const gramos = (Number(ing.cantidadGramos) || 0) * data.cantidad;
+        const piezas = (Number(ing.cantidadPiezas) || 0) * data.cantidad;
+        if (gramos === 0 && piezas === 0) continue;
+        await db.execute(sql`
+          INSERT INTO inv_movimientos (sucursalId, productoId, tipo, cantidadGramos, cantidadPiezas, referenciaTipo, notas)
+          VALUES (${suc.id}, ${ing.materiasPrimaId}, 'consumo_preparacion', ${gramos}, ${piezas}, 'venta_odoo',
+                  ${`Venta ${nombre} x${data.cantidad} — ${fecha}`})
+        `);
+      }
+    }
+
     // 4. Upsert en reportes_diarios
     const existing = await db.execute(sql`
       SELECT id FROM reportes_diarios WHERE sucursalId = ${suc.id} AND fecha = ${fecha} LIMIT 1

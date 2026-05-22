@@ -26,11 +26,11 @@ function getPeriodsOptions() {
 const UNIDADES = ["pz", "bolsa", "caja", "kg", "litro", "bote", "rollo"];
 
 const CONCEPTOS_RAPIDOS = [
-  { concepto: "Hielos", proveedor: "Local", unidad: "bolsa" },
-  { concepto: "Film Stretch", proveedor: "Varios", unidad: "rollo" },
-  { concepto: "Azúcar Standard", proveedor: "Varios", unidad: "kg" },
-  { concepto: "Leche Soya Ades", proveedor: "Superama", unidad: "pz" },
-  { concepto: "Galletas Oreo", proveedor: "Varios", unidad: "pz" },
+  { concepto: "Hielos", proveedor: "Local", unidad: "bolsa", inv_productoId: 30070 },
+  { concepto: "Film Stretch", proveedor: "Varios", unidad: "rollo", inv_productoId: 30042 },
+  { concepto: "Azúcar Standard", proveedor: "Varios", unidad: "kg", inv_productoId: 30061 },
+  { concepto: "Leche Soya Ades", proveedor: "Superama", unidad: "pz", inv_productoId: 30056 },
+  { concepto: "Galletas Oreo", proveedor: "Varios", unidad: "pz", inv_productoId: 30044 },
 ];
 
 export default function ComprasExternas() {
@@ -40,7 +40,7 @@ export default function ComprasExternas() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
     concepto: "", proveedor: "Externo", fecha: new Date().toISOString().split("T")[0],
-    cantidad: 1, unidad: "pz", precioUnitario: 0, total: 0, notas: "",
+    cantidad: 1, unidad: "pz", precioUnitario: 0, total: 0, notas: "", inv_productoId: undefined as number | undefined,
   });
 
   const { data: compras = [], refetch } = trpc.finanzas.comprasExternas.list.useQuery(
@@ -52,7 +52,7 @@ export default function ComprasExternas() {
       toast.success("Compra registrada");
       refetch();
       setModal(false);
-      setForm({ concepto: "", proveedor: "Externo", fecha: new Date().toISOString().split("T")[0], cantidad: 1, unidad: "pz", precioUnitario: 0, total: 0, notas: "" });
+      setForm({ concepto: "", proveedor: "Externo", fecha: new Date().toISOString().split("T")[0], cantidad: 1, unidad: "pz", precioUnitario: 0, total: 0, notas: "", inv_productoId: undefined });
     },
     onError: (e) => toast.error("Error: " + e.message),
   });
@@ -64,7 +64,7 @@ export default function ComprasExternas() {
   const totalMes = (compras as any[]).reduce((s: number, c: any) => s + Number(c.total), 0);
 
   function setConceptoRapido(c: typeof CONCEPTOS_RAPIDOS[0]) {
-    setForm(p => ({ ...p, concepto: c.concepto, proveedor: c.proveedor, unidad: c.unidad }));
+    setForm(p => ({ ...p, concepto: c.concepto, proveedor: c.proveedor, unidad: c.unidad, inv_productoId: (c as any).inv_productoId }));
   }
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function ComprasExternas() {
                   {(compras as any[]).map((c: any) => (
                     <tr key={c.id} className="border-b last:border-0 hover:bg-slate-50">
                       <td className="py-1.5 text-xs">{c.fecha}</td>
-                      <td className="font-medium">{c.concepto}</td>
+                      <td className="font-medium">{c.concepto}{c.notas ? <span className="block text-xs text-muted-foreground font-normal">{c.notas}</span> : null}</td>
                       <td className="text-xs text-muted-foreground">{c.proveedor}</td>
                       <td className="text-right text-xs">{c.cantidad} {c.unidad}</td>
                       <td className="text-right text-xs">{fmt(Number(c.precioUnitario))}</td>

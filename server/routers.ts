@@ -895,6 +895,26 @@ export const appRouter = router({
           throw new TRPCError({ code: 'FORBIDDEN' });
         }
         const { createEmpleado } = await import('./db');
+        // Generar horarioPersonal base si no se proporcionó
+        const _tipo = input.tipoContrato ?? 'fulltime';
+        const _descanso = input.diaDescansoFijo ?? null;
+        let _horarioBase: Record<string, {entrada:string;salida:string}|null> = {};
+        if (input.horarioPersonal) {
+          _horarioBase = typeof input.horarioPersonal === 'string'
+            ? JSON.parse(input.horarioPersonal) : input.horarioPersonal;
+        } else if (_tipo === 'fulltime') {
+          for (let d = 0; d <= 6; d++) {
+            _horarioBase[d] = _descanso === d ? null : { entrada: '10:00', salida: '18:00' };
+          }
+        } else if (_tipo === 'finde_ext') {
+          for (let d = 0; d <= 6; d++) {
+            _horarioBase[d] = [0, 5, 6].includes(d) ? { entrada: '10:00', salida: '18:00' } : null;
+          }
+        } else if (_tipo === 'finde') {
+          for (let d = 0; d <= 6; d++) {
+            _horarioBase[d] = [0, 6].includes(d) ? { entrada: '10:00', salida: '18:00' } : null;
+          }
+        }
         await createEmpleado({
           sucursalId: input.sucursalId,
           nombre: input.nombre,
@@ -903,9 +923,10 @@ export const appRouter = router({
           telefono: input.telefono,
           fechaIngreso: input.fechaIngreso ? new Date(input.fechaIngreso) : new Date(),
           notas: input.notas,
-          tipoContrato: input.tipoContrato ?? 'fulltime',
+          tipoContrato: _tipo,
           diasDisponibles: input.diasDisponibles,
-          diaDescansoFijo: input.diaDescansoFijo ?? null,
+          diaDescansoFijo: _descanso,
+          horarioPersonal: Object.keys(_horarioBase).length > 0 ? JSON.stringify(_horarioBase) : null,
         });
         return { success: true };
       }),
