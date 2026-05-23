@@ -50,9 +50,10 @@ import { ShoppingCart, ShoppingBag, Clock, CalendarClock, ScanLine,
   ClockAlert,
   Package,
   Eye,
-  Layers, FileSpreadsheet, PackageCheck} from "lucide-react";
+  Layers, FileSpreadsheet, PackageCheck, TrendingDown} from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { useSucursal } from "@/context/SucursalContext";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import { hasRoleAccess } from "./RoleGuard";
@@ -115,6 +116,8 @@ const ALL_NAV_GROUPS = [
       { icon: DollarSign, label: "KPIs Admin (Nivel 3)", path: "/kpi-admin", minRole: "manager" },
       { icon: Scale, label: "Cuadre de Vasos", path: "/cuadre-vasos", minRole: "leader" },
       { icon: Package, label: "Inventario", path: "/inventario", minRole: "leader" },
+      { icon: PackageCheck, label: "Recepción de Mercancía", path: "/recepcion-mercancia", minRole: "leader" },
+      { icon: TrendingDown, label: "Control Inventario", path: "/control-inventario", minRole: "leader" },
       { icon: ShoppingCart, label: "Compras Jellyboba", path: "/compras-jellyboba", minRole: "manager" },
       { icon: ShoppingBag, label: "Compras Extras", path: "/compras-externas", minRole: "manager" },
       { icon: DollarSign, label: "Rentabilidad", path: "/finanzas", minRole: "manager" },
@@ -139,7 +142,7 @@ const ALL_NAV_GROUPS = [
     path: null,
     items: [
       { icon: Building2, label: "Sucursales", path: "/sucursales", minRole: "manager" },
-      { icon: Users, label: "Empleados", path: "/empleados", minRole: "manager" },
+      { icon: Users, label: "Empleados", path: "/empleados", minRole: "leader" },
       { icon: ClipboardCheck, label: "Evaluaciones", path: "/evaluaciones-periodo", minRole: "manager" },
 // OBSOLETO — oculto:       { icon: History, label: "Ventas Históricas", path: "/ventas-historicas", minRole: "manager" },
       { icon: Bell, label: "Avisos Generales", path: "/avisos-generales", minRole: "manager" },
@@ -286,6 +289,8 @@ function DashboardLayoutContent({
   setSidebarWidth: (w: number) => void;
 }) {
   const { user, logout } = useAuth();
+  const { sucursalId: globalSucursalId, setSucursalId: setGlobalSucursalId } = useSucursal();
+  const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -472,7 +477,22 @@ function DashboardLayoutContent({
 
           {/* Footer */}
           <SidebarFooter className="p-3 border-t border-sidebar-border/50">
-            {!isCollapsed && (
+            {/* Selector de tienda global */}
+            {!isCollapsed && sucursales.length > 0 && (
+              <div className="px-2 pb-2">
+                <p className="text-[10px] text-sidebar-foreground/50 mb-1 font-medium uppercase tracking-wide">Tienda activa</p>
+                <select
+                  value={globalSucursalId ?? sucursales[0]?.id ?? ""}
+                  onChange={e => setGlobalSucursalId(Number(e.target.value))}
+                  className="w-full h-7 px-2 text-xs rounded-md border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground focus:outline-none focus:ring-1 focus:ring-green-500 cursor-pointer"
+                >
+                  {sucursales.map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+                        {!isCollapsed && (
               <div className="px-2 pb-2 flex items-center justify-between">
                 <span className="text-[10px] text-sidebar-foreground/40 font-mono">
                   SECOF v{__APP_VERSION__}

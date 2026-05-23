@@ -1229,6 +1229,17 @@ export const inventarioRouter = router({
         };
         const sBodega = await getStock("odega");
         const sIsla   = await getStock("sla");
+        // Incluir productos con stock en conteo aunque no tengan ventas (ej. tienda demo)
+        const stockIds = [...new Set([...Object.keys(sBodega), ...Object.keys(sIsla)].map(Number))];
+        const missingIds = stockIds.filter(id => !consumo[id] && id !== 999999);
+        if (missingIds.length > 0) {
+          const allProds = await db.execute(sql`SELECT id, nombre, categoria, unidadConteo as unidad, unidadCompra, pesoNetoPorUnidad as pesoNeto, factorConversion, piezasPorUnidadConteo as ppc FROM inv_productos WHERE activo=1`);
+          for (const p of (allProds[0] as any[])) {
+            if (missingIds.includes(Number(p.id))) {
+              consumo[Number(p.id)] = { nombre: p.nombre, categoria: p.categoria||'Varios', unidad: p.unidad, unidadCompra: p.unidadCompra||p.unidad, pesoNeto: Number(p.pesoNeto)||0, factorConv: Number(p.factorConversion)||1, ppc: Number(p.ppc)||1, gramos: 0, piezas: 0 };
+            }
+          }
+        }
 
         const items = Object.entries(consumo).map(([idStr,data]) => {
           const id=Number(idStr);

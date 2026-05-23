@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ShoppingBag, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useSucursal } from "@/context/SucursalContext";
 
 const SUCURSALES_DISPONIBLES = [{ id: 30001, nombre: "Plaza Patio" }];
 const fmt = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
@@ -27,16 +28,19 @@ const UNIDADES = ["pz", "bolsa", "caja", "kg", "litro", "bote", "rollo"];
 
 const CONCEPTOS_RAPIDOS = [
   { concepto: "Hielos", proveedor: "Local", unidad: "bolsa", inv_productoId: 30070 },
+  { concepto: "Popote PLA", proveedor: "Varios", unidad: "caja", inv_productoId: 30060 },
   { concepto: "Film Stretch", proveedor: "Varios", unidad: "rollo", inv_productoId: 30042 },
   { concepto: "Azúcar Standard", proveedor: "Varios", unidad: "kg", inv_productoId: 30061 },
   { concepto: "Leche Soya Ades", proveedor: "Superama", unidad: "pz", inv_productoId: 30056 },
   { concepto: "Galletas Oreo", proveedor: "Varios", unidad: "pz", inv_productoId: 30044 },
+  { concepto: "Galletas Chai Oreo", proveedor: "Varios", unidad: "pz", inv_productoId: 30045 },
 ];
 
 export default function ComprasExternas() {
   const periods = getPeriodsOptions();
   const [periodo, setPeriodo] = useState(periods[0].val);
-  const [sucursalId] = useState(30001);
+  const { sucursalId: globalSucursalId } = useSucursal();
+  const sucursalId = globalSucursalId ?? 30001;
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({
     concepto: "", proveedor: "Externo", fecha: new Date().toISOString().split("T")[0],

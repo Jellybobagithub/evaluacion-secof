@@ -1,3 +1,4 @@
+import { SucursalProvider } from "@/context/SucursalContext";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -42,6 +43,8 @@ import Finanzas from "./pages/Finanzas";
 import Nomina from "./pages/Nomina";
 import ComprasExternas from "./pages/ComprasExternas";
 import ComprasJellyboba from "./pages/ComprasJellyboba";
+import RecepcionMercancia from "./pages/RecepcionMercancia";
+import ControlInventario from "./pages/ControlInventario";
 import EvaluacionesPeriodo from "./pages/EvaluacionesPeriodo";
 import Supervision from "./pages/Supervision";
 import HorariosRotacion from "./pages/HorariosRotacion";
@@ -199,6 +202,12 @@ function Router() {
         <Route path="/compras-externas">
           <ProtectedRoute component={ComprasExternas} minRole="manager" />
         </Route>
+        <Route path="/control-inventario">
+          <ProtectedRoute component={ControlInventario} minRole="leader" />
+        </Route>
+        <Route path="/recepcion-mercancia">
+          <ProtectedRoute component={RecepcionMercancia} minRole="leader" />
+        </Route>
         <Route path="/compras-jellyboba">
           <ProtectedRoute component={ComprasJellyboba} minRole="manager" />
         </Route>
@@ -227,8 +236,10 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster />
-          <Router />
+          <SucursalProvider>
+            <Toaster />
+            <Router />
+          </SucursalProvider>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

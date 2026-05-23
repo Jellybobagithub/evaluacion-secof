@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ShoppingCart, ChevronDown, ChevronRight, FileText, Upload, Package, Plus, X, Truck, CheckCircle2, AlertCircle } from "lucide-react";
+import { useSucursal } from "@/context/SucursalContext";
+import { ShoppingCart, ChevronDown, ChevronRight, FileText, Upload, Package, Plus, X, Truck, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -54,7 +55,7 @@ function DetalleOrden({ compraId }: { compraId: number }) {
   );
 }
 
-function OrdenRow({ orden, onPdfUploaded, onRecibir }: { orden: any; onPdfUploaded: () => void; onRecibir: () => void }) {
+function OrdenRow({ orden, onPdfUploaded, onRecibir, onEliminar }: { orden: any; onPdfUploaded: () => void; onRecibir: () => void; onEliminar: () => void }) {
   const [expandida, setExpandida] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const subirPdf = trpc.comprasJellyboba.subirPdf.useMutation({
@@ -111,10 +112,16 @@ function OrdenRow({ orden, onPdfUploaded, onRecibir }: { orden: any; onPdfUpload
             </>
           )}
           {!(orden as any).recibida ? (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50"
-              onClick={onRecibir}>
-              <Truck className="h-3 w-3"/> Recibir
-            </Button>
+            <>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50"
+                onClick={onRecibir}>
+                <Truck className="h-3 w-3"/> Recibir
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                onClick={onEliminar}>
+                <Trash2 className="h-3 w-3"/>
+              </Button>
+            </>
           ) : (
             <span className="flex items-center gap-1 text-xs text-green-700">
               <CheckCircle2 className="h-3 w-3"/> Recibida
@@ -132,6 +139,8 @@ function OrdenRow({ orden, onPdfUploaded, onRecibir }: { orden: any; onPdfUpload
 }
 
 export default function ComprasJellyboba() {
+  const { sucursalId: globalSucursalId } = useSucursal();
+  const sucursalActiva = globalSucursalId ?? 30001;
   const [modalNueva, setModalNueva] = useState(false);
   const [nuevaOrden, setNuevaOrden] = useState({
     numeroOrden: "", proveedor: "Jellyboba", fecha: new Date().toISOString().split("T")[0],
@@ -140,7 +149,7 @@ export default function ComprasJellyboba() {
   const [pdfNombreNueva, setPdfNombreNueva] = useState("");
   const fileNuevaRef = useRef<HTMLInputElement>(null);
 
-  const { data: ordenes = [], refetch, isLoading } = trpc.comprasJellyboba.list.useQuery({ sucursalId: 30001 });
+  const { data: ordenes = [], refetch, isLoading } = trpc.comprasJellyboba.list.useQuery({ sucursalId: sucursalActiva });
   // Recepción de mercancía
   const [modalRecepcion, setModalRecepcion] = useState(false);
   const [compraRecibiendo, setCompraRecibiendo] = useState<{id:number,numeroOrden:string,fecha:string}|null>(null);
@@ -175,6 +184,11 @@ export default function ComprasJellyboba() {
       refetch();
     },
     onError: (e) => { setSubiendoPdf(false); toast.error("Error: " + e.message); },
+  });
+
+  const eliminarOrden = trpc.comprasJellyboba.eliminar.useMutation({
+    onSuccess: () => { toast.success("OV eliminada"); refetch(); },
+    onError: (e) => toast.error(e.message),
   });
 
   const crearOrden = trpc.comprasJellyboba.crear.useMutation({
@@ -301,7 +315,7 @@ export default function ComprasJellyboba() {
                 if (!compraRecibiendo) return;
                 confirmarRecepcion.mutate({
                   compraId: compraRecibiendo.id,
-                  sucursalId: 30001,
+                  sucursalId: sucursalActiva,
                   fecha: compraRecibiendo.fecha,
                   items: itemsRecepcion.map((i:any)=>({inv_productoId:i.inv_productoId,cantidadRecibida:i.cantidadRecibida})),
                 });
@@ -375,7 +389,7 @@ export default function ComprasJellyboba() {
               onChange={e=>setNuevaOrden(p=>({...p,notas:e.target.value}))} className="h-8 text-sm"/>
             <Button onClick={()=>{
               if (!nuevaOrden.numeroOrden || nuevaOrden.total<=0) { toast.error("Número de orden y total son requeridos"); return; }
-              crearOrden.mutate({ ...nuevaOrden, sucursalId: 30001 });
+              crearOrden.mutate({ ...nuevaOrden, sucursalId: sucursalActiva });
             }} disabled={crearOrden.isPending} className="w-full bg-blue-600 hover:bg-blue-700">
               {crearOrden.isPending ? "Guardando..." : "Crear orden"}
             </Button>
@@ -413,7 +427,7 @@ export default function ComprasJellyboba() {
         <CardContent>
           {isLoading && <p className="text-sm text-muted-foreground">Cargando...</p>}
           {(ordenes as any[]).map((o: any) => (
-            <OrdenRow key={o.id} orden={o} onPdfUploaded={refetch} onRecibir={()=>{setCompraRecibiendo({id:o.id,numeroOrden:o.numeroOrden,fecha:o.fecha});setModalRecepcion(true);}}/>
+            <OrdenRow key={o.id} orden={o} onPdfUploaded={refetch} onRecibir={()=>{setCompraRecibiendo({id:o.id,numeroOrden:o.numeroOrden,fecha:o.fecha});setModalRecepcion(true);}} onEliminar={()=>{ if(window.confirm(`¿Eliminar OV ${o.numeroOrden}? Esta acción no se puede deshacer.`)) eliminarOrden.mutate({id:o.id}); }}/>
           ))}
         </CardContent>
       </Card>

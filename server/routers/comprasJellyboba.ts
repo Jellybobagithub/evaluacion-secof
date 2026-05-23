@@ -21,7 +21,7 @@ export const comprasJellybobaRouter = router({
         FROM compras c
         LEFT JOIN compras_detalle d ON d.compraId = c.id
         GROUP BY c.id
-        ORDER BY c.fecha DESC
+        ORDER BY c.fecha DESC, c.id DESC
       `);
       const all = rows[0] as any[];
       if (input.sucursalId) return all.filter((r: any) => !r.sucursalId || Number(r.sucursalId) === input.sucursalId);
@@ -48,7 +48,7 @@ export const comprasJellybobaRouter = router({
       pdfBase64:    z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!["superadmin","owner","manager"].includes(ctx.user.role))
+      if (!["superadmin","owner","manager","leader"].includes(ctx.user.role))
         throw new TRPCError({ code: "FORBIDDEN" });
 
       const db = await getDb();
@@ -82,7 +82,7 @@ export const comprasJellybobaRouter = router({
       pdfBase64:    z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!["superadmin","owner","manager"].includes(ctx.user.role))
+      if (!["superadmin","owner","manager","leader"].includes(ctx.user.role))
         throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -130,7 +130,7 @@ export const comprasJellybobaRouter = router({
   obtenerItemsRecepcion: protectedProcedure
     .input(z.object({ compraId: z.number() }))
     .query(async ({ ctx, input }) => {
-      if (!["superadmin","owner","manager"].includes(ctx.user.role))
+      if (!["superadmin","owner","manager","leader"].includes(ctx.user.role))
         throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -180,7 +180,7 @@ export const comprasJellybobaRouter = router({
       })),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!["superadmin","owner","manager"].includes(ctx.user.role))
+      if (!["superadmin","owner","manager","leader"].includes(ctx.user.role))
         throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -211,6 +211,23 @@ export const comprasJellybobaRouter = router({
         UPDATE compras SET recibida=1, inv_surtidoId=${surtidoId} WHERE id=${input.compraId}
       `);
 
+      // 4. Actualizar conteo físico bodega + inv_movimientos
+      const almRes2 = await db.execute(sql`SELECT id FROM inv_almacenes WHERE sucursalId=${input.sucursalId} AND nombre LIKE '%odega%' AND activo=1 LIMIT 1`);
+      const almId2 = (almRes2[0] as any[])[0]?.id;
+      const ctRes2 = almId2 ? await db.execute(sql`SELECT id FROM inv_conteo_fisico WHERE sucursalId=${input.sucursalId} AND almacenId=${almId2} AND estado IN ('enviado','bloqueado') ORDER BY fechaConteo DESC, id DESC LIMIT 1`) : null;
+      const ctId2 = ctRes2 ? (ctRes2[0] as any[])[0]?.id : null;
+      for (const rcv of input.items.filter((i: any) => i.cantidadRecibida > 0)) {
+        await db.execute(sql`INSERT INTO inv_movimientos(sucursalId,productoId,tipo,cantidadGramos,cantidadPiezas,referenciaTipo,referenciaId,notas) VALUES(${input.sucursalId},${rcv.inv_productoId},'entrada',0,${rcv.cantidadRecibida},'recepcion_ov',${input.compraId},'Recepción OV')`);
+        if (ctId2) {
+          const ex2 = await db.execute(sql`SELECT id FROM inv_conteo_detalle WHERE conteoId=${ctId2} AND productoId=${rcv.inv_productoId} LIMIT 1`);
+          const exRow2 = (ex2[0] as any[])[0];
+          if (exRow2) {
+            await db.execute(sql`UPDATE inv_conteo_detalle SET cantidadPiezas=cantidadPiezas+${rcv.cantidadRecibida} WHERE id=${exRow2.id}`);
+          } else {
+            await db.execute(sql`INSERT INTO inv_conteo_detalle(conteoId,productoId,cantidadPiezas,cantidadGramos) VALUES(${ctId2},${rcv.inv_productoId},${rcv.cantidadRecibida},0)`);
+          }
+        }
+      }
       return { ok: true, surtidoId };
     }),
   // Subir PDF y crear orden completa automáticamente (Claude lee el PDF)
@@ -220,7 +237,7 @@ export const comprasJellybobaRouter = router({
       sucursalId: z.number().default(30001),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (!["superadmin","owner","manager"].includes(ctx.user.role))
+      if (!["superadmin","owner","manager","leader"].includes(ctx.user.role))
         throw new TRPCError({ code: "FORBIDDEN" });
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -299,4 +316,20 @@ export const comprasJellybobaRouter = router({
       return { ok: true, compraId, numeroOrden: parsed.numeroOrden, itemsInsertados, total: parsed.total };
     }),
 
+  eliminar: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!["superadmin", "owner", "manager"].includes(ctx.user.role))
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      // Solo permitir borrar si NO está recibida
+      const rows = await db.execute(sql`SELECT recibida FROM compras WHERE id = ${input.id}`);
+      const row = (rows[0] as any[])[0];
+      if (!row) throw new TRPCError({ code: "NOT_FOUND" });
+      if (row.recibida) throw new TRPCError({ code: "BAD_REQUEST", message: "No se puede eliminar una OV ya recibida" });
+      await db.execute(sql`DELETE FROM compras_detalle WHERE compraId = ${input.id}`);
+      await db.execute(sql`DELETE FROM compras WHERE id = ${input.id}`);
+      return { ok: true };
+    }),
 });

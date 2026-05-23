@@ -59,14 +59,7 @@ export default function PronosticoSurtido() {
     onError: e => toast.error(e.message),
   });
 
-  const guardarMut = trpc.inventario.ventas.surtidoGuardar.useMutation({
-    onSuccess: (res) => {
-      toast.success("Surtido guardado como borrador");
-      setTab("historial");
-      refetchHist();
-    },
-    onError: e => toast.error(e.message),
-  });
+
   const confirmarMut = trpc.inventario.ventas.surtidoConfirmar.useMutation({
     onSuccess: () => {
       toast.success("Surtido confirmado — inventario actualizado");
@@ -97,18 +90,109 @@ export default function PronosticoSurtido() {
     return (item.pedirCajas ?? item.necesidadPiezas) > 0 ? Math.ceil(item.pedirCajas ?? item.necesidadPiezas) : 0;
   }
 
-  function handleCrearSurtido() {
-    if (!sucursalEfectiva || !pronostico) return;
+  function handleImprimirPedido() {
+    if (!pronostico) return;
     const itemsConCantidad = items
       .filter(i => getCantidad(i) > 0)
-      .map(i => ({ productoId: i.id, cantidadPiezas: getCantidad(i), cantidadGramos: 0 }));
+      .map(i => ({
+        nombre: i.nombre,
+        categoria: i.categoria || "Varios",
+        cantidad: getCantidad(i),
+        unidad: (i as any).unidadCompra || i.unidad,
+        estado: i.estado,
+      }));
     if (!itemsConCantidad.length) { toast.error("No hay productos con cantidad > 0"); return; }
-    guardarMut.mutate({
-      sucursalId: sucursalEfectiva,
-      fecha: new Date().toISOString().split("T")[0],
-      notas: notasSurtido,
-      items: itemsConCantidad,
-    });
+
+    const sucursalNombre = sucursales.find(s => s.id === sucursalEfectiva)?.nombre ?? "Sucursal";
+    const fecha = new Date().toLocaleDateString("es-MX", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+    const estadoColor = (e: string) =>
+      e === "urgente" ? "#A32D2D" : e === "surtir" ? "#854F0B" : "#3B6D11";
+    const estadoBg = (e: string) =>
+      e === "urgente" ? "#FCEBEB" : e === "surtir" ? "#FAEEDA" : "#EAF3DE";
+
+    const filas = itemsConCantidad
+      .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre))
+      .map(i => `
+        <tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.nombre}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee;color:#666;font-size:12px">${i.categoria}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${i.cantidad}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee;color:#666;font-size:12px">${i.unidad}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center">
+            <span style="background:${estadoBg(i.estado)};color:${estadoColor(i.estado)};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">
+              ${i.estado.charAt(0).toUpperCase() + i.estado.slice(1)}
+            </span>
+          </td>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee"></td>
+        </tr>
+      `).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Pedido Surtido — ${sucursalNombre}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #1a1a1a; padding: 32px; }
+    h1 { font-size: 20px; font-weight: 700; }
+    h2 { font-size: 13px; font-weight: 400; color: #555; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    thead tr { background: #f0faf4; border-bottom: 2px solid #2d8c5e; }
+    th { padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 700; color: #2d8c5e; text-transform: uppercase; letter-spacing: .5px; }
+    th.center { text-align: center; }
+    tr:last-child td { border-bottom: none; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2d8c5e; padding-bottom: 12px; margin-bottom: 8px; }
+    .notas { margin-top: 14px; background: #f8f8f8; border-left: 3px solid #2d8c5e; padding: 8px 12px; font-size: 12px; color: #444; }
+    .footer { margin-top: 32px; display: flex; gap: 48px; }
+    .firma { border-top: 1px solid #bbb; width: 200px; padding-top: 6px; font-size: 11px; color: #666; text-align: center; margin-top: 40px; }
+    .resumen { display: flex; gap: 24px; margin-top: 12px; margin-bottom: 4px; }
+    .chip { background: #f0faf4; border: 1px solid #c8e6d5; border-radius: 6px; padding: 4px 12px; font-size: 12px; color: #2d8c5e; }
+    @media print { body { padding: 16px; } button { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Snowtea — Pedido de Surtido</h1>
+      <h2>${sucursalNombre} · Proyección ${dias} días · Buffer ${buffer}%</h2>
+    </div>
+    <div style="text-align:right;font-size:12px;color:#555">
+      <div style="font-weight:600">${fecha}</div>
+      <div style="margin-top:4px">Generado en SECOF</div>
+    </div>
+  </div>
+  <div class="resumen">
+    <span class="chip">📦 ${itemsConCantidad.length} productos</span>
+    ${urgentesCount > 0 ? `<span class="chip" style="background:#FCEBEB;border-color:#f5c6c6;color:#A32D2D">🔴 ${urgentesCount} urgente${urgentesCount>1?"s":""}</span>` : ""}
+    ${surtirCount > 0 ? `<span class="chip" style="background:#FAEEDA;border-color:#f5d9a8;color:#854F0B">🟡 ${surtirCount} a surtir</span>` : ""}
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Producto</th>
+        <th>Categoría</th>
+        <th class="center">Cantidad</th>
+        <th>Unidad</th>
+        <th class="center">Estado</th>
+        <th>✓ Recibido</th>
+      </tr>
+    </thead>
+    <tbody>${filas}</tbody>
+  </table>
+  ${notasSurtido ? `<div class="notas"><strong>Notas:</strong> ${notasSurtido}</div>` : ""}
+  <div class="footer">
+    <div class="firma">Elaborado por</div>
+    <div class="firma">Recibido / Proveedor</div>
+  </div>
+  <script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) { toast.error("Permite pop-ups para esta página"); return; }
+    win.document.write(html);
+    win.document.close();
   }
 
   const confirmarIslaMut = trpc.inventario.ventas.surtidoIslaConfirmar.useMutation({
@@ -318,7 +402,7 @@ export default function PronosticoSurtido() {
 
               <Card className="border-teal-200">
                 <CardContent className="p-4 space-y-3">
-                  <p className="text-sm font-medium">Crear pedido de surtido</p>
+                  <p className="text-sm font-medium">Imprimir pedido de surtido</p>
                   <textarea value={notasSurtido} onChange={e => setNotasSurtido(e.target.value)}
                     placeholder="Notas opcionales (proveedor, fecha de entrega esperada...)"
                     className="w-full h-16 px-3 py-2 text-sm rounded-lg border border-input bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
@@ -327,9 +411,9 @@ export default function PronosticoSurtido() {
                       Se incluirán {items.filter(i => getCantidad(i) > 0).length} productos con cantidad &gt; 0
                     </p>
                     <Button className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
-                      onClick={handleCrearSurtido} disabled={guardarMut.isPending}>
+                      onClick={handleImprimirPedido}>
                       <PackagePlus className="w-4 h-4" />
-                      {guardarMut.isPending ? "Guardando..." : "Guardar como pedido"}
+                      Imprimir pedido
                     </Button>
                   </div>
                 </CardContent>
