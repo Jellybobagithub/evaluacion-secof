@@ -251,10 +251,14 @@ export const preparacionesRouter = router({
         desperdicio: "Producto desperdiciado (vencido sin usar)",
       };
 
-      await notifyOwner({
-        title: `⚠️ Incidencia: ${config.nombre} — ${tiposLabel[input.tipo]}`,
-        content: `Se registró una incidencia crítica en preparaciones:\n\n📍 Sucursal ID: ${input.sucursalId}\n🧪 Producto: ${config.nombre}\n🚨 Tipo: ${tiposLabel[input.tipo]}\n📝 Nota: ${input.nota}\n⏰ Hora: ${ahora.toLocaleTimeString("es-MX")}\n\nRevisa el historial de preparaciones en el sistema.`,
-      });
+      try {
+        await notifyOwner({
+          title: `⚠️ Incidencia: ${config.nombre} — ${tiposLabel[input.tipo]}`,
+          content: `Se registró una incidencia crítica en preparaciones:\n\n📍 Sucursal ID: ${input.sucursalId}\n🧪 Producto: ${config.nombre}\n🚨 Tipo: ${tiposLabel[input.tipo]}\n📝 Nota: ${input.nota}\n⏰ Hora: ${ahora.toLocaleTimeString("es-MX")}\n\nRevisa el historial de preparaciones en el sistema.`,
+        });
+      } catch (e) {
+        console.warn("[Preparaciones] notifyOwner falló (no crítico):", e);
+      }
 
       return { ok: true };
     }),

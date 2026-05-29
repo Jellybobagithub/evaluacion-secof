@@ -305,6 +305,141 @@ async function alertaRetardosYAusencias() {
   }
 }
 
+
+// ─── Auto-cierre de turnos sin salida ────────────────────────────────────────
+async function autoCierreTurnos() {
+  try {
+    const { getDb } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+
+    // Ayer en hora México (UTC-6)
+    const ahora = new Date();
+    const ayerMX = new Date(ahora.getTime() - 6 * 3600000);
+    ayerMX.setDate(ayerMX.getDate() - 1);
+    const fechaAyer = ayerMX.toISOString().split("T")[0];
+
+    // Rango timestamp: ayer 12:00 MX → hoy 12:00 MX (cubre turnos nocturnos)
+    const inicioMs = new Date(fechaAyer + "T18:00:00Z").getTime(); // 12:00 MX
+    const finMs    = inicioMs + 24 * 3600000;
+
+    // Sucursales activas
+    const sucsR = await db.execute(sql`SELECT id, nombre FROM sucursales WHERE activa=1`);
+    const sucursales = sucsR[0] as any[];
+
+    for (const suc of sucursales) {
+      // Empleados con entrada ayer pero sin salida posterior
+      const abiertosR = await db.execute(sql`
+        SELECT DISTINCT a.empleadoId, e.nombre, e.apellido
+        FROM asistencia a
+        JOIN empleados e ON e.id = a.empleadoId
+        WHERE a.sucursalId = ${suc.id}
+          AND a.tipo = 'entrada'
+          AND a.timestamp >= ${inicioMs}
+          AND a.timestamp < ${finMs}
+          AND NOT EXISTS (
+            SELECT 1 FROM asistencia s
+            WHERE s.empleadoId = a.empleadoId
+              AND s.sucursalId = a.sucursalId
+              AND s.tipo = 'salida'
+              AND s.timestamp > a.timestamp
+              AND s.timestamp < ${finMs + 6 * 3600000}
+          )
+      `);
+      const abiertos = abiertosR[0] as any[];
+      if (!abiertos.length) continue;
+
+      const alertas: string[] = [];
+
+      for (const emp of abiertos) {
+        // Buscar horaFin en turnos_semana
+        const turnoR = await db.execute(sql`
+          SELECT horaFin FROM turnos_semana
+          WHERE empleadoId = ${emp.empleadoId}
+            AND sucursalId = ${suc.id}
+            AND fecha = ${fechaAyer}
+          LIMIT 1
+        `);
+        const turno = (turnoR[0] as any[])[0];
+        const horaFin = turno?.horaFin ?? "03:00"; // default cierre tienda
+
+        // Construir timestamp de salida
+        const [hh, mm] = horaFin.split(":").map(Number);
+        const salidaDate = new Date(fechaAyer + "T00:00:00-06:00");
+        salidaDate.setHours(hh, mm, 0, 0);
+        // Si horaFin < 12 asumimos que es madrugada del día siguiente
+        if (hh < 12) salidaDate.setDate(salidaDate.getDate() + 1);
+        const salidaMs = salidaDate.getTime();
+
+        // Insertar salida automática
+        await db.execute(sql`
+          INSERT INTO asistencia (empleadoId, sucursalId, tipo, subtipo, timestamp, metodo, notas)
+          VALUES (
+            ${emp.empleadoId}, ${suc.id}, 'salida', 'salida_turno',
+            ${salidaMs}, 'manual',
+            ${`Auto-cierre sistema — ${fechaAyer} — no se registró salida. Hora programada: ${horaFin}`}
+          )
+        `);
+
+        alertas.push(`👤 ${emp.nombre} ${emp.apellido ?? ""} — cierre automático a las ${horaFin}`);
+        console.log(`[AutoCierre] ${suc.nombre} | ${emp.nombre}: salida insertada a las ${horaFin}`);
+      }
+
+      // Enviar alerta por email a líderes y administradores
+      if (alertas.length > 0) {
+        try {
+          const { enviarReporteDiario } = await import("./services/emailService");
+          const destinatariosR = await db.execute(sql`
+            SELECT DISTINCT u.email, u.name
+            FROM users u
+            JOIN user_sucursales us ON us.userId = u.id
+            WHERE us.sucursalId = ${suc.id}
+              AND u.role IN ('leader','manager','owner','superadmin')
+              AND u.email IS NOT NULL
+          `);
+          const emails = (destinatariosR[0] as any[]).map((r: any) => r.email).filter(Boolean);
+
+          const transporter = (await import("nodemailer")).default.createTransport({
+            host: process.env.SMTP_HOST,
+            port: Number(process.env.SMTP_PORT ?? 587),
+            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+          });
+
+          if (emails.length > 0) {
+            await transporter.sendMail({
+              from: process.env.SMTP_USER,
+              to: emails.join(", "),
+              subject: `⚠️ Auto-cierre de turnos — ${suc.nombre} — ${fechaAyer}`,
+              text: [
+                `SECOF detectó empleados que no registraron su salida el ${fechaAyer}.`,
+                `Se realizó cierre automático con la hora programada de cada turno:`,
+                ``,
+                ...alertas,
+                ``,
+                `Por favor verifica en Control de Asistencias si la hora es correcta y ajusta si es necesario.`,
+              ].join("\n"),
+            });
+            console.log(`[AutoCierre] Email enviado a: ${emails.join(", ")}`);
+          }
+        } catch (emailErr) {
+          console.warn("[AutoCierre] Error enviando email:", emailErr);
+        }
+
+        // Notificación push al dueño
+        try {
+          await notifyOwner({
+            title: `⚠️ Auto-cierre turnos — ${suc.nombre}`,
+            content: `${alertas.length} empleado(s) sin salida el ${fechaAyer}. Se cerró automáticamente:\n\n${alertas.join("\n")}`,
+          });
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.error("[AutoCierre] Error:", err);
+  }
+}
+
 export function initScheduler() {
   // ── Sync nocturno Odoo + reporte diario por correo (03:30 UTC = 21:30 MX) ─
   const ahora = new Date();
@@ -869,6 +1004,21 @@ export function initScheduler() {
   })();
   const diasAlertasAsist = (msAlertasAsistencia / (24*60*60*1000)).toFixed(1);
   console.log(`[Scheduler] Alertas retardos/ausencias programadas en ${diasAlertasAsist} días (próximo lunes 9:00 AM)`);
+
+  // ── Auto-cierre turnos sin salida (6:00 AM diario hora México) ────────────
+  const horasParaAutoCierre = (() => {
+    const target = new Date();
+    target.setUTCHours(12, 0, 0, 0);
+    if (target <= new Date()) target.setDate(target.getDate() + 1);
+    const h = (target.getTime() - new Date().getTime()) / 3600000;
+    return h;
+  })();
+  setTimeout(async function runAutoCierre() {
+    console.log("[Scheduler] Auto-cierre turnos programado en " + horasParaAutoCierre.toFixed(1) + " horas (6:00 AM diario)");
+    await autoCierreTurnos();
+    setTimeout(runAutoCierre, 24 * 60 * 60 * 1000);
+  }, horasParaAutoCierre * 3600000);
+  console.log(`[Scheduler] Auto-cierre turnos programado en ${horasParaAutoCierre.toFixed(1)} horas (6:00 AM diario)`);
   setTimeout(() => {
     alertaRetardosYAusencias();
     setInterval(alertaRetardosYAusencias, 7 * 24 * 60 * 60 * 1000);

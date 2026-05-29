@@ -308,7 +308,7 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
                 </div>
               </div>
               <Button className="w-full" disabled={editarMut.isPending}
-                onClick={() => editarMut.mutate({sucursalId:0,empleadoId:editDialog.empleadoId,fecha:editDialog.fecha,area:editDialog.area as any,horaInicio:editDialog.horaInicio||undefined,horaFin:editDialog.horaFin||undefined})}>
+                onClick={() => editarMut.mutate({sucursalId:sucursalId??30001,empleadoId:editDialog.empleadoId,fecha:editDialog.fecha,area:editDialog.area as any,horaInicio:editDialog.horaInicio||undefined,horaFin:editDialog.horaFin||undefined})}>
                 {editarMut.isPending?"Guardando...":"Guardar cambio"}
               </Button>
             </div>

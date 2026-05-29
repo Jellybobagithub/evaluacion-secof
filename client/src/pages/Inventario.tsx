@@ -56,7 +56,7 @@ export default function Inventario() {
   const { user } = useAuth();
   const role = user?.role ?? "host";
   const isSupervisor = ["superadmin", "owner", "manager"].includes(role);
-  const isLiderOrAbove = ["superadmin", "owner", "manager", "leader"].includes(role);
+  const isLiderOrAbove = ["superadmin", "owner", "manager"].includes(role);
 
   const [sucursalId, setSucursalId] = useState<number | null>(null);
   const [almacenId, setAlmacenId] = useState<number | null>(null);

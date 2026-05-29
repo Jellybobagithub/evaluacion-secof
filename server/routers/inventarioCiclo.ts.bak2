@@ -94,53 +94,34 @@ export const inventarioCicloRouter = router({
     .input(z.object({ sucursalId:z.number() }))
     .query(async ({ input }) => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const pendR = await db.execute(sql`SELECT cf.id, cf.fechaConteo, cf.semana, cf.almacenId, a.nombre as almacen, cf.notas FROM inv_conteo_fisico cf LEFT JOIN inv_almacenes a ON a.id=cf.almacenId WHERE cf.sucursalId=${input.sucursalId} AND cf.estado='enviado' ORDER BY cf.fechaConteo DESC, cf.id DESC`);
+      const pendR = await db.execute(sql`SELECT cf.id, cf.fechaConteo, cf.almacenId, a.nombre as almacen, cf.notas FROM inv_conteo_fisico cf LEFT JOIN inv_almacenes a ON a.id=cf.almacenId LEFT JOIN users u ON u.id=cf.supervisorId WHERE cf.sucursalId=${input.sucursalId} AND cf.estado='enviado' ORDER BY cf.fechaConteo DESC, cf.id DESC`);
       const pend = pendR[0] as any[];
-      if (!pend.length) return { pendientes:[], comparacion:[], conteoIds:[], conteoId:null, baseDate:null };
-      // Agrupar todos los conteos de la fecha más reciente (todos los almacenes)
-      const latestFecha = pend[0].fechaConteo;
-      const latestConteos = pend.filter((p:any) => p.fechaConteo === latestFecha);
-      const conteoIds = latestConteos.map((p:any) => Number(p.id));
-      const almacenesNombres = [...new Set(latestConteos.map((p:any) => p.almacen))].join(' + ');
-      // Stock teórico (ya suma todos los almacenes)
+      if (!pend.length) return { pendientes:[], comparacion:[], conteoId:null, baseDate:null };
       const { items: tItems, baseDate } = await calcular(db, input.sucursalId, "ambos");
       const tMap: Record<number,number> = {};
       for (const t of tItems) tMap[t.productoId] = t.stockTeorico;
-      // Sumar físico de TODOS los almacenes contados
-      const fisMap: Record<number,{p:number;g:number;nombre:string;cat:string;unidad:string;pn:number}> = {};
-      for (const ct of latestConteos) {
-        const detR = await db.execute(sql`SELECT cd.productoId, cd.cantidadPiezas, cd.cantidadGramos, p.nombre, p.categoria, p.unidadConteo as unidad, p.pesoNetoPorUnidad as pn FROM inv_conteo_detalle cd JOIN inv_productos p ON p.id=cd.productoId WHERE cd.conteoId=${ct.id}`);
-        for (const d of detR[0] as any[]) {
-          const id = Number(d.productoId);
-          if (!fisMap[id]) fisMap[id] = { p:0, g:0, nombre:d.nombre, cat:d.categoria||"Varios", unidad:d.unidad, pn:Number(d.pn)||0 };
-          fisMap[id].p += Number(d.cantidadPiezas||0);
-          fisMap[id].g += Number(d.cantidadGramos||0);
-        }
-      }
-      const comp = Object.entries(fisMap).map(([pidStr, d]) => {
-        const pid = Number(pidStr);
-        const fis = d.p + (d.pn > 0 ? d.g / d.pn : 0);
-        const teo = tMap[pid] ?? 0;
-        const pct = teo > 0 ? ((teo - fis) / teo) * 100 : 0;
-        return { productoId:pid, nombre:d.nombre, categoria:d.cat, unidad:d.unidad,
+      const latest = pend[0];
+      const detR = await db.execute(sql`SELECT cd.productoId, cd.cantidadPiezas, cd.cantidadGramos, p.nombre, p.categoria, p.unidadConteo as unidad, p.pesoNetoPorUnidad as pn FROM inv_conteo_detalle cd JOIN inv_productos p ON p.id=cd.productoId WHERE cd.conteoId=${latest.id} ORDER BY p.categoria, p.nombre`);
+      const comp = (detR[0] as any[]).map((d:any) => {
+        const pn = Number(d.pn)||0;
+        const fis = Number(d.cantidadPiezas||0) + (pn>0?Number(d.cantidadGramos||0)/pn:0);
+        const teo = tMap[d.productoId]??0;
+        const pct = teo>0?((teo-fis)/teo)*100:0;
+        return { productoId:d.productoId, nombre:d.nombre, categoria:d.categoria||"Varios", unidad:d.unidad,
           fisico:Math.round(fis*100)/100, teorico:Math.round(teo*100)/100,
           delta:Math.round((fis-teo)*100)/100, pctMerma:Math.round(pct*10)/10,
           alerta:pct>5?"critico":pct>2?"atencion":"ok" };
-      }).sort((a,b)=>a.categoria.localeCompare(b.categoria)||a.nombre.localeCompare(b.nombre));
-      return { pendientes:pend, comparacion:comp, conteoIds, conteoId:conteoIds[0]??null, almacenes:almacenesNombres, baseDate };
+      });
+      return { pendientes:pend, comparacion:comp, conteoId:latest.id, baseDate };
     }),
 
   aprobarConteo: protectedProcedure
-    .input(z.object({ conteoIds:z.array(z.number()).optional(), conteoId:z.number().optional(), notas:z.string().optional() }))
+    .input(z.object({ conteoId:z.number(), notas:z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       if (!["superadmin","owner"].includes(ctx.user.role)) throw new TRPCError({code:"FORBIDDEN"});
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const ids = input.conteoIds ?? (input.conteoId ? [input.conteoId] : []);
-      if (!ids.length) throw new TRPCError({code:"BAD_REQUEST", message:"Sin conteos que aprobar"});
-      for (const id of ids) {
-        await db.execute(sql`UPDATE inv_conteo_fisico SET estado='bloqueado' WHERE id=${id} AND estado='enviado'`);
-      }
-      return { ok:true, aprobados:ids.length };
+      await db.execute(sql`UPDATE inv_conteo_fisico SET estado='bloqueado' WHERE id=${input.conteoId} AND estado='enviado'`);
+      return { ok:true };
     }),
 
   historialMermas: protectedProcedure
@@ -197,14 +178,14 @@ export const inventarioCicloRouter = router({
     .input(z.object({ sucursalId:z.number() }))
     .query(async ({ input }) => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const r = await db.execute(sql`SELECT id, nombre, tipo FROM inv_almacenes WHERE sucursalId=${input.sucursalId} AND activo=1 ORDER BY nombre`);
+      const r = await db.execute(sql\`SELECT id, nombre, tipo FROM inv_almacenes WHERE sucursalId=\${input.sucursalId} AND activo=1 ORDER BY nombre\`);
       return r[0] as any[];
     }),
 
   productosActivos: protectedProcedure
     .query(async () => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const r = await db.execute(sql`SELECT id, nombre, categoria, unidadConteo, puedeAbrirse, pesoNetoPorUnidad as pesoNeto FROM inv_productos WHERE activo=1 ORDER BY categoria, nombre`);
+      const r = await db.execute(sql\`SELECT id, nombre, categoria, unidadConteo, puedeAbrirse, pesoNetoPorUnidad as pesoNeto FROM inv_productos WHERE activo=1 ORDER BY categoria, nombre\`);
       return r[0] as any[];
     }),
 
@@ -213,10 +194,10 @@ export const inventarioCicloRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
       const semana = getSemanaISO(new Date(input.fechaConteo + "T12:00:00"));
-      const ex = await db.execute(sql`SELECT id, estado FROM inv_conteo_fisico WHERE sucursalId=${input.sucursalId} AND almacenId=${input.almacenId} AND semana=${semana} AND estado IN ('borrador','enviado') ORDER BY id DESC LIMIT 1`);
+      const ex = await db.execute(sql\`SELECT id, estado FROM inv_conteo_fisico WHERE sucursalId=\${input.sucursalId} AND almacenId=\${input.almacenId} AND semana=\${semana} AND estado IN ('borrador','enviado') ORDER BY id DESC LIMIT 1\`);
       const existing = (ex[0] as any[])[0];
       if (existing) return { conteoId: existing.id, estado: existing.estado };
-      const ins = await db.execute(sql`INSERT INTO inv_conteo_fisico (sucursalId, almacenId, semana, fechaConteo, liderId, estado) VALUES (${input.sucursalId}, ${input.almacenId}, ${semana}, ${input.fechaConteo}, ${ctx.user.id}, 'borrador')`);
+      const ins = await db.execute(sql\`INSERT INTO inv_conteo_fisico (sucursalId, almacenId, semana, fechaConteo, liderId, estado) VALUES (\${input.sucursalId}, \${input.almacenId}, \${semana}, \${input.fechaConteo}, \${ctx.user.id}, 'borrador')\`);
       return { conteoId: (ins[0] as any).insertId, estado: 'borrador' };
     }),
 
@@ -224,11 +205,11 @@ export const inventarioCicloRouter = router({
     .input(z.object({ conteoId:z.number(), lineas:z.array(z.object({ productoId:z.number(), cantidadPiezas:z.number(), cantidadGramos:z.number().default(0) })) }))
     .mutation(async ({ input }) => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const ct = await db.execute(sql`SELECT estado FROM inv_conteo_fisico WHERE id=${input.conteoId}`);
+      const ct = await db.execute(sql\`SELECT estado FROM inv_conteo_fisico WHERE id=\${input.conteoId}\`);
       if ((ct[0] as any[])[0]?.estado !== 'borrador') throw new TRPCError({code:"BAD_REQUEST", message:"Conteo no editable"});
-      await db.execute(sql`DELETE FROM inv_conteo_detalle WHERE conteoId=${input.conteoId}`);
+      await db.execute(sql\`DELETE FROM inv_conteo_detalle WHERE conteoId=\${input.conteoId}\`);
       for (const l of input.lineas) {
-        await db.execute(sql`INSERT INTO inv_conteo_detalle (conteoId, productoId, cantidadPiezas, cantidadGramos) VALUES (${input.conteoId}, ${l.productoId}, ${l.cantidadPiezas}, ${l.cantidadGramos})`);
+        await db.execute(sql\`INSERT INTO inv_conteo_detalle (conteoId, productoId, cantidadPiezas, cantidadGramos) VALUES (\${input.conteoId}, \${l.productoId}, \${l.cantidadPiezas}, \${l.cantidadGramos})\`);
       }
       return { ok: true };
     }),
@@ -237,7 +218,7 @@ export const inventarioCicloRouter = router({
     .input(z.object({ conteoId:z.number(), notas:z.string().optional() }))
     .mutation(async ({ input }) => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const r = await db.execute(sql`UPDATE inv_conteo_fisico SET estado='enviado', notas=${input.notas ?? null} WHERE id=${input.conteoId} AND estado='borrador'`);
+      const r = await db.execute(sql\`UPDATE inv_conteo_fisico SET estado='enviado', notas=\${input.notas ?? null} WHERE id=\${input.conteoId} AND estado='borrador'\`);
       if ((r[0] as any).affectedRows === 0) throw new TRPCError({code:"BAD_REQUEST", message:"No se pudo enviar"});
       return { ok: true };
     }),
@@ -247,42 +228,11 @@ export const inventarioCicloRouter = router({
     .query(async ({ input }) => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
       const semana = getSemanaISO();
-      const ctR = await db.execute(sql`SELECT id, estado, fechaConteo, notas FROM inv_conteo_fisico WHERE sucursalId=${input.sucursalId} AND almacenId=${input.almacenId} AND semana=${semana} ORDER BY id DESC LIMIT 1`);
+      const ctR = await db.execute(sql\`SELECT id, estado, fechaConteo, notas FROM inv_conteo_fisico WHERE sucursalId=\${input.sucursalId} AND almacenId=\${input.almacenId} AND semana=\${semana} ORDER BY id DESC LIMIT 1\`);
       const ct = (ctR[0] as any[])[0];
       if (!ct) return { conteo: null, detalles: [] };
-      const detR = await db.execute(sql`SELECT productoId, cantidadPiezas, cantidadGramos FROM inv_conteo_detalle WHERE conteoId=${ct.id}`);
+      const detR = await db.execute(sql\`SELECT productoId, cantidadPiezas, cantidadGramos FROM inv_conteo_detalle WHERE conteoId=\${ct.id}\`);
       return { conteo: ct, detalles: detR[0] as any[] };
-    }),
-
-
-  rechazarConteo: protectedProcedure
-    .input(z.object({ conteoIds:z.array(z.number()), motivo:z.string().optional() }))
-    .mutation(async ({ ctx, input }) => {
-      if (!["superadmin","owner"].includes(ctx.user.role)) throw new TRPCError({code:"FORBIDDEN"});
-      const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      for (const id of input.conteoIds) {
-        await db.execute(sql`UPDATE inv_conteo_fisico SET estado='borrador', notas=${input.motivo ?? null} WHERE id=${id} AND estado='enviado'`);
-      }
-      return { ok:true, devueltos:input.conteoIds.length };
-    }),
-
-
-  historialConteoDetalle: protectedProcedure
-    .input(z.object({ conteoId:z.number() }))
-    .query(async ({ input }) => {
-      const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const ctR = await db.execute(sql`SELECT id, sucursalId, fechaConteo, semana FROM inv_conteo_fisico WHERE id=${input.conteoId}`);
-      const ct = (ctR[0] as any[])[0];
-      if (!ct) return { items:[] };
-      // Físico: suma todos los almacenes de este conteoId
-      const detR = await db.execute(sql`SELECT cd.productoId, SUM(cd.cantidadPiezas) as p, SUM(cd.cantidadGramos) as g, pr.nombre, pr.categoria, pr.unidadConteo as unidad, pr.pesoNetoPorUnidad as pn FROM inv_conteo_detalle cd JOIN inv_productos pr ON pr.id=cd.productoId WHERE cd.conteoId=${input.conteoId} GROUP BY cd.productoId, pr.nombre, pr.categoria, pr.unidadConteo, pr.pesoNetoPorUnidad`);
-      const items = (detR[0] as any[]).map((d:any) => {
-        const pn = Number(d.pn)||0;
-        const fis = Number(d.p||0) + (pn>0?Number(d.g||0)/pn:0);
-        return { productoId:d.productoId, nombre:d.nombre, categoria:d.categoria||'Varios', unidad:d.unidad,
-          fisico:Math.round(fis*100)/100, teorico:0, delta:0, pctMerma:0 };
-      }).sort((a:any,b:any)=>a.categoria.localeCompare(b.categoria)||a.nombre.localeCompare(b.nombre));
-      return { items };
     }),
 
 });

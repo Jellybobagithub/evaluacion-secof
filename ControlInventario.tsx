@@ -102,7 +102,7 @@ function ConteoFisicoTab({ sid }: { sid: number }) {
   const [estado, setEstado] = useState<"borrador" | "enviado" | null>(null);
   const [iniciado, setIniciado] = useState(false);
 
-  const { data: almacenes = [], isLoading: loadingAlm, error: almError } = trpc.inventarioCiclo.almacenes.useQuery({ sucursalId: sid });
+  const { data: almacenes = [] } = trpc.inventarioCiclo.almacenes.useQuery({ sucursalId: sid });
   const { data: productos = [] } = trpc.inventarioCiclo.productosActivos.useQuery();
   const almacenActual = (almacenes as any[]).find((a: any) => a.id === almacenId);
 
@@ -176,9 +176,9 @@ function ConteoFisicoTab({ sid }: { sid: number }) {
   const esBloqueado = estado === "bloqueado" as any;
   const editable = estado === "borrador";
 
-  if (loadingAlm) return <div className="py-10 text-center text-sm text-muted-foreground">Cargando almacenes (sid={sid})...</div>;
-  if (almError) return <div className="py-10 text-center text-sm text-red-500">Error almacenes: {String((almError as any)?.message ?? almError)}</div>;
-  if ((almacenes as any[]).length === 0) return <div className="py-10 text-center text-sm text-muted-foreground">Sin almacenes para sucursalId={sid}</div>;
+  if (!almacenId && (almacenes as any[]).length === 0) {
+    return <div className="py-10 text-center text-sm text-muted-foreground">Sin almacenes configurados.</div>;
+  }
 
   if (!iniciado) {
     return (
@@ -333,7 +333,7 @@ function AprobTab({ sid }: { sid: number }) {
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
   const rechazar = trpc.inventarioCiclo.rechazarConteo.useMutation({
-    onSuccess: (d) => { toast.success("Conteo devuelto al líder"); setMostrarRechazo(false); setMotivoRechazo(""); refetch(); },
+    onSuccess: (d) => { toast.success(`Conteo devuelto al líder (${d.devueltos} almacén/es)`); setMostrarRechazo(false); setMotivoRechazo(""); refetch(); },
     onError: e => toast.error(e.message),
   });
 
@@ -426,13 +426,14 @@ function AprobTab({ sid }: { sid: number }) {
 
       {/* Aprobar */}
       {isOwner && (
-        <>
+        <div className="space-y-3">
+          {/* Panel aprobar */}
           <div className="border border-teal-200 rounded-lg p-4 space-y-3 bg-teal-50/30">
-          <p className="text-sm font-medium">Aprobar como nueva base del ciclo</p>
-          <p className="text-xs text-muted-foreground">Al aprobar, este conteo se convierte en la nueva base para calcular el stock teórico. Los datos capturados por el líder <strong>no modifican</strong> el inventario real.</p>
-          <input type="text" placeholder="Notas opcionales..." value={notas} onChange={e => setNotas(e.target.value)}
-            className="w-full h-8 px-3 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
-          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Aprobar como nueva base del ciclo</p>
+            <p className="text-xs text-muted-foreground">Al aprobar, este conteo se convierte en la nueva base para calcular el stock teórico. Los datos <strong>no modifican</strong> el inventario real.</p>
+            <input type="text" placeholder="Notas opcionales..." value={notas} onChange={e => setNotas(e.target.value)}
+              className="w-full h-8 px-3 text-sm rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring" />
+            <div className="flex items-center justify-between">
               <button onClick={() => setMostrarRechazo(!mostrarRechazo)}
                 className="text-xs text-amber-600 hover:text-amber-800 underline underline-offset-2">
                 Devolver al líder para corrección
@@ -445,10 +446,11 @@ function AprobTab({ sid }: { sid: number }) {
               </Button>
             </div>
           </div>
+          {/* Panel devolver */}
           {mostrarRechazo && (
             <div className="border border-amber-300 rounded-lg p-4 space-y-3 bg-amber-50/50">
               <p className="text-sm font-medium text-amber-900">Devolver conteo al líder</p>
-              <p className="text-xs text-amber-700">El conteo vuelve a borrador. El líder podrá corregirlo y reenviarlo.</p>
+              <p className="text-xs text-amber-700">El conteo volverá a estado borrador. El líder podrá corregirlo y reenviarlo.</p>
               <input type="text" placeholder="Motivo o instrucción para el líder (opcional)..."
                 value={motivoRechazo} onChange={e => setMotivoRechazo(e.target.value)}
                 className="w-full h-8 px-3 text-sm rounded border border-amber-300 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400" />
@@ -462,7 +464,7 @@ function AprobTab({ sid }: { sid: number }) {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -485,10 +487,11 @@ function HistTab({ sid }: { sid: number }) {
   );
   const maxM = Math.max(...sem.map((s: any) => s.pctMerma), 5);
   const prom = (sem.reduce((s: number, w: any) => s + w.pctMerma, 0) / sem.length).toFixed(1);
+  const CATS = ["Jarabes","Polvos","Tes","Toppings","Desechables","Varios","Insumos"];
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        {[["Promedio", prom + "%", "text-teal-700"], ["Semanas críticas", sem.filter((s: any) => s.alerta === "critico").length, "text-red-700"], ["Semanas OK", sem.filter((s: any) => s.alerta === "ok").length, "text-emerald-700"]].map(([l, v, c]) => (
+        {[["Promedio merma", prom + "%", "text-teal-700"], ["Semanas críticas", sem.filter((s: any) => s.alerta === "critico").length, "text-red-700"], ["Semanas OK", sem.filter((s: any) => s.alerta === "ok").length, "text-emerald-700"]].map(([l, v, c]) => (
           <div key={String(l)} className="bg-secondary rounded-lg p-3">
             <p className="text-xs text-muted-foreground">{l}</p>
             <p className={"text-2xl font-bold " + c}>{v}</p>
@@ -498,47 +501,67 @@ function HistTab({ sid }: { sid: number }) {
       <div className="border rounded-lg divide-y overflow-hidden">
         {[...sem].reverse().map((s: any) => (
           <div key={s.conteoId}>
-            <button onClick={() => setExpandido(expandido === s.conteoId ? null : s.conteoId)}
+            <button
+              onClick={() => setExpandido(expandido === s.conteoId ? null : s.conteoId)}
               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left">
-              <span className="text-xs text-muted-foreground w-24 shrink-0">{s.fecha}</span>
+              <span className="text-sm text-muted-foreground w-24 shrink-0">{s.fecha}</span>
               <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
-                <div className={"h-full rounded " + (s.alerta === "critico" ? "bg-red-400" : s.alerta === "atencion" ? "bg-amber-400" : "bg-emerald-400")}
+                <div className={"h-full rounded transition-all " + (s.alerta === "critico" ? "bg-red-400" : s.alerta === "atencion" ? "bg-amber-400" : "bg-emerald-400")}
                   style={{ width: Math.min(100, (s.pctMerma / maxM) * 100) + "%" }} />
               </div>
               <span className={"text-sm font-semibold w-12 text-right " + (s.alerta === "critico" ? "text-red-700" : s.alerta === "atencion" ? "text-amber-700" : "text-emerald-700")}>{s.pctMerma}%</span>
               {badge(s.alerta)}
-              <span className="text-xs text-muted-foreground">{expandido === s.conteoId ? "▲" : "▼"}</span>
+              <span className="text-xs text-muted-foreground ml-1">{expandido === s.conteoId ? "▲" : "▼"}</span>
             </button>
             {expandido === s.conteoId && (
-              <div className="px-4 pb-4 bg-muted/10 border-t">
-                {loadingDet ? <div className="py-4 text-center text-sm text-muted-foreground">Cargando detalle...</div>
-                : !detalle?.items?.length ? <div className="py-4 text-center text-sm text-muted-foreground">Sin detalle disponible</div>
-                : <div className="space-y-2 pt-3">
-                    <p className="text-xs text-muted-foreground">{detalle.items.length} productos · click para ver comparación</p>
-                    <table className="w-full text-xs border rounded overflow-hidden">
-                      <thead><tr className="bg-muted/30 border-b">
-                        <th className="text-left px-3 py-2 text-muted-foreground">Producto</th>
-                        <th className="text-center px-2 py-2 text-teal-700">Teórico</th>
-                        <th className="text-center px-2 py-2 text-muted-foreground">Físico</th>
-                        <th className="text-center px-2 py-2 text-muted-foreground">% Merma</th>
-                      </tr></thead>
-                      <tbody>
-                        {(detalle.items as any[]).map((i:any) => (
-                          <tr key={i.productoId} className={"border-b last:border-0 " + (i.pctMerma>5?"bg-red-50/40":i.pctMerma<-5?"bg-emerald-50/20":"")}>
-                            <td className="px-3 py-1.5">{i.nombre}</td>
-                            <td className="px-2 py-1.5 text-center text-teal-700">{i.teorico} <span className="text-muted-foreground text-xs">{i.unidad}</span></td>
-                            <td className="px-2 py-1.5 text-center">{i.fisico} <span className="text-muted-foreground text-xs">{i.unidad}</span></td>
-                            <td className={"px-2 py-1.5 text-center font-semibold " + (i.pctMerma>5?"text-red-700":i.pctMerma<-5?"text-emerald-700":"text-amber-700")}>{i.pctMerma}%</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>}
+              <div className="px-4 pb-4 bg-muted/10">
+                {loadingDet ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">Cargando detalle...</div>
+                ) : !detalle?.items?.length ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">Sin detalle disponible</div>
+                ) : (
+                  <div className="space-y-3 pt-3">
+                    <div className="flex gap-4 text-xs text-muted-foreground pb-1 border-b">
+                      <span>Conteo del {s.fecha}</span>
+                      <span>{detalle.items.length} productos</span>
+                      <span className="ml-auto">Teórico {Math.round(detalle.items.reduce((a:number,i:any)=>a+i.teorico,0))} u · Físico {Math.round(detalle.items.reduce((a:number,i:any)=>a+i.fisico,0))} u</span>
+                    </div>
+                    {CATS.concat(["Otros"]).map(cat => {
+                      const items = (detalle.items as any[]).filter((i:any) => (cat === "Otros" ? !CATS.includes(i.categoria) : i.categoria === cat));
+                      if (!items.length) return null;
+                      return (
+                        <div key={cat} className="border rounded overflow-hidden">
+                          <div className="px-3 py-1.5 bg-muted/40 text-xs font-medium text-muted-foreground">{cat}</div>
+                          <table className="w-full text-xs">
+                            <thead><tr className="border-b">
+                              <th className="text-left px-3 py-1.5 text-muted-foreground">Producto</th>
+                              <th className="text-center px-2 py-1.5 text-teal-700">Teórico</th>
+                              <th className="text-center px-2 py-1.5 text-muted-foreground">Físico</th>
+                              <th className="text-center px-2 py-1.5 text-muted-foreground">Delta</th>
+                              <th className="text-center px-2 py-1.5 text-muted-foreground">% Merma</th>
+                            </tr></thead>
+                            <tbody>
+                              {items.map((i:any) => (
+                                <tr key={i.productoId} className={`border-b last:border-0 ${i.pctMerma>5?"bg-red-50/40":i.pctMerma>2?"bg-amber-50/30":""}`}>
+                                  <td className="px-3 py-1.5">{i.nombre}</td>
+                                  <td className="px-2 py-1.5 text-center text-teal-700">{i.teorico} <span className="text-muted-foreground">{i.unidad}</span></td>
+                                  <td className="px-2 py-1.5 text-center">{i.fisico} <span className="text-muted-foreground">{i.unidad}</span></td>
+                                  <td className={`px-2 py-1.5 text-center font-medium ${i.delta<0?"text-red-600":i.delta>0?"text-emerald-600":"text-muted-foreground"}`}>{i.delta>0?"+":""}{i.delta}</td>
+                                  <td className={`px-2 py-1.5 text-center font-semibold ${i.pctMerma>5?"text-red-700":i.pctMerma>2?"text-amber-700":"text-emerald-700"}`}>{i.pctMerma}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
         ))}
-        <p className="text-xs text-muted-foreground px-4 py-2">OK: &lt;2% · Atención: 2–5% · Crítico: &gt;5% · Click en semana para ver detalle</p>
+        <p className="text-xs text-muted-foreground px-4 py-2">OK: &lt;2% · Atención: 2–5% · Crítico: &gt;5% · Click en una semana para ver el detalle</p>
       </div>
     </div>
   );

@@ -1,93 +1,50 @@
-# ESTADO SECOF — 23 Mayo 2026
+# ESTADO SECOF — 29 mayo 2026
 
-## Stack
-- Frontend: React 19 + Vite + TypeScript + Tailwind + shadcn/ui
-- Backend: Express + tRPC + Drizzle ORM + MySQL 8.0
-- Auth: Google OAuth
-- Deploy: PM2 id=1, puerto 5000, Nginx, Vultr 216.238.81.192
-- Dominio: secof.snowteatienda.com
-- Repo: Jellybobagithub/evaluacion-secof (main)
+## Producción
+- URL: secof.snowteatienda.com | PM2 id=1 | Puerto 5000 | MySQL secof_db
 
-## Sucursales
-- Plaza Portal: id=1, activa=0 (cerrando ~jun 2026)
-- Plaza Patio:  id=30001, activa=1, meta $135,000/mes
-- Tienda Demo:  id=60001, activa=1 (pruebas)
+## Sesión 29-may-2026 — Lo que se hizo
 
-## Módulos activos (resumen)
+### Módulo Control Inventario (NUEVO)
+- Tab Conteo Físico: líder cuenta Bodega + Isla desde /control-inventario
+- Tab Aprobación: admin ve teórico vs físico sumado (Bodega+Isla), puede devolver al líder
+- Tab Historial Mermas: expandible por semana con detalle de productos
+- Flujo: borrador → enviado → bloqueado (nuevo ciclo base)
+- Primer ciclo aprobado: base 2026-05-26
 
-### Inventario — Ciclo Cerrado ✅ NUEVO (23-may-2026)
-- Página: `/control-inventario`, minRole=leader
-- Router backend: `server/routers/inventarioCiclo.ts`
-- Endpoints: stockTeorico, comparacionPendiente, aprobarConteo, historialMermas, kpiResumen
-- Flujo: conteo físico (enviado) → comparación vs teórico → aprobación owner (bloqueado) → nueva base
-- Fórmula: base_conteo + entradas(inv_movimientos) - consumo(consumo_preparacion) = stock teórico
-- Toggle vista piezas/gramos
-- Fuente consumo seleccionable: preparaciones reales / ventas×recetas / ambas
-- Umbrales merma: OK <2%, Atención 2-5%, Crítico >5%
+### Recetas calibradas
+- Yunnan 10kg: 39g → 54g (3 cucharas × 18g) — pendiente verificar si subir a ~85g
+- Frosty 10kg: 57g → 52g (2 cucharas × 26g)
+- Bases Clásico/Caliente/Chamoy: 80g por bebida (confirmado por Coco 0%)
+- Bases Yogurt: 71g → 40g (media carga vs carga completa)
 
-### Pronóstico de Surtido ✅ MODIFICADO
-- Botón "Guardar como pedido" → ahora genera PDF para imprimir sin tocar inventario
-- Muestra productos con stock aunque no tengan ventas (tiendas sin historial)
+### Bugs corregidos
+- Rotación de Áreas: sucursalId:0 hardcodeado → sucursalId:sucursalId??30001
+- Preparaciones incidencia: notifyOwner sin try/catch → envuelto en try/catch
+- Ana Claudia: salida sábado 23-may insertada manualmente (03:00)
+- sucursalId=0 en rotacion_areas limpiados (3 registros)
 
-### Recepción de Mercancía ✅ NUEVO
-- Página: `/recepcion-mercancia`, minRole=leader
-- Tab Jellyboba: lista OVs sin costos + modal recibir completo
-- Tab Compras Externas: historial por periodo sin costos + botón recibir
-- Al confirmar recepción: actualiza inv_conteo_detalle del último conteo bloqueado + inv_movimientos
+### Auto-cierre turnos (NUEVO scheduler)
+- Corre diario a las 6:00 AM México (12:00 UTC)
+- Detecta empleados con entrada sin salida del día anterior
+- Inserta salida con horaFin del turno programado (default 03:00)
+- Envía email a líderes/managers/admins + push al dueño
 
-### Compras Jellyboba ✅ MODIFICADO
-- Botón borrar OV (solo pendientes, no recibidas)
-- Selector global de tienda vía SucursalContext
-- Al confirmar recepción: actualiza inv_conteo_fisico + inv_movimientos automáticamente
+## Pendientes activos
+1. Nómina — reporte horas reales desde ajustes eventuales + turnos_semana
+2. Usuario Demo — Gmail para sucursalId=60001
+3. Rentabilidad — conectar getKpiRentabilidad con costos reales
+4. Cuadre de Vasos — definir flujo y propósito
+5. Scheduling Phase 2 — timeline visual traslapes
+6. KPI merma ciclo cerrado → módulo KPIs Líder (conectar)
+7. Yunnan receta — confirmar con Emily si 54g es correcto o subir a ~85g
+8. Frosty receta — verificar gramos reales con Emily
+9. Galletas Oreo / Leche Soya / Film Sellado — registrar entradas faltantes en Recepción de Mercancía
 
-### Compras Externas ✅ MODIFICADO
-- Campo inv_productoId añadido a tabla compras_externas
-- Al recibir: actualiza inv_conteo_detalle + inv_movimientos
-- Conceptos rápidos: Hielos, Film, Azúcar, Leche Soya, Galletas Oreo, Galletas Chai Oreo, Popote PLA
-
-### Selector Global de Tienda ✅ NUEVO
-- Contexto: `client/src/context/SucursalContext.tsx`
-- Persiste en localStorage
-- Aparece en sidebar inferior izquierdo ("Tienda Activa")
-- Módulos que lo consumen: ComprasJellyboba, ComprasExternas, RecepcionMercancia, ControlInventario
-
-## Acceso por rol
-
-### Leader ve:
-- SECOF: Resumen, Nueva Evaluación, Historial, Plan de Acción
-- Ventas: Reporte Diario
-- Equipo: Mi Turno, Preparaciones, Rotación, Checador QR, Control Asistencias, KPIs Anfitriones, KPIs Líder, Cuadre de Vasos, Inventario, Recepción de Mercancía, Control Inventario, Supervisión
-- Colaboradores: Empleados, Usuarios y Roles
-
-### Manager ve todo lo anterior + :
-- Pronóstico de Surtido, Compras Jellyboba, Compras Extras, Rentabilidad, Evolución de Ventas, Importar Ventas, KPIs Admin, Evaluaciones, Sucursales, Empleados, Avisos
-
-## Mapeos SKU Jellyboba (compras_sku_mapping)
-Completos: JAR07→30036, TAP04→30059, PEX08→30052, PEX10→30053, POL05→30058, POL-FROSTY→30043, POL01→30063, POL03→30062, POL04→30038, TAPC01/02→30059, JARC01-13→jarabes, PEXC01-09→perlas, VAS01/VASO20→30067, YUN01/YUNNAN→30068, POPOTE→30060, AZUCAR→30061
-
-## DB — Cambios recientes
-- compras_externas: + inv_productoId INT NULL, + recibida_at DATETIME NULL
-- inv_conteo_detalle: se actualiza automáticamente al recibir OVs y compras externas
-
-## Servicios PM2
-- id=0: secof-api (deprecada, stopped)
-- id=1: secof (activo, puerto 5000)
-- id=2: noche-fotos
-- id=3: snowtea-mcp (puerto 8001, ngrok parking-harpist-overstep)
-- id=4: snowtea-ngrok
-
-## Pendientes
-1. **Nómina** — reporte horas reales del equipo para C&H (ajustes eventuales + turnos_semana)
-2. **Usuario Demo** — crear Gmail, vincular a sucursalId=60001
-3. **Rentabilidad** — conectar getKpiRentabilidad con costos reales de recetas
-4. **Cuadre de Vasos** — analizar para qué sirve, revisar nivel de acceso
-5. **Scheduling Phase 2** — timeline visual de traslape de turnos
-6. **KPI Merma → KPIs Líder** — conectar % merma del ciclo cerrado al módulo KPIs Nivel 2
-
-## Notas técnicas importantes
-- getStock() en inventario.ts: usa solo estado='bloqueado' como base del pronóstico
-- SucursalContext: contexto React global para tienda activa, persiste en localStorage
-- confirmarRecepcion (comprasJellyboba): actualiza inv_conteo_detalle del último conteo bloqueado
-- Drizzle ORM: imports faltantes causan queries vacías sin error
-- inventarioCiclo.ts: imports desde "../_core/trpc" y "../db" (no "../_core/db")
-- Scheduler/cron: frágil, restaurar como standalone antes de envolver con initScheduler
+## Notas técnicas
+- inventarioCicloRouter: nuevos endpoints (almacenes, productosActivos, iniciarConteo,
+  guardarConteo, enviarConteo, getConteoSemana, comparacionPendiente v2,
+  aprobarConteo v2, rechazarConteo, historialConteoDetalle, historialMermas v2)
+- ControlInventario.tsx: 4 tabs (Stock Teórico, Conteo Físico, Aprobación, Historial)
+- Bug recurrente: Python patches escapan \${ en template literals → usar sed o fix manual
+- Inventario.tsx restringido a manager+ (líderes ya no pueden entrar)
