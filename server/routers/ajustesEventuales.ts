@@ -224,6 +224,46 @@ export const ajustesEventualesRouter = router({
           VALUES (${input.sucursalId},${r.empleadoId},${input.fecha},${r.area},${r.horaInicio},${r.horaFin},0,NULL)
         `);
       }
+      // Asignar actividades por área — solo UN empleado por área (el de más minutos)
+      const catAreaR = await db.execute(sql`SELECT clave, area_compatible FROM actividades_catalogo WHERE activa=1 AND area_compatible != 'todas'`);
+      const actsPorArea = catAreaR[0] as any[];
+      // Calcular minutos por área por empleado
+      const minsPorEmpArea: Record<number, Record<string, number>> = {};
+      for (const r of resultado) {
+        if (!minsPorEmpArea[r.empleadoId]) minsPorEmpArea[r.empleadoId] = { caja:0, preparacion:0, comodin:0 };
+        const [hI, mI] = r.horaInicio.split(':').map(Number);
+        const [hF, mF] = r.horaFin.split(':').map(Number);
+        const mins = (hF*60+mF) - (hI*60+mI);
+        if (r.area === 'caja') minsPorEmpArea[r.empleadoId].caja += mins;
+        else if (r.area === 'preparacion') minsPorEmpArea[r.empleadoId].preparacion += mins;
+        else if (r.area === 'comodin') minsPorEmpArea[r.empleadoId].comodin += mins;
+        else if (r.area === 'caja_y_preparacion') { minsPorEmpArea[r.empleadoId].caja += mins/2; minsPorEmpArea[r.empleadoId].preparacion += mins/2; }
+      }
+      // Para cada área, encontrar el empleado con más minutos
+      const empConMasArea: Record<string, number> = {};
+      for (const area of ['caja','preparacion','comodin']) {
+        let maxMins = 0, empId = 0;
+        for (const [empIdStr, mins] of Object.entries(minsPorEmpArea)) {
+          if (mins[area] > maxMins) { maxMins = mins[area]; empId = Number(empIdStr); }
+        }
+        if (empId > 0) empConMasArea[area] = empId;
+      }
+      // Primero limpiar actividades de área de TODOS los turnos del día (recalcular limpio)
+      for (const emp of activos) {
+        const tR = await db.execute(sql`SELECT id FROM turnos_semana WHERE sucursalId=${input.sucursalId} AND empleadoId=${emp.id} AND fecha=${input.fecha} LIMIT 1`);
+        const t = (tR[0] as any[])[0];
+        if (!t) continue;
+        await db.execute(sql`DELETE ta FROM turno_actividades ta JOIN actividades_catalogo ac ON ac.clave=ta.actividadClave WHERE ta.turnoId=${t.id} AND ac.area_compatible != 'todas' AND ta.completada=0`);
+      }
+      // Asignar actividades de área al empleado dominante
+      for (const [area, empId] of Object.entries(empConMasArea)) {
+        const turnoR = await db.execute(sql`SELECT id FROM turnos_semana WHERE sucursalId=${input.sucursalId} AND empleadoId=${empId} AND fecha=${input.fecha} LIMIT 1`);
+        const turno = (turnoR[0] as any[])[0];
+        if (!turno) continue;
+        for (const act of actsPorArea.filter((a:any) => a.area_compatible === area)) {
+          await db.execute(sql`INSERT IGNORE INTO turno_actividades (turnoId, actividadClave, esPendiente) VALUES (${turno.id}, ${act.clave}, 0)`);
+        }
+      }
       return { ok:true, asignaciones:resultado.length, activos:activos.length, bloques:resultado };
     }),
 });

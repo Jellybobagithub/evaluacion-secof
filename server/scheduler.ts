@@ -898,17 +898,21 @@ export function initScheduler() {
 
       // Obtener empleados activos de Plaza Patio con horarioPersonal
       const empRows = await db.execute(sql`
-        SELECT id, nombre, horarioPersonal FROM empleados
+        SELECT id, nombre, horarioPersonal, areaPreferida FROM empleados
         WHERE sucursalId = 30001 AND activo = 1 AND horarioPersonal IS NOT NULL
       `);
       const empleados = (empRows[0] as any[]);
 
       // Obtener catálogo de actividades
-      const catRows = await db.execute(sql`SELECT clave FROM actividades_catalogo WHERE activa=1`);
-      const claves = (catRows[0] as any[]).map((r: any) => r.clave);
+      const catRows = await db.execute(sql`SELECT clave, area_compatible FROM actividades_catalogo WHERE activa=1`);
+      const todasActs = (catRows[0] as any[]);
 
       let creados = 0;
       for (const emp of empleados) {
+        const claves = todasActs.filter((a: any) => a.area_compatible === 'todas').map((a: any) => a.clave);
+
+
+
         let hp: Record<number,any> = {};
         try { hp = typeof emp.horarioPersonal==='string' ? JSON.parse(emp.horarioPersonal) : (emp.horarioPersonal??{}); } catch {}
 
