@@ -463,7 +463,7 @@ export function initScheduler() {
     }
     // Repetir cada 24h
     setTimeout(syncNocturno, 24 * 60 * 60 * 1000);
-  }, horasParaSync * 3600000);
+  }, Math.min(horasParaSync * 3600000, 2147483647));
 
 
   // ── Auto-meta mensual: actualiza metaVentasMensual el 1ro de cada mes ────
@@ -497,29 +497,29 @@ export function initScheduler() {
       } else {
         // Calcular: mismo mes año anterior + 3%
         const mesStr = String(mes).padStart(2,'0');
-        const inicioAnt = `\${anio-1}-\${mesStr}-01`;
-        const finAnt    = `\${anio-1}-\${mesStr}-\${new Date(anio-1, mes, 0).getDate()}`;
+        const inicioAnt = `${anio-1}-${mesStr}-01`;
+        const finAnt    = `${anio-1}-${mesStr}-${new Date(anio-1, mes, 0).getDate()}`;
         const ventasRows = await db.execute(sql`
           SELECT COALESCE(SUM(ventasTotales),0) as total
-          FROM reportes_diarios WHERE sucursalId=30001 AND fecha>=\${inicioAnt} AND fecha<=\${finAnt}
+          FROM reportes_diarios WHERE sucursalId=30001 AND fecha>=${inicioAnt} AND fecha<=${finAnt}
         `);
         const totalAnt = Number((ventasRows[0] as any[])[0]?.total ?? 0);
         meta = totalAnt > 0 ? Math.round(totalAnt * 1.03) : 135000;
 
         await db.execute(sql`
           INSERT INTO metas_mensuales (sucursalId, anio, mes, meta, baseAnterior)
-          VALUES (30001, \${anio}, \${mes}, \${meta}, \${totalAnt})
-          ON DUPLICATE KEY UPDATE meta=\${meta}
+          VALUES (30001, ${anio}, ${mes}, ${meta}, ${totalAnt})
+          ON DUPLICATE KEY UPDATE meta=${meta}
         `);
       }
 
-      await db.execute(sql`UPDATE sucursales SET metaVentasMensual=\${meta} WHERE id=30001`);
-      console.log(`[Scheduler] Meta Plaza Patio \${mes}/\${anio} actualizada: $\${meta.toFixed(0)} MXN`);
+      await db.execute(sql`UPDATE sucursales SET metaVentasMensual=${meta} WHERE id=30001`);
+      console.log(`[Scheduler] Meta Plaza Patio ${mes}/${anio} actualizada: ${meta.toFixed(0)} MXN`);
     } catch(e) {
       console.error('[Scheduler] Error auto-meta:', e);
     }
-    setTimeout(actualizarMeta, 30 * 24 * 60 * 60 * 1000); // repetir cada 30 días aprox
-  }, horasParaMeta * 3600000);
+    setTimeout(actualizarMeta, 7 * 24 * 60 * 60 * 1000); // repetir cada 30 días aprox
+  }, Math.min(horasParaMeta * 3600000, 2147483647));
 
 
   // ── Alerta planes de acción vencidos (9:00 AM diario) ───────────────────
@@ -610,7 +610,7 @@ export function initScheduler() {
       console.error("[Scheduler] Error alerta planes:", e);
     }
     setTimeout(alertaPlanes, 24 * 60 * 60 * 1000);
-  }, horasParaPlanes * 3600000);
+  }, Math.min(horasParaPlanes * 3600000, 2147483647));
   console.log(`[Scheduler] Alerta planes vencidos programada en ${horasParaPlanes.toFixed(1)} horas (9:00 AM diario)`);
 
   // ── Recordatorio y alerta evaluación SECOF mensual ───────────────────────
@@ -776,7 +776,7 @@ export function initScheduler() {
       console.error("[Scheduler] Error check SECOF mensual:", e);
     }
     setTimeout(checkSecofMensual, 24 * 60 * 60 * 1000);
-  }, horasParaSecofCheck * 3600000);
+  }, Math.min(horasParaSecofCheck * 3600000, 2147483647));
 
 
   // ── Snapshot KPIs mensual (1ro del mes 6:30 AM) ──────────────────────────
@@ -852,8 +852,8 @@ export function initScheduler() {
       });
       console.log(`[Scheduler] Reporte KPI mensual enviado: ${resultado.scoreTotalPct}% ${resultado.estado}`);
     } catch(e) { console.error("[Scheduler] Error snapshot KPI:", e); }
-    setTimeout(calcularSnapshotMensual, 30*24*60*60*1000);
-  }, horasParaKpiSnapshot * 3600000);
+    setTimeout(calcularSnapshotMensual, 7 * 24 * 60 * 60 * 1000);
+  }, Math.min(horasParaKpiSnapshot * 3600000, 2147483647));
 
 
   // ── Auto-generación de horario semanal (jueves 6:00 PM) ─────────────────
@@ -982,7 +982,7 @@ export function initScheduler() {
       console.log(`[Scheduler] Notificación auto-horario enviada`);
     } catch(e) { console.error("[Scheduler] Error auto-horario:", e); }
     setTimeout(autoHorarioSemanal, 7*24*60*60*1000); // repetir cada semana
-  }, horasParaAutoHorario * 3600000);
+  }, Math.min(horasParaAutoHorario * 3600000, 2147483647));
 
   console.log(`[Scheduler] Auto-horario semanal programado en ${horasParaAutoHorario.toFixed(1)} horas (próximo jueves 6:00 PM)`);
 
@@ -1021,7 +1021,7 @@ export function initScheduler() {
     console.log("[Scheduler] Auto-cierre turnos programado en " + horasParaAutoCierre.toFixed(1) + " horas (6:00 AM diario)");
     await autoCierreTurnos();
     setTimeout(runAutoCierre, 24 * 60 * 60 * 1000);
-  }, horasParaAutoCierre * 3600000);
+  }, Math.min(horasParaAutoCierre * 3600000, 2147483647));
   console.log(`[Scheduler] Auto-cierre turnos programado en ${horasParaAutoCierre.toFixed(1)} horas (6:00 AM diario)`);
   setTimeout(() => {
     alertaRetardosYAusencias();

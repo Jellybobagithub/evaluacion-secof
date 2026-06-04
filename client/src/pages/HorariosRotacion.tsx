@@ -150,47 +150,55 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
 
   // ── Generar PDF del horario semanal ──────────────────────────────────────
   const generarPDFHorario = () => {
-    const semanaLabel = `Semana ${fechaInicio} — ${fechaFin}`;
-    const filas = (turnos as any[]).map(t => {
-      const emp = empleadosData?.find((e: any) => e.id === t.empleadoId);
-      return `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-weight:500">${emp?.nombre ?? '—'} ${emp?.apellido ?? ''}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${t.fecha}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-transform:capitalize">${t.turno}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${t.horaInicio} — ${t.horaFin}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${t.rolPrincipal ?? '—'}</td>
-      </tr>`;
+    const fechaInicio = semana.inicio; const fechaFin = semana.fin;
+    const areaColor: Record<string,string> = {
+      caja:'#3b82f6', preparacion:'#10b981', comodin:'#8b5cf6', caja_y_preparacion:'#f59e0b'
+    };
+    const areaLabel: Record<string,string> = {
+      caja:'Caja', preparacion:'Prep', comodin:'Comód', caja_y_preparacion:'C+P'
+    };
+    // Obtener empleados y días únicos
+    const emps = [...new Set((rotacion as any[]).map((r:any) => r.empleadoId))];
+    const dias = [...new Set((rotacion as any[]).map((r:any) => r.fecha))].sort();
+    const diasLabel = dias.map((d:string) => {
+      const dt = new Date(d + 'T12:00:00Z');
+      return { fecha: d, label: dt.toLocaleDateString('es-MX', { weekday:'short', day:'numeric', month:'short' }) };
+    });
+    // Agrupar por empleado+dia
+    const grid: Record<string, Record<string, any[]>> = {};
+    for (const r of (rotacion as any[])) {
+      if (!grid[r.empleadoId]) grid[r.empleadoId] = {};
+      if (!grid[r.empleadoId][r.fecha]) grid[r.empleadoId][r.fecha] = [];
+      grid[r.empleadoId][r.fecha].push(r);
+    }
+    const empNames: Record<number,string> = {};
+    for (const r of (rotacion as any[])) empNames[r.empleadoId] = (r.empleadoNombre ?? '') + ' ' + (r.empleadoApellido ?? '');
+    // Generar filas
+    const filas = emps.map(empId => {
+      const celdas = diasLabel.map(({fecha}) => {
+        const bloques = grid[empId]?.[fecha] ?? [];
+        if (!bloques.length) return '<td style="padding:6px 8px;border:1px solid #e5e7eb;color:#9ca3af;font-size:11px;text-align:center">—</td>';
+        const inner = bloques.map((b:any) => {
+          const col = areaColor[b.area] ?? '#6b7280';
+          const lbl = areaLabel[b.area] ?? b.area;
+          return '<div style="background:' + col + ';color:#fff;border-radius:4px;padding:2px 5px;font-size:10px;margin:1px 0;white-space:nowrap">' + b.horaInicio + ' ' + lbl + '</div>';
+        }).join('');
+        return '<td style="padding:4px 6px;border:1px solid #e5e7eb;vertical-align:top">' + inner + '</td>';
+      }).join('');
+      return '<tr><td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600;white-space:nowrap;font-size:12px">' + empNames[empId as number] + '</td>' + celdas + '</tr>';
     }).join('');
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <title>Horario Semanal Snowtea</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 20px; color: #111; }
-      h1 { color: #1B5E37; margin-bottom: 4px; font-size: 20px; }
-      p { color: #6b7280; font-size: 13px; margin: 0 0 16px; }
-      table { width: 100%; border-collapse: collapse; font-size: 13px; }
-      thead tr { background: #1B5E37; color: white; }
-      thead th { padding: 10px 12px; text-align: left; }
-      tbody tr:nth-child(even) { background: #f9fafb; }
-      .footer { margin-top: 24px; font-size: 11px; color: #9ca3af; text-align: center; }
-    </style></head>
-    <body>
-      <h1>🗓 Horario Semanal — Plaza Patio</h1>
-      <p>${semanaLabel}</p>
-      <table>
-        <thead><tr>
-          <th>Empleado</th><th>Fecha</th><th>Turno</th><th>Horario</th><th>Rol</th>
-        </tr></thead>
-        <tbody>${filas}</tbody>
-      </table>
-      <div class="footer">Generado por SECOF · secof.snowteatienda.com · ${new Date().toLocaleDateString('es-MX')}</div>
-    </body></html>`;
-
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, '_blank');
+    const thDias = diasLabel.map(({label}) => '<th style="padding:8px 6px;background:#1B5E37;color:#fff;font-size:11px;white-space:nowrap">' + label + '</th>').join('');
+    const leyenda = Object.entries(areaLabel).map(([k,v]) => '<span style="background:' + areaColor[k] + ';color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;margin-right:6px">' + v + ' = ' + (k==='caja'?'Caja':k==='preparacion'?'Preparación':k==='comodin'?'Comodín':'Caja+Prep') + '</span>').join('');
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Horario</title><style>body{font-family:Arial,sans-serif;margin:16px;color:#111}@media print{body{margin:8px}}h2{color:#1B5E37;margin:0 0 4px;font-size:16px}p{color:#6b7280;font-size:11px;margin:0 0 10px}table{border-collapse:collapse;width:100%}tr:nth-child(even){background:#f9fafb}.footer{margin-top:12px;font-size:10px;color:#9ca3af;text-align:center}</style></head><body><h2>Rotación Semanal — Plaza Patio</h2><p>Semana ' + fechaInicio + ' al ' + fechaFin + '</p><table><thead><tr><th style="padding:8px 10px;background:#1B5E37;color:#fff;text-align:left;font-size:12px">Empleado</th>' + thDias + '</tr></thead><tbody>' + filas + '</tbody></table><div style="margin-top:10px">' + leyenda + '</div><div class="footer">SECOF · secof.snowteatienda.com · ' + new Date().toLocaleDateString('es-MX') + '</div></body></html>';
+    
+        // Abrir nueva ventana e imprimir
+    const win = window.open('', '_blank');
     if (win) {
-      win.onload = () => { win.print(); };
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); }, 600);
     }
   };
 
