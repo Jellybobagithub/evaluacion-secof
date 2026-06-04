@@ -1,50 +1,47 @@
-# ESTADO SECOF — 29 mayo 2026
+# ESTADO SECOF — 04 junio 2026
 
 ## Producción
 - URL: secof.snowteatienda.com | PM2 id=1 | Puerto 5000 | MySQL secof_db
 
-## Sesión 29-may-2026 — Lo que se hizo
+## Sesión 04-jun-2026 — Lo que se hizo
 
-### Módulo Control Inventario (NUEVO)
-- Tab Conteo Físico: líder cuenta Bodega + Isla desde /control-inventario
-- Tab Aprobación: admin ve teórico vs físico sumado (Bodega+Isla), puede devolver al líder
-- Tab Historial Mermas: expandible por semana con detalle de productos
-- Flujo: borrador → enviado → bloqueado (nuevo ciclo base)
-- Primer ciclo aprobado: base 2026-05-26
+### Actividades de Limpieza (CORREGIDO)
+- Scheduler semanal ahora asigna solo 18 actividades `todas` por turno
+- `generarRotacionDia` agrega actividades por área al empleado dominante (más minutos)
+- Lógica área dominante: caja_y_preparacion split 50/50, gana quien tenga más minutos totales
+- DELETE+INSERT al regenerar (no INSERT IGNORE) para recalcular limpio
+- UNIQUE constraint en turno_actividades(turnoId, actividadClave)
 
-### Recetas calibradas
-- Yunnan 10kg: 39g → 54g (3 cucharas × 18g) — pendiente verificar si subir a ~85g
-- Frosty 10kg: 57g → 52g (2 cucharas × 26g)
-- Bases Clásico/Caliente/Chamoy: 80g por bebida (confirmado por Coco 0%)
-- Bases Yogurt: 71g → 40g (media carga vs carga completa)
+### Control Inventario — Ciclo Jun-04
+- Movimientos venta_odoo faltantes May 27-Jun 3 insertados manualmente (216 registros)
+- Conteo Isla Jun-04 insertado vía SQL (no se guardó desde la UI)
+- Ciclo aprobado: nueva base 2026-06-04 (Bodega id=56 + Isla id=57, ambos bloqueados)
+- Conteo Jun-01 Isla descartado (quedó huérfano sin Bodega par)
 
-### Bugs corregidos
-- Rotación de Áreas: sucursalId:0 hardcodeado → sucursalId:sucursalId??30001
-- Preparaciones incidencia: notifyOwner sin try/catch → envuelto en try/catch
-- Ana Claudia: salida sábado 23-may insertada manualmente (03:00)
-- sucursalId=0 en rotacion_areas limpiados (3 registros)
+### Otros fixes
+- Email Emily en REPORT_EMAILS: emilyaylinms@gmail.com → lider.patio.snowtea@gmail.com
+- PDF Rotación de Áreas: rediseñado como grid semanal (empleados × días con colores por área)
+- Rotación de Áreas: sucursalId:0 → sucursalId:sucursalId??30001 en editarDia
+- Preparaciones incidencia: notifyOwner envuelto en try/catch
+- Ana Claudia: salida sábado 23-may insertada manualmente
 
-### Auto-cierre turnos (NUEVO scheduler)
-- Corre diario a las 6:00 AM México (12:00 UTC)
-- Detecta empleados con entrada sin salida del día anterior
-- Inserta salida con horaFin del turno programado (default 03:00)
-- Envía email a líderes/managers/admins + push al dueño
+### Problema recurrente identificado
+- Sync nocturno Odoo no corrió May 27-Jun 3 (8 días) — proceso reiniciado 23+ veces
+- Causa: setTimeout se resetea con cada restart de PM2
+- Solución pendiente: migrar a cron job real
 
 ## Pendientes activos
 1. Nómina — reporte horas reales desde ajustes eventuales + turnos_semana
-2. Usuario Demo — Gmail para sucursalId=60001
-3. Rentabilidad — conectar getKpiRentabilidad con costos reales
-4. Cuadre de Vasos — definir flujo y propósito
-5. Scheduling Phase 2 — timeline visual traslapes
-6. KPI merma ciclo cerrado → módulo KPIs Líder (conectar)
-7. Yunnan receta — confirmar con Emily si 54g es correcto o subir a ~85g
-8. Frosty receta — verificar gramos reales con Emily
-9. Galletas Oreo / Leche Soya / Film Sellado — registrar entradas faltantes en Recepción de Mercancía
+2. Rentabilidad — conectar getKpiRentabilidad con costos reales de recetas
+3. Cuadre de Vasos — definir flujo y propósito
+4. Scheduling Phase 2 — timeline visual traslapes
+5. KPI merma ciclo cerrado → módulo KPIs Líder
+6. Historial detalle: teórico histórico muestra 0
+7. Quitar selector de sucursal en módulos individuales
 
 ## Notas técnicas
-- inventarioCicloRouter: nuevos endpoints (almacenes, productosActivos, iniciarConteo,
-  guardarConteo, enviarConteo, getConteoSemana, comparacionPendiente v2,
-  aprobarConteo v2, rechazarConteo, historialConteoDetalle, historialMermas v2)
-- ControlInventario.tsx: 4 tabs (Stock Teórico, Conteo Físico, Aprobación, Historial)
-- Bug recurrente: Python patches escapan \${ en template literals → usar sed o fix manual
-- Inventario.tsx restringido a manager+ (líderes ya no pueden entrar)
+- inv_conteo_fisico: columnas liderId, anfitrionId (NO creadoPorId)
+- turno_actividades: UNIQUE KEY uq_turno_clave (turnoId, actividadClave)
+- Sync nocturno: syncVentasDia corre vía setTimeout — vulnerable a reinicios PM2
+- Isla almacenId=2 (piezas_gramos), Bodega almacenId=1 (piezas)
+- REPORT_EMAILS en .env (no en DB) — requiere restart para cambios
