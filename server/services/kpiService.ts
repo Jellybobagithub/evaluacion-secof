@@ -10,8 +10,15 @@ export async function calcularKpiSnapshotMensual(sucursalId: number, mes: string
   const diasMes = new Date(Number(y), Number(m), 0).getDate();
 
   // 1. Ventas vs meta
-  const [[metaRow]] = await db.execute(sql`SELECT metaVentasMensual FROM sucursales WHERE id=${sucursalId}`) as any;
-  const meta = Number(metaRow?.metaVentasMensual ?? 135000);
+  // FIX: Meta = baseAnterior de metas_mensuales (mismo mes año anterior)
+  // FIX: Ventas = SUM de reportes_diarios (fuente correcta para KPI líder)
+  const [[metaRow]] = await db.execute(sql`
+    SELECT meta, baseAnterior FROM metas_mensuales
+    WHERE sucursalId=${sucursalId} AND anio=${Number(y)} AND mes=${Number(m)}
+    LIMIT 1
+  `) as any;
+  // Usar baseAnterior (ventas mismo mes año pasado) como meta real
+  const meta = Number(metaRow?.baseAnterior ?? metaRow?.meta ?? 135000);
   const [[ventasRow]] = await db.execute(sql`
     SELECT COALESCE(SUM(ventasTotales),0) as total FROM reportes_diarios
     WHERE sucursalId=${sucursalId} AND fecha>=${inicio} AND fecha<=${fin}
@@ -20,22 +27,57 @@ export async function calcularKpiSnapshotMensual(sucursalId: number, mes: string
   const ventasPct = meta > 0 ? Math.round((ventas/meta)*100) : 0;
 
   // 2. Score SECOF
+  // FIX: Excluir autoevaluaciones del propio líder — solo tomar evals de evaluadores externos
+  // Se considera evaluador externo si evaluadorId != empleadoId del lider de esa sucursal
+  const [[liderRow]] = await db.execute(sql`
+    SELECT id FROM empleados WHERE sucursalId=${sucursalId} AND rol='lider' AND activo=1 LIMIT 1
+  `) as any;
+  const liderEmpleadoId = liderRow?.id ?? null;
+  const [[liderUserRow]] = liderEmpleadoId ? await db.execute(sql`
+    SELECT userId FROM empleados WHERE id=${liderEmpleadoId} LIMIT 1
+  `) as any : [[null]];
+  const liderUserId = liderUserRow?.userId ?? null;
+
+  // Buscar eval externa más reciente del mes (no hecha por el líder mismo)
   const [[secofRow]] = await db.execute(sql`
     SELECT porcentajeGeneral FROM evaluaciones
     WHERE sucursalId=${sucursalId} AND fecha>=${inicio} AND fecha<=${fin}
-      AND estado='completada' ORDER BY fecha DESC LIMIT 1
+      AND estado='completada'
+      AND (evaluadorId IS NULL OR evaluadorId != ${liderUserId ?? 0})
+    ORDER BY fecha DESC LIMIT 1
   `) as any;
-  const scoreSecof = secofRow ? Math.round(Number(secofRow.porcentajeGeneral)) : null;
+  // Fallback: si no hay eval externa, usar cualquier completada
+  const [[secofFallback]] = !secofRow ? await db.execute(sql`
+    SELECT porcentajeGeneral FROM evaluaciones
+    WHERE sucursalId=${sucursalId} AND fecha>=${inicio} AND fecha<=${fin}
+      AND estado='completada' ORDER BY fecha ASC LIMIT 1
+  `) as any : [[null]];
+  const scoreSecof = secofRow
+    ? Math.round(Number(secofRow.porcentajeGeneral))
+    : secofFallback ? Math.round(Number(secofFallback.porcentajeGeneral)) : null;
 
-  // 3. Puntualidad (conteo de entradas registradas)
+  // 3. Puntualidad — entradas a tiempo vs total entradas con turno registrado
+  // "A tiempo" = llegó ≤10 min después del horaInicio del turno
   const [[puntRow]] = await db.execute(sql`
-    SELECT COUNT(*) as total FROM asistencia
-    WHERE sucursalId=${sucursalId}
-      AND FROM_UNIXTIME(timestamp/1000) >= ${inicio}
-      AND FROM_UNIXTIME(timestamp/1000) <= ${fin}
-      AND tipo='entrada' AND subtipo='entrada_turno'
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN
+        TIMESTAMPDIFF(MINUTE,
+          CONCAT(t.fecha, ' ', t.horaInicio, ':00'),
+          FROM_UNIXTIME(a.timestamp/1000)
+        ) <= 10 THEN 1 ELSE 0 END) as puntuales
+    FROM asistencia a
+    JOIN turnos_semana t
+      ON t.empleadoId = a.empleadoId
+      AND t.fecha = DATE(FROM_UNIXTIME(a.timestamp/1000))
+    WHERE a.sucursalId = ${sucursalId}
+      AND FROM_UNIXTIME(a.timestamp/1000) >= ${inicio}
+      AND FROM_UNIXTIME(a.timestamp/1000) <= ${fin}
+      AND a.tipo = 'entrada' AND a.subtipo = 'entrada_turno'
   `) as any;
-  const puntualidadPct = Number(puntRow?.total ?? 0) > 0 ? 95 : null;
+  const puntTotal = Number(puntRow?.total ?? 0);
+  const puntPuntuales = Number(puntRow?.puntuales ?? 0);
+  const puntualidadPct = puntTotal > 0 ? Math.round((puntPuntuales / puntTotal) * 100) : null;
 
   // 4. Preparaciones (usa preparadaAt)
   const [[prepRow]] = await db.execute(sql`
@@ -46,9 +88,15 @@ export async function calcularKpiSnapshotMensual(sucursalId: number, mes: string
   const preparacionesPct = Math.round((Number(prepRow?.dias ?? 0) / diasMes) * 100);
 
   // 5. Aperturas registradas
+  // FIX: Leer de tabla asistencia con subtipo='apertura_tienda' en vez de turno_apertura
+  // turno_apertura.fecha es VARCHAR y no filtra bien por rango de fechas
   const [[apertRow]] = await db.execute(sql`
-    SELECT COUNT(DISTINCT fecha) as dias FROM turno_apertura
-    WHERE sucursalId=${sucursalId} AND fecha>=${inicio} AND fecha<=${fin}
+    SELECT COUNT(DISTINCT DATE(FROM_UNIXTIME(timestamp/1000))) as dias
+    FROM asistencia
+    WHERE sucursalId=${sucursalId}
+      AND subtipo='apertura_tienda'
+      AND FROM_UNIXTIME(timestamp/1000) >= ${inicio}
+      AND FROM_UNIXTIME(timestamp/1000) <= ${fin}
   `) as any;
   const aperturasPct = Math.round((Number(apertRow?.dias ?? 0) / diasMes) * 100);
 
@@ -59,7 +107,7 @@ export async function calcularKpiSnapshotMensual(sucursalId: number, mes: string
   `) as any;
   const conteoFisicoSem = Number(conteoRow?.total ?? 0);
 
-  // 7. Observaciones manuales
+  // 7. Observaciones manuales (servicio y preparacion — caja excluida si sucursal usa Cashdro)
   const obsRows = await db.execute(sql`
     SELECT tipo, ROUND(AVG(CASE WHEN cumple=1 THEN 100 ELSE 0 END),1) as score
     FROM observaciones_kpi
@@ -70,7 +118,14 @@ export async function calcularKpiSnapshotMensual(sucursalId: number, mes: string
   const obsMap: Record<string,number> = {};
   for (const r of (obsRows[0] as any[])) obsMap[r.tipo] = Number(r.score);
 
+  // FIX: Verificar si sucursal usa Cashdro (no caja manual) para excluir cajaScore del ponderado
+  const [[sucRow]] = await db.execute(sql`
+    SELECT usaCashdro FROM sucursales WHERE id=${sucursalId}
+  `) as any;
+  const usaCashdro = sucRow?.usaCashdro === 1 || sucRow?.usaCashdro === true;
+
   // 8. Score ponderado
+  // FIX: cajaScore excluido si sucursal usa Cashdro
   const kpis = [
     { v: ventasPct,       peso: 2,   meta: 100 },
     { v: scoreSecof,      peso: 1.5, meta: 85  },
@@ -79,6 +134,9 @@ export async function calcularKpiSnapshotMensual(sucursalId: number, mes: string
     { v: aperturasPct,    peso: 1,   meta: 100 },
     { v: obsMap['servicio']    ?? null, peso: 1.5, meta: 85 },
     { v: obsMap['preparacion'] ?? null, peso: 1.5, meta: 85 },
+    ...(!usaCashdro && obsMap['caja'] !== undefined
+      ? [{ v: obsMap['caja'], peso: 1, meta: 85 }]
+      : []),
   ].filter(k => k.v !== null && k.v !== undefined);
 
   const pesoTotal = kpis.reduce((s,k) => s+k.peso, 0);

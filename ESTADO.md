@@ -15,7 +15,7 @@
 ## Pendientes — alta prioridad 🔴
 
 ### Bugs (código)
-1. `puntualidadPct` hardcodeado al 95% — calcular retardos reales vs horario de turno
+1. ~~`puntualidadPct` hardcodeado al 95%~~ — COMPLETADO 11-jun-2026 (JOIN asistencia×turnos_semana, tolerancia 10 min)
 2. `reportes_diarios` sync incompleto — 10 productos sin mapear en `inv_productos_venta`
 6. Historial detalle: teórico histórico muestra 0 — fix pendiente
 
