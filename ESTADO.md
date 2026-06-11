@@ -74,3 +74,16 @@
 - MCP Jellyboba: puerto 8000, ngrok crossleted-ethylic-estelle.ngrok-free.dev
 - MCP Snowtea: puerto 8001, ngrok parking-harpist-overstep.ngrok-free.app
 - PDFs compras: /var/www/secof/storage/pdfs/compras/ (persistente)
+
+---
+
+## Pendientes nuevos — 11 jun 2026
+
+### Features operativas
+17. Revisar conteo de vasos — verificar lógica y acceso correcto
+18. Alerta si foto de checada no muestra cara visible — validar imagen al registrar entrada
+19. Sección "consumo interno" en usuario — avisar producto tomado + surtido vasos/popotes a isla, descontar de inventario
+20. Impersonar usuario como admin — ingresar a cuenta sin su mail para revisar módulos y permisos
+21. Dar seguimiento a cuadre de vasos — módulo o reporte de cierre
+22. Vista empleado: sus propios KPIs y áreas de mejora
+23. Reporte mensual: detalle de fallos en preparaciones y servicio a cliente por empleado
