@@ -77,16 +77,16 @@
 
 ---
 
-## Pendientes nuevos — 11 jun 2026
+## Pendientes nuevos — 12 jun 2026 (TODOS COMPLETADOS ✅)
 
 ### Features operativas
-17. Revisar conteo de vasos — verificar lógica y acceso correcto
-18. Alerta si foto de checada no muestra cara visible — validar imagen al registrar entrada
-19. Sección "consumo interno" en usuario — avisar producto tomado + surtido vasos/popotes a isla, descontar de inventario
-20. Impersonar usuario como admin — ingresar a cuenta sin su mail para revisar módulos y permisos
-21. Dar seguimiento a cuadre de vasos — módulo o reporte de cierre
-22. Vista empleado: sus propios KPIs y áreas de mejora
-23. Reporte mensual: detalle de fallos en preparaciones y servicio a cliente por empleado
+17. ~~Revisar conteo de vasos~~ — COMPLETADO 12-jun (CuadreVasos migrado a SucursalContext global)
+18. ~~Alerta cara en checada~~ — COMPLETADO 12-jun (turno.verificarCaraVisible LLM vision en AsistenciaQR apertura)
+19. ~~Consumo interno~~ — COMPLETADO 12-jun (ConsumoInterno.tsx + inventario.consumoInterno router → inv_movimientos)
+20. ~~Impersonar usuario como admin~~ — COMPLETADO 12-jun (AdminUsuarios botón + /api/auth/impersonate + ImpersonationBanner)
+21. ~~Cuadre de vasos reporte de cierre~~ — COMPLETADO 12-jun (incluido en #17, página ya tenía reporte)
+22. ~~Vista empleado sus KPIs~~ — COMPLETADO 12-jun (MiKpi.tsx + miKpi.resumen endpoint, ruta /mi-kpi)
+23. ~~Reporte mensual fallos~~ — COMPLETADO 12-jun (ReporteMensual.tsx + reporteMensual.fallosPorEmpleado, ruta /reporte-mensual)
 
 # SECOF — Contexto para Claude Code
 
