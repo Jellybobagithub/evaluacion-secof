@@ -789,19 +789,38 @@ export async function getKpiCrecimiento(sucursalId: number, anio: number, mes: n
 // ─── KPI Nivel 3: Rentabilidad ────────────────────────────────────────────────
 export async function getKpiRentabilidad(sucursalId: number, anio: number, mes: number) {
   const db = await getDb();
-  if (!db) return { ventas: 0, costoProducto: 0, gastosTotales: 0, utilidadNeta: 0, margenBruto: 0, margenNeto: 0, desglose: {}, tieneGastos: false };
+  if (!db) return { ventas: 0, costoProducto: 0, costoProductoReceta: 0, gastosTotales: 0, utilidadNeta: 0, margenBruto: 0, margenNeto: 0, desglose: {}, tieneGastos: false };
   const { gastosOperativos, reportesDiarios: rd } = await import('../drizzle/schema');
-  const { eq, and, gte, lte } = await import('drizzle-orm');
+  const { sql, eq, and, gte, lte } = await import('drizzle-orm');
   const fi = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const diasMes = new Date(anio, mes, 0).getDate();
   const ff = `${anio}-${String(mes).padStart(2, '0')}-${String(diasMes).padStart(2, '0')}`;
   const reportesMes = await db.select().from(rd)
     .where(and(eq(rd.sucursalId, sucursalId), gte(rd.fecha, fi), lte(rd.fecha, ff), eq(rd.estado, 'enviado')));
   const ventas = reportesMes.reduce((s, r) => s + (r.ventasTotales ?? 0), 0);
+
+  // Costo real desde recetas: SUM(cantidad_vendida × SUM(cantidadGramos × costoXGramo))
+  const [[costoRow]] = await db.execute(sql`
+    SELECT COALESCE(SUM(vc.cantidad * sub.costoUnitario), 0) as costoReceta
+    FROM inv_ventas_captura vc
+    JOIN (
+      SELECT r.productoVentaId,
+        SUM(r.cantidadGramos * ip.costoXGramo) as costoUnitario
+      FROM inv_recetas r
+      JOIN inv_productos ip ON ip.id = r.materiasPrimaId
+      WHERE ip.costoXGramo > 0
+      GROUP BY r.productoVentaId
+    ) sub ON sub.productoVentaId = vc.productoVentaId
+    WHERE vc.sucursalId = ${sucursalId}
+      AND vc.fecha >= ${fi} AND vc.fecha <= ${ff}
+  `) as any;
+  const costoProductoReceta = Math.round(Number(costoRow?.costoReceta ?? 0) * 100) / 100;
+
   const gastos = await db.select().from(gastosOperativos)
     .where(and(eq(gastosOperativos.sucursalId, sucursalId), eq(gastosOperativos.anio, anio), eq(gastosOperativos.mes, mes))).limit(1);
   const g = gastos[0];
-  const costoProducto = g?.costoProducto ?? 0;
+  // Usar costo de receta si disponible, fallback a manual
+  const costoProducto = costoProductoReceta > 0 ? costoProductoReceta : (g?.costoProducto ?? 0);
   const renta = g?.renta ?? 0; const nomina = g?.nomina ?? 0; const insumos = g?.insumos ?? 0;
   const servicios = g?.servicios ?? 0; const mantenimiento = g?.mantenimiento ?? 0;
   const marketing = g?.marketing ?? 0; const otros = g?.otros ?? 0;
@@ -811,6 +830,7 @@ export async function getKpiRentabilidad(sucursalId: number, anio: number, mes: 
   const margenNeto = ventas > 0 ? Math.round((utilidadNeta / ventas) * 1000) / 10 : 0;
   return {
     ventas: Math.round(ventas*100)/100, costoProducto: Math.round(costoProducto*100)/100,
+    costoProductoReceta, costoDesdeReceta: costoProductoReceta > 0,
     gastosTotales: Math.round(gastosTotales*100)/100, utilidadNeta: Math.round(utilidadNeta*100)/100,
     margenBruto, margenNeto, tieneGastos: !!g,
     desglose: { renta, nomina, insumos, servicios, mantenimiento, marketing, otros },

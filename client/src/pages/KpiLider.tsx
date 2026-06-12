@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useSucursal } from "@/context/SucursalContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -97,20 +98,13 @@ function KpiCard({
 export default function KpiLider() {
   const { user } = useAuth();
   const [mes, setMes] = useState(getMesActual());
-  const [sucursalId, setSucursalId] = useState<number | null>(null);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [metaManualEfectivo, setMetaManualEfectivo] = useState("");
   const [metaManualTarjeta, setMetaManualTarjeta] = useState("");
   const [metaManualRappi, setMetaManualRappi] = useState("");
 
-  const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
-  // Auto-seleccionar sucursal cuando el usuario solo tiene una asignada (lider 1 tienda)
-  useMemo(() => {
-    if (sucursales.length === 1 && sucursalId === null) {
-      setSucursalId(sucursales[0].id);
-    }
-  }, [sucursales.length]);
-  const activeSucursalId = sucursalId ?? sucursales[0]?.id ?? null;
+  const { sucursalId: globalSucursalId } = useSucursal();
+  const activeSucursalId = globalSucursalId;
 
   const mesRango = useMemo(() => {
     const [y, m] = mes.split("-").map(Number);
@@ -250,14 +244,6 @@ export default function KpiLider() {
           <p className="text-slate-500 text-sm mt-1">SECOF · Ventas · Reportes · Mermas · Rotación de Equipo</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {sucursales.length > 1 && (
-            <Select value={String(activeSucursalId ?? "")} onValueChange={v => setSucursalId(Number(v))}>
-              <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Sucursal..." /></SelectTrigger>
-              <SelectContent position="item-aligned">
-                {sucursales.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
           <input
             type="month"
             value={mes}

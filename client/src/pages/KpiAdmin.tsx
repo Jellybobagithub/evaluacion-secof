@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useSucursal } from "@/context/SucursalContext";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -150,15 +151,12 @@ export default function KpiAdmin() {
   const currentRole = (user as any)?.role ?? "user";
   const { anio: anioActual, mes: mesActual } = getMesActual();
 
-  const [sucursalId, setSucursalId] = useState<number | null>(null);
+  const { sucursalId: globalSucursalId } = useSucursal();
   const [anio, setAnio] = useState(anioActual);
   const [mes, setMes] = useState(mesActual);
   const [showGastosModal, setShowGastosModal] = useState(false);
 
-  const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
-
-  // Seleccionar primera sucursal por defecto
-  const sucursalSeleccionada = sucursalId ?? ((sucursales as any[])[0]?.id ?? null);
+  const sucursalSeleccionada = globalSucursalId;
 
   const queryOpts = {
     enabled: !!sucursalSeleccionada,
@@ -177,6 +175,12 @@ export default function KpiAdmin() {
   const { data: eficiencia, isLoading: loadEficiencia } = trpc.kpiAdmin.eficiencia.useQuery(
     { sucursalId: sucursalSeleccionada!, anio, mes },
     { ...queryOpts, enabled: !!sucursalSeleccionada }
+  );
+
+  const periodoStr = `${anio}-${String(mes).padStart(2,"0")}`;
+  const { data: compras = [] } = trpc.finanzas.comprasExternas.list.useQuery(
+    { sucursalId: sucursalSeleccionada ?? 0, periodo: periodoStr },
+    { enabled: !!sucursalSeleccionada }
   );
 
   const { data: gastosExisting = [] } = trpc.gastosOperativos.list.useQuery(
@@ -252,20 +256,6 @@ export default function KpiAdmin() {
 
         {/* Filtros */}
         <div className="flex flex-wrap gap-3">
-          <Select
-            value={sucursalSeleccionada ? String(sucursalSeleccionada) : ""}
-            onValueChange={v => setSucursalId(parseInt(v))}
-          >
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="Selecciona sucursal" />
-            </SelectTrigger>
-            <SelectContent position="item-aligned">
-              {(sucursales as any[]).map((s: any) => (
-                <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Select value={String(mes)} onValueChange={v => setMes(parseInt(v))}>
             <SelectTrigger className="w-36">
               <SelectValue />
@@ -299,7 +289,7 @@ export default function KpiAdmin() {
         )}
 
         <Tabs defaultValue="crecimiento">
-          <TabsList className="grid grid-cols-3 w-full max-w-lg">
+          <TabsList className="grid grid-cols-4 w-full max-w-xl">
             <TabsTrigger value="crecimiento" className="gap-1.5">
               <TrendingUp className="w-3.5 h-3.5" />
               Crecimiento
@@ -311,6 +301,10 @@ export default function KpiAdmin() {
             <TabsTrigger value="eficiencia" className="gap-1.5">
               <BarChart3 className="w-3.5 h-3.5" />
               Eficiencia
+            </TabsTrigger>
+            <TabsTrigger value="compras" className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              Compras
             </TabsTrigger>
           </TabsList>
 
@@ -677,6 +671,46 @@ export default function KpiAdmin() {
                 <span>Registra los gastos operativos del mes para ver el análisis de eficiencia.</span>
               </div>
             )}
+          </TabsContent>
+
+          {/* ── COMPRAS ── */}
+          <TabsContent value="compras" className="space-y-4 mt-4">
+            <Card className="border">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-blue-600" />
+                  Compras Externas — {periodoStr}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {compras.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">Sin compras registradas para este mes.</p>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-xs text-muted-foreground font-semibold mb-2 px-1">
+                      <span>Total del mes</span>
+                      <span className="text-slate-800 font-bold text-sm">
+                        {fmt((compras as any[]).reduce((s: number, c: any) => s + Number(c.total), 0))}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {(compras as any[]).map((c: any) => (
+                        <div key={c.id} className="flex items-center justify-between text-sm border rounded-lg px-3 py-2">
+                          <div>
+                            <p className="font-medium">{c.concepto}</p>
+                            <p className="text-xs text-muted-foreground">{c.fecha} · {c.proveedor}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">{fmt(Number(c.total))}</p>
+                            <p className="text-xs text-muted-foreground">{c.cantidad} {c.unidad}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 

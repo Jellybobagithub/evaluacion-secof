@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useSucursal } from "@/context/SucursalContext";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,7 +75,7 @@ const TIPO_CONFIG: Record<string, { label: string; criterios: typeof CRITERIOS_S
 
 export default function KpiAnfitriones() {
   const { user } = useAuth();
-  const [sucursalId, setSucursalId] = useState<number | null>(null);
+  const { sucursalId } = useSucursal();
   const [semana, setSemana] = useState(() => getSemanaISO());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [tipoObs, setTipoObs] = useState<"servicio" | "preparacion" | "caja">("servicio");
@@ -83,14 +84,6 @@ export default function KpiAnfitriones() {
   const [notas, setNotas] = useState("");
 
   const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
-
-  const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
-  // Auto-seleccionar sucursal si el usuario tiene solo una asignada
-  useEffect(() => {
-    if (sucursales.length === 1 && sucursalId === null) {
-      setSucursalId(sucursales[0].id);
-    }
-  }, [sucursales]);
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId }
@@ -217,15 +210,6 @@ export default function KpiAnfitriones() {
       <Card>
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex-1 min-w-48">
-              <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
-              <Select value={sucursalId?.toString() ?? ""} onValueChange={v => setSucursalId(Number(v))}>
-                <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
-                <SelectContent position="item-aligned">
-                  {sucursales.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">Semana</Label>
               <div className="flex items-center gap-2">

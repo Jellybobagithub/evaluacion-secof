@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSucursal } from "@/context/SucursalContext";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -127,11 +128,10 @@ export default function Nomina() {
   const [periodoIdx, setPeriodoIdx] = useState(hoy.getDate() <= 15 ? 2 : 3);
   const periodo = todasQuincenas[periodoIdx];
 
-  const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
-  const [sucursalId, setSucursalId] = useState<number>(30001);
+  const { sucursalId } = useSucursal();
 
   const { data: reporte, isLoading } = trpc.nominaHoras.reporte.useQuery(
-    { sucursalId, fechaInicio: periodo.inicio, fechaFin: periodo.fin },
+    { sucursalId: sucursalId ?? 0, fechaInicio: periodo.inicio, fechaFin: periodo.fin },
     { enabled: !!sucursalId }
   );
 
@@ -166,14 +166,6 @@ export default function Nomina() {
 
       {/* Filtros */}
       <div className="flex gap-3 flex-wrap items-center">
-        <Select value={String(sucursalId)} onValueChange={v => setSucursalId(Number(v))}>
-          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {(sucursales as any[]).filter((s: any) => s.activa).map((s: any) => (
-              <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div className="flex gap-1">
           {todasQuincenas.map((q, i) => (
             <Button key={i} size="sm" variant={periodoIdx === i ? "default" : "outline"}

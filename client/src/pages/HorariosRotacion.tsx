@@ -41,6 +41,28 @@ function NativeSelect({ value, onChange, children }: { value: string; onChange: 
 }
 
 // ─── Timeline Visual ─────────────────────────────────────────────────────────
+function detectarTraslapes(bloques: any[]): { empA: number; empB: number; area: string; desde: string; hasta: string }[] {
+  const traslapes: { empA: number; empB: number; area: string; desde: string; hasta: string }[] = [];
+  const areasSimples = ["caja", "preparacion"];
+  for (const area of areasSimples) {
+    const bs = bloques.filter(b => b.area === area || b.area === "caja_y_preparacion");
+    for (let i = 0; i < bs.length; i++) {
+      for (let j = i + 1; j < bs.length; j++) {
+        if (bs[i].empleadoId === bs[j].empleadoId) continue;
+        const aIn = toMin(bs[i].horaInicio), aOut = toMin(bs[i].horaFin);
+        const bIn = toMin(bs[j].horaInicio), bOut = toMin(bs[j].horaFin);
+        const desde = Math.max(aIn, bIn);
+        const hasta = Math.min(aOut, bOut);
+        if (hasta > desde) {
+          const fmtM = (m: number) => `${Math.floor(m/60).toString().padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;
+          traslapes.push({ empA: bs[i].empleadoId, empB: bs[j].empleadoId, area, desde: fmtM(desde), hasta: fmtM(hasta) });
+        }
+      }
+    }
+  }
+  return traslapes;
+}
+
 function TimelineDia({ bloques, empleados }: { bloques: any[]; empleados: any[] }) {
   if (!bloques.length) return null;
   const allMins = bloques.flatMap(b => [toMin(b.horaInicio), toMin(b.horaFin)]);
@@ -54,10 +76,27 @@ function TimelineDia({ bloques, empleados }: { bloques: any[]; empleados: any[] 
   for (let m = minH; m <= maxH; m += 60) horas.push(m);
   const fmt = (m: number) => `${Math.floor(m/60).toString().padStart(2,"0")}:00`;
 
+  // Cobertura por área por hora
+  const AREAS_COBERTURA = ["caja", "preparacion"] as const;
+  const coberturaByArea: Record<string, number[]> = {};
+  for (const area of AREAS_COBERTURA) {
+    coberturaByArea[area] = horas.map(h => {
+      return bloques.filter(b => {
+        const enArea = b.area === area || b.area === "caja_y_preparacion";
+        return enArea && toMin(b.horaInicio) <= h && toMin(b.horaFin) > h;
+      }).length;
+    });
+  }
+
+  const traslapes = detectarTraslapes(bloques);
+
   return (
     <div className="mt-4 rounded-xl border overflow-hidden bg-white">
-      <div className="px-4 py-2 bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-        Timeline del día
+      <div className="px-4 py-2 bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
+        <span>Timeline del día</span>
+        {traslapes.length > 0 && (
+          <span className="text-amber-600 font-semibold">⚠️ {traslapes.length} traslape{traslapes.length > 1 ? "s" : ""}</span>
+        )}
       </div>
       <div className="p-3 overflow-x-auto">
         <div style={{ minWidth: 480 }}>
@@ -73,9 +112,10 @@ function TimelineDia({ bloques, empleados }: { bloques: any[]; empleados: any[] 
           {empIds.map(empId => {
             const emp = empleados.find((e: any) => e.id === empId);
             const filas = bloques.filter(b => b.empleadoId === empId);
+            const tieneTraslape = traslapes.some(t => t.empA === empId || t.empB === empId);
             return (
               <div key={empId} className="flex items-center mb-1.5">
-                <div className="w-28 text-xs font-medium truncate pr-2 shrink-0 text-right">
+                <div className={`w-28 text-xs font-medium truncate pr-2 shrink-0 text-right ${tieneTraslape ? "text-amber-600" : ""}`}>
                   {emp?.nombre ?? `#${empId}`}
                 </div>
                 <div className="flex-1 relative h-8 bg-muted/20 rounded-lg overflow-hidden">
@@ -95,6 +135,44 @@ function TimelineDia({ bloques, empleados }: { bloques: any[]; empleados: any[] 
               </div>
             );
           })}
+          {/* Cobertura por área */}
+          <div className="mt-3 border-t pt-3">
+            <p className="text-xs text-muted-foreground font-semibold mb-1.5 ml-28">Cobertura por área</p>
+            {AREAS_COBERTURA.map(area => (
+              <div key={area} className="flex items-center mb-1">
+                <div className="w-28 text-xs text-muted-foreground truncate pr-2 shrink-0 text-right capitalize">{area}</div>
+                <div className="flex-1 flex">
+                  {horas.map((h, idx) => {
+                    const count = coberturaByArea[area][idx];
+                    return (
+                      <div key={h} style={{ width: `${(60/total)*100}%` }}
+                        className={`h-6 border-r border-white text-xs flex items-center justify-center font-medium ${
+                          count === 0 ? "bg-red-100 text-red-600" : count === 1 ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                        }`}>
+                        {count > 0 ? count : "–"}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground ml-28 mt-1">Nº empleados por hora · 🔴 sin cobertura · 🟡 doble cobertura</p>
+          </div>
+          {/* Traslapes */}
+          {traslapes.length > 0 && (
+            <div className="mt-3 border-t pt-3">
+              <p className="text-xs font-semibold text-amber-700 mb-1.5">⚠️ Traslapes detectados</p>
+              {traslapes.map((t, i) => {
+                const nA = empleados.find((e: any) => e.id === t.empA)?.nombre ?? `#${t.empA}`;
+                const nB = empleados.find((e: any) => e.id === t.empB)?.nombre ?? `#${t.empB}`;
+                return (
+                  <p key={i} className="text-xs text-amber-600">
+                    {nA} y {nB} — {t.area} — {t.desde}–{t.hasta}
+                  </p>
+                );
+              })}
+            </div>
+          )}
           {/* Leyenda */}
           <div className="flex gap-3 mt-3 flex-wrap">
             {Object.entries(AREA_CONFIG).map(([k, v]) => (

@@ -42,12 +42,12 @@
 ## Pendientes — baja prioridad ⚪
 
 ### Features SECOF
-9. KPI Dueños — nuevo módulo (rentabilidad, compras, gastos operativos)
-10. KPI merma → KPIs Líder (Nivel 2) — conectar desde ciclo inventario
-11. Scheduling Phase 2 — timeline visual por hora (Caja/Preparación) + traslapes automáticos
-12. Nómina horas reales — reporte desde `ajustes_eventuales` + `turnos` para C&H
-13. Rentabilidad costos reales — conectar `getKpiRentabilidad` a costos por receta
-14. Quitar selectores de sucursal por módulo (ya es global desde panel inferior izq)
+9. ~~KPI Dueños~~ — COMPLETADO 12-jun-2026 (tab "Compras" agregada a KpiAdmin con compras_externas del mes)
+10. KPI merma → KPIs Líder — pendiente (requiere calcular teórico por ciclo, complejo; pospuesto)
+11. ~~Scheduling Phase 2~~ — COMPLETADO 12-jun-2026 (traslapes automáticos + cobertura por área/hora en TimelineDia)
+12. ~~Nómina horas reales~~ — COMPLETADO 12-jun-2026 (router usa registro_nomina como fuente, calcula desde ajustes_eventuales+turnos)
+13. ~~Rentabilidad costos reales~~ — COMPLETADO 12-jun-2026 (getKpiRentabilidad calcula costoProducto desde inv_ventas_captura × inv_recetas × costoXGramo)
+14. ~~Quitar selectores de sucursal por módulo~~ — COMPLETADO 12-jun-2026 (KpiLider, KpiAdmin, KpiAnfitriones, Nomina usan useSucursal() global)
 
 ### Infraestructura
 16. ~~Cuenta demo Gmail → sucursalId=60001~~ — COMPLETADO
