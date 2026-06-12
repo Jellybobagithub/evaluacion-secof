@@ -132,4 +132,40 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect("/?error=google_auth_failed");
     }
   });
+
+  // ─── Impersonate (superadmin only) ────────────────────────────────────────
+  app.post("/api/auth/impersonate", async (req: Request, res: Response) => {
+    try {
+      const callerUser = await sdk.authenticateRequest(req);
+      if (!callerUser || callerUser.role !== "superadmin") {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+
+      const targetId = req.body?.userId;
+      if (!targetId || typeof targetId !== "number") {
+        res.status(400).json({ error: "userId requerido" });
+        return;
+      }
+
+      const targetUser = await db.getUserById(targetId);
+      if (!targetUser) {
+        res.status(404).json({ error: "Usuario no encontrado" });
+        return;
+      }
+
+      const sessionToken = await sdk.createSessionToken(targetUser.openId, {
+        name: targetUser.name || "",
+        expiresInMs: ONE_YEAR_MS,
+      });
+
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.json({ success: true, name: targetUser.name, email: targetUser.email, role: targetUser.role });
+    } catch (error) {
+      console.error("[Impersonate] Error", error);
+      res.status(500).json({ error: "Error al impersonar usuario" });
+    }
+  });
+
 }

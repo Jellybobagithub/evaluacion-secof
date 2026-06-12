@@ -327,6 +327,13 @@ export default function KpiLider() {
                       </Link>
                     </div>
                   )}
+                  {resumen?.frecuenciaEval && resumen.frecuenciaEval.de > 0 && (
+                    <p className="text-xs text-slate-500 mt-2 border-t pt-2">
+                      Evaluaciones: <span className={`font-semibold ${resumen.frecuenciaEval.semanas >= resumen.frecuenciaEval.de ? "text-green-600" : resumen.frecuenciaEval.semanas >= resumen.frecuenciaEval.de * 0.5 ? "text-amber-600" : "text-red-600"}`}>
+                        {resumen.frecuenciaEval.semanas}/{resumen.frecuenciaEval.de} semanas
+                      </span>
+                    </p>
+                  )}
                 </CardContent>
               </Card>
 

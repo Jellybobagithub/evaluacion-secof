@@ -490,7 +490,14 @@ export default function PlanAccion() {
               </div>
               <div className="space-y-1.5">
                 <Label>Evaluación *</Label>
-                <Select value={form.evaluacionId} onValueChange={v => setForm(f => ({ ...f, evaluacionId: v }))}>
+                <Select value={form.evaluacionId} onValueChange={v => {
+                  const eval_ = evalsByCurrentSucursal.find(e => String(e.id) === v);
+                  setForm(f => ({
+                    ...f,
+                    evaluacionId: v,
+                    responsable: f.responsable || (eval_?.evaluadorNombre ?? ""),
+                  }));
+                }}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                   <SelectContent position="item-aligned">
                     {evalsByCurrentSucursal.map(e => (
