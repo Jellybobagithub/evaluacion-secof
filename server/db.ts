@@ -53,6 +53,12 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   } catch (error) { console.error("[Database] Failed to upsert user:", error); throw error; }
 }
 
+
+export async function getUserById(id: number) {
+  const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return user ?? null;
+}
+
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
@@ -1271,7 +1277,10 @@ export async function calcularRegistrosNomina(sucursalId: number, fechaInicio: s
         estado = "descanso";
       } else if (horarioEmp?.entrada && horarioEmp?.salida) {
         // Usar horarioPersonal del empleado
-        horaEntradaEsperada = ajuste?.horaEntrada ?? horarioEmp.entrada;
+        // Si el ajuste tiene una hora antes de las 05:00, es un error de captura nocturna — ignorar y usar horarioPersonal
+        const ajusteEntrada = ajuste?.horaEntrada;
+        const ajusteHoraValida = ajusteEntrada && parseInt(ajusteEntrada.split(":")[0]) >= 5;
+        horaEntradaEsperada = (ajusteHoraValida ? ajusteEntrada : null) ?? horarioEmp.entrada;
         horaSalidaEsperada  = ajuste?.horaSalida  ?? horarioEmp.salida;
         const tsEntradaEsperada = horaFechaToTs(fecha, horaEntradaEsperada!);
 
