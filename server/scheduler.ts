@@ -440,30 +440,57 @@ async function autoCierreTurnos() {
   }
 }
 
-export function initScheduler() {
-  // ── Sync nocturno Odoo + reporte diario por correo (03:30 UTC = 21:30 MX) ─
-  const ahora = new Date();
-  const horasParaSync = (() => {
-    const target = new Date();
-    target.setUTCHours(3, 30, 0, 0);
-    if (target <= ahora) target.setDate(target.getDate() + 1);
-    return (target.getTime() - ahora.getTime()) / 3600000;
-  })();
+/** Calcula ms hasta el próximo HH:MM UTC */
+function msHastaProximoUTC(hh: number, mm: number): number {
+  const now = new Date();
+  const target = new Date();
+  target.setUTCHours(hh, mm, 0, 0);
+  if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+  return target.getTime() - now.getTime();
+}
 
-  setTimeout(async function syncNocturno() {
+export function initScheduler() {
+  // ── Backfill arranque: sincronizar últimos 7 días que falten en reportes_diarios ─
+  setTimeout(async () => {
     try {
       const { syncVentasDia } = await import("./services/syncService");
-      const mxNow = new Date(Date.now() - 6 * 60 * 60 * 1000);
-      const fecha = mxNow.toISOString().split("T")[0]; // fecha México CDT (UTC-6)
-      console.log(`[Scheduler] Iniciando sync nocturno Odoo para ${fecha}...`);
-      await syncVentasDia(fecha);
-      console.log(`[Scheduler] Sync nocturno completado.`);
+      const { getDb } = await import("./db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return;
+      for (let d = 6; d >= 1; d--) {
+        const fecha = new Date(Date.now() - d * 86400000 - 6 * 3600000).toISOString().split("T")[0];
+        const [[row]] = await db.execute(sql`SELECT id FROM reportes_diarios WHERE sucursalId=30001 AND fecha=${fecha} LIMIT 1`) as any;
+        if (!row) {
+          console.log(`[Scheduler] Backfill: sincronizando ${fecha}...`);
+          await syncVentasDia(fecha).catch((e: any) => console.error(`[Scheduler] Backfill ${fecha} falló:`, e));
+        }
+      }
     } catch (e) {
-      console.error("[Scheduler] Error en sync nocturno:", e);
+      console.error("[Scheduler] Error en backfill arranque:", e);
     }
-    // Repetir cada 24h
-    setTimeout(syncNocturno, 24 * 60 * 60 * 1000);
-  }, Math.min(horasParaSync * 3600000, 2147483647));
+  }, 15000); // 15s tras arranque para no bloquear el inicio
+
+  // ── Sync nocturno Odoo + reporte diario por correo (03:30 UTC = 21:30 MX) ─
+  // Siempre apunta al próximo 03:30 UTC exacto, sin deriva acumulada
+  function programarSyncNocturno() {
+    const ms = msHastaProximoUTC(3, 30);
+    setTimeout(async () => {
+      try {
+        const { syncVentasDia } = await import("./services/syncService");
+        const mxNow = new Date(Date.now() - 6 * 60 * 60 * 1000);
+        const fecha = mxNow.toISOString().split("T")[0];
+        console.log(`[Scheduler] Iniciando sync nocturno Odoo para ${fecha}...`);
+        await syncVentasDia(fecha);
+        console.log(`[Scheduler] Sync nocturno completado.`);
+      } catch (e) {
+        console.error("[Scheduler] Error en sync nocturno:", e);
+      }
+      programarSyncNocturno(); // re-programar al próximo 03:30 UTC exacto
+    }, Math.min(ms, 2147483647));
+    console.log(`[Scheduler] Sync nocturno en ${(ms / 3600000).toFixed(2)}h (03:30 UTC)`);
+  }
+  programarSyncNocturno();
 
 
   // ── Auto-meta mensual: actualiza metaVentasMensual el 1ro de cada mes ────
@@ -994,7 +1021,8 @@ export function initScheduler() {
 
   console.log(`[Scheduler] Auto-meta mensual programada en ${horasParaMeta.toFixed(1)} horas (1ro del mes)`);
 
-  console.log(`[Scheduler] Sync nocturno Odoo programado en ${horasParaSync.toFixed(1)} horas (22:15 diario)`);
+  console.log(`[Scheduler] Sync nocturno Odoo: próxima ejecución en ${(msHastaProximoUTC(3,30)/3600000).toFixed(1)}h (03:30 UTC)`);
+  console.log(`[Scheduler] Backfill de últimos 7 días iniciará en 15s al arranque.`);
 
   // Calcular próximo lunes 9:00 AM para alertas de retardos
   const msAlertasAsistencia = (() => {

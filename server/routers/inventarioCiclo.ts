@@ -271,16 +271,62 @@ export const inventarioCicloRouter = router({
     .input(z.object({ conteoId:z.number() }))
     .query(async ({ input }) => {
       const db = await getDb(); if (!db) throw new TRPCError({code:"INTERNAL_SERVER_ERROR"});
-      const ctR = await db.execute(sql`SELECT id, sucursalId, fechaConteo, semana FROM inv_conteo_fisico WHERE id=${input.conteoId}`);
+      const ctR = await db.execute(sql`SELECT id, sucursalId, almacenId, fechaConteo FROM inv_conteo_fisico WHERE id=${input.conteoId}`);
       const ct = (ctR[0] as any[])[0];
       if (!ct) return { items:[] };
-      // Físico: suma todos los almacenes de este conteoId
-      const detR = await db.execute(sql`SELECT cd.productoId, SUM(cd.cantidadPiezas) as p, SUM(cd.cantidadGramos) as g, pr.nombre, pr.categoria, pr.unidadConteo as unidad, pr.pesoNetoPorUnidad as pn FROM inv_conteo_detalle cd JOIN inv_productos pr ON pr.id=cd.productoId WHERE cd.conteoId=${input.conteoId} GROUP BY cd.productoId, pr.nombre, pr.categoria, pr.unidadConteo, pr.pesoNetoPorUnidad`);
+
+      // Físico actual: suma todos los detalles del conteoId
+      const detR = await db.execute(sql`
+        SELECT cd.productoId, SUM(cd.cantidadPiezas) as p, SUM(cd.cantidadGramos) as g,
+          pr.nombre, pr.categoria, pr.unidadConteo as unidad, pr.pesoNetoPorUnidad as pn
+        FROM inv_conteo_detalle cd
+        JOIN inv_productos pr ON pr.id=cd.productoId
+        WHERE cd.conteoId=${input.conteoId}
+        GROUP BY cd.productoId, pr.nombre, pr.categoria, pr.unidadConteo, pr.pesoNetoPorUnidad`);
+
+      // Conteo anterior bloqueado (base del ciclo) para el mismo almacén
+      const prevR = await db.execute(sql`
+        SELECT id, fechaConteo FROM inv_conteo_fisico
+        WHERE sucursalId=${ct.sucursalId} AND almacenId=${ct.almacenId}
+          AND estado='bloqueado' AND fechaConteo < ${ct.fechaConteo}
+        ORDER BY fechaConteo DESC, id DESC LIMIT 1`);
+      const prev = (prevR[0] as any[])[0];
+
+      // Stock base del conteo anterior (piezas normalizadas)
+      const baseMap: Record<number,{p:number;g:number}> = {};
+      if (prev) {
+        const baseR = await db.execute(sql`SELECT productoId, cantidadPiezas, cantidadGramos FROM inv_conteo_detalle WHERE conteoId=${prev.id}`);
+        for (const r of baseR[0] as any[]) {
+          const id = Number(r.productoId);
+          if (!baseMap[id]) baseMap[id] = { p:0, g:0 };
+          baseMap[id].p += Number(r.cantidadPiezas||0);
+          baseMap[id].g += Number(r.cantidadGramos||0);
+        }
+      }
+
+      // Entradas y consumo entre base y este conteo
+      const fechaBase = prev?.fechaConteo ?? ct.fechaConteo;
+      const entR = await db.execute(sql`SELECT productoId, SUM(cantidadPiezas) as p, SUM(cantidadGramos) as g FROM inv_movimientos WHERE sucursalId=${ct.sucursalId} AND tipo='entrada' AND DATE(createdAt) BETWEEN ${fechaBase} AND ${ct.fechaConteo} GROUP BY productoId`);
+      const entMap: Record<number,{p:number;g:number}> = {};
+      for (const r of entR[0] as any[]) entMap[Number(r.productoId)] = { p:Number(r.p||0), g:Number(r.g||0) };
+
+      const consR = await db.execute(sql`SELECT productoId, SUM(cantidadPiezas) as p, SUM(cantidadGramos) as g FROM inv_movimientos WHERE sucursalId=${ct.sucursalId} AND tipo='consumo_preparacion' AND DATE(createdAt) BETWEEN ${fechaBase} AND ${ct.fechaConteo} GROUP BY productoId`);
+      const consMap: Record<number,{p:number;g:number}> = {};
+      for (const r of consR[0] as any[]) consMap[Number(r.productoId)] = { p:Number(r.p||0), g:Number(r.g||0) };
+
       const items = (detR[0] as any[]).map((d:any) => {
         const pn = Number(d.pn)||0;
-        const fis = Number(d.p||0) + (pn>0?Number(d.g||0)/pn:0);
-        return { productoId:d.productoId, nombre:d.nombre, categoria:d.categoria||'Varios', unidad:d.unidad,
-          fisico:Math.round(fis*100)/100, teorico:0, delta:0, pctMerma:0 };
+        const toP = (p:number,g:number) => p + (pn>0 ? g/pn : 0);
+        const fis = toP(Number(d.p||0), Number(d.g||0));
+        const id = Number(d.productoId);
+        const sb = toP(baseMap[id]?.p||0, baseMap[id]?.g||0);
+        const se = toP(entMap[id]?.p||0, entMap[id]?.g||0);
+        const sc = toP(consMap[id]?.p||0, consMap[id]?.g||0);
+        const teo = Math.max(0, sb + se - sc);
+        const pctMerma = teo > 0 ? Math.round(((teo-fis)/teo)*100*10)/10 : 0;
+        return { productoId:id, nombre:d.nombre, categoria:d.categoria||'Varios', unidad:d.unidad,
+          fisico:Math.round(fis*100)/100, teorico:Math.round(teo*100)/100,
+          delta:Math.round((fis-teo)*100)/100, pctMerma };
       }).sort((a:any,b:any)=>a.categoria.localeCompare(b.categoria)||a.nombre.localeCompare(b.nombre));
       return { items };
     }),

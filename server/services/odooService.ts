@@ -43,7 +43,7 @@ export interface OdooSyncResult {
   noMapeados: string[];
 }
 
-const SKIP = new Set(["Descuento Locatario", "Redondeo", "Envio", "2 x 140 Clasico / Yogurt"]);
+const SKIP = new Set(["Descuento Locatario", "Redondeo", "Envio", "2 x 140 Clasico / Yogurt", "2 x 140 Refresher"]);
 const SABOR_FIX: Record<string, string> = { "Lichi": "Lichie" };
 const PREFIJOS: Record<string, string> = {
   "Caliente": "Snowtea Caliente",
