@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 import {
   Users,
   Search,
@@ -37,6 +38,7 @@ import {
   Crown,
   Store,
   User,
+  LogIn,
 } from "lucide-react";
 
 const ROLES = [
@@ -78,6 +80,7 @@ export default function AdminUsuarios() {
 
   const { user: currentUser } = useAuth();
   const currentRole = (currentUser as any)?.role ?? "user";
+  const [, navigate] = useLocation();
 
   // Roles que puede asignar según el rol del usuario actual
   const rolesAsignables = currentRole === "superadmin"
@@ -329,6 +332,32 @@ export default function AdminUsuarios() {
                         >
                           {u.activo ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                         </Button>
+                        {currentRole === "superadmin" && u.id !== (currentUser as any)?.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-indigo-600 hover:text-indigo-700"
+                            title="Ingresar como este usuario"
+                            onClick={async () => {
+                              const prev = document.cookie;
+                              localStorage.setItem("secof_prev_session", prev);
+                              localStorage.setItem("secof_impersonating", JSON.stringify({ nombre: u.name, email: u.email, role: u.role }));
+                              const r = await fetch("/api/auth/impersonate", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ userId: u.id }),
+                                credentials: "include",
+                              });
+                              if (r.ok) {
+                                window.location.href = "/";
+                              } else {
+                                toast.error("No se pudo impersonar");
+                              }
+                            }}
+                          >
+                            <LogIn className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );

@@ -48,6 +48,9 @@ import ControlInventario from "./pages/ControlInventario";
 import EvaluacionesPeriodo from "./pages/EvaluacionesPeriodo";
 import Supervision from "./pages/Supervision";
 import HorariosRotacion from "./pages/HorariosRotacion";
+import MiKpi from "./pages/MiKpi";
+import ConsumoInterno from "./pages/ConsumoInterno";
+import ReporteMensual from "./pages/ReporteMensual";
 
 function Router() {
   return (
@@ -224,10 +227,46 @@ function Router() {
         <Route path="/finanzas">
           <ProtectedRoute component={Finanzas} minRole="manager" />
         </Route>
+
+        {/* Mi KPI: host y superior (vista personal del empleado) */}
+        <Route path="/mi-kpi">
+          <ProtectedRoute component={MiKpi} minRole="host" />
+        </Route>
+
+        {/* Consumo Interno: host y superior */}
+        <Route path="/consumo-interno">
+          <ProtectedRoute component={ConsumoInterno} minRole="host" />
+        </Route>
+
+        {/* Reporte Mensual fallos: leader y superior */}
+        <Route path="/reporte-mensual">
+          <ProtectedRoute component={ReporteMensual} minRole="leader" />
+        </Route>
+
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
     </DashboardLayout>
+  );
+}
+
+function ImpersonationBanner() {
+  const info = (() => { try { const s = localStorage.getItem("secof_impersonating"); return s ? JSON.parse(s) : null; } catch { return null; } })();
+  if (!info) return null;
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[9999] bg-indigo-600 text-white text-xs flex items-center justify-between px-4 py-1.5">
+      <span>👤 Viendo como: <strong>{info.nombre}</strong> ({info.role})</span>
+      <button
+        className="underline font-semibold"
+        onClick={async () => {
+          localStorage.removeItem("secof_impersonating");
+          await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+          window.location.href = "/";
+        }}
+      >
+        Salir de sesión →
+      </button>
+    </div>
   );
 }
 
@@ -237,6 +276,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <SucursalProvider>
+            <ImpersonationBanner />
             <Toaster />
             <Router />
           </SucursalProvider>

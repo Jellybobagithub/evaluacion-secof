@@ -188,6 +188,8 @@ export default function AsistenciaQR() {
     { enabled: !!empleadoId && subtipo === "cierre_tienda" && paso === "datos_cierre" }
   );
 
+  const verificarCaraMut = trpc.turno.verificarCaraVisible.useMutation();
+
   const registrarMut = trpc.asistencia.registrarQr.useMutation({
     onSuccess: (data) => {
       setResultado({
@@ -253,8 +255,21 @@ export default function AsistenciaQR() {
   }
 
   // ── Submit ────────────────────────────────────────────────────────────────────
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!empleadoId) { toast.error("Selecciona tu nombre"); return; }
+
+    // Verificar cara visible en selfie de uniforme (apertura)
+    if (fotoUniforme && subtipo === "entrada_turno") {
+      try {
+        const r = await verificarCaraMut.mutateAsync({ imageUrl: fotoUniforme });
+        if (!r.caraVisible) {
+          toast.error("No se detectó una cara visible en la selfie. Vuelve a tomarla mostrando tu cara claramente.");
+          return;
+        }
+      } catch {
+        // fail-open: si el servicio falla, continuar
+      }
+    }
 
     // Armar motivo completo
     let motivoFinal = motivoDiferencia.trim();

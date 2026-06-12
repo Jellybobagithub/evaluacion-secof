@@ -1891,4 +1891,49 @@ export const inventarioRouter = router({
       }).sort((a:any,b:any)=>a.diasStock-b.diasStock);
     }),
 
+  consumoInterno: router({
+    registrar: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        productoId: z.number(),
+        cantidadPiezas: z.number().min(0).default(0),
+        cantidadGramos: z.number().min(0).default(0),
+        motivo: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const nota = `Consumo interno${input.motivo ? ': ' + input.motivo : ''}`;
+        await db.execute(sql`
+          INSERT INTO inv_movimientos (sucursalId, productoId, tipo, cantidadPiezas, cantidadGramos,
+            notas, registradoPorId, referenciaTipo)
+          VALUES (${input.sucursalId}, ${input.productoId}, 'ajuste',
+            ${-Math.abs(input.cantidadPiezas)}, ${-Math.abs(input.cantidadGramos)},
+            ${nota}, ${ctx.user.id}, 'consumo_interno')
+        `);
+        return { ok: true };
+      }),
+
+    historial: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), dias: z.number().default(7) }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const rows = await db.execute(sql`
+          SELECT m.id, m.createdAt, m.cantidadPiezas, m.cantidadGramos, m.notas,
+            p.nombre as producto, p.unidadConteo,
+            u.name as empleado
+          FROM inv_movimientos m
+          JOIN inv_productos p ON p.id=m.productoId
+          LEFT JOIN users u ON u.id=m.registradoPorId
+          WHERE m.sucursalId=${input.sucursalId}
+            AND m.referenciaTipo='consumo_interno'
+            AND m.createdAt >= NOW() - INTERVAL ${input.dias} DAY
+          ORDER BY m.createdAt DESC
+          LIMIT 200
+        `) as any;
+        return rows[0] as any[];
+      }),
+  }),
+
 });

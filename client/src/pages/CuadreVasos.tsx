@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useSucursal } from "@/context/SucursalContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,19 +43,10 @@ function FotoMiniatura({ url, label }: { url?: string | null; label: string }) {
 }
 
 export default function CuadreVasos() {
-  const { user } = useAuth();
+  const { sucursalId } = useSucursal();
   const [, navigate] = useLocation();
-  const [sucursalId, setSucursalId] = useState<number | null>(null);
   const [dias, setDias] = useState(30);
   const [expandedFotos, setExpandedFotos] = useState<Record<string, boolean>>({});
-
-  const { data: sucursales = [] } = trpc.sucursales.list.useQuery();
-
-  useEffect(() => {
-    if (sucursales.length === 1 && sucursalId === null) {
-      setSucursalId(sucursales[0].id);
-    }
-  }, [sucursales]);
 
   const { data: cuadres = [] } = trpc.turno.getCuadresRecientes.useQuery(
     { sucursalId: sucursalId ?? 0, dias },
@@ -78,8 +69,6 @@ export default function CuadreVasos() {
     { sucursalId: sucursalId ?? 0, fechaInicio, fechaFin },
     { enabled: !!sucursalId }
   );
-
-  const isLeaderPlus = ["leader", "manager", "owner", "superadmin"].includes(user?.role ?? "");
 
   // Estadísticas generales
   const totalCuadres = cuadres.length;
@@ -114,23 +103,10 @@ export default function CuadreVasos() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Filtro período */}
       <Card>
         <CardContent className="pt-4 pb-4">
           <div className="flex flex-wrap gap-4">
-            {isLeaderPlus && (
-              <div className="flex-1 min-w-[160px]">
-                <Label className="text-xs text-muted-foreground mb-1 block">Sucursal</Label>
-                <Select value={sucursalId?.toString() ?? ""} onValueChange={v => setSucursalId(Number(v))}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona sucursal..." /></SelectTrigger>
-                  <SelectContent position="item-aligned">
-                    {sucursales.map((s: any) => (
-                      <SelectItem key={s.id} value={s.id.toString()}>{s.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="min-w-[140px]">
               <Label className="text-xs text-muted-foreground mb-1 block">Período</Label>
               <Select value={dias.toString()} onValueChange={v => setDias(Number(v))}>
@@ -147,14 +123,9 @@ export default function CuadreVasos() {
         </CardContent>
       </Card>
 
-      {!sucursalId ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <Scale className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>Selecciona una sucursal para ver el historial de cuadres</p>
-        </div>
-      ) : (
-        <>
-          {/* KPIs resumen */}
+      {/* KPIs resumen */}
+      <>
+        {/* KPIs resumen */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card>
               <CardContent className="pt-4 pb-4 text-center">
@@ -358,8 +329,7 @@ export default function CuadreVasos() {
               </div>
             </CardContent>
           </Card>
-        </>
-      )}
+      </>
     </div>
   );
 }

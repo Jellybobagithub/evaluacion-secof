@@ -1162,6 +1162,65 @@ export const appRouter = router({
       }),
   }),
 
+  // --- Mi KPI (vista empleado de sus propios KPIs) ---
+  miKpi: router({
+    resumen: protectedProcedure
+      .input(z.object({ mes: z.string().optional() }))
+      .query(async ({ ctx, input }) => {
+        const { getDb } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const db = await getDb();
+        if (!db) return null;
+        const mesStr = input.mes ?? new Date().toISOString().slice(0, 7);
+        const [y, m] = mesStr.split('-');
+        const fi = `${y}-${m}-01`;
+        const ff = `${y}-${m}-${new Date(Number(y), Number(m), 0).getDate()}`;
+
+        // Buscar empleadoId por userId
+        const [[empRow]] = await db.execute(sql`
+          SELECT id, nombre, puesto FROM empleados WHERE userId=${ctx.user.id} LIMIT 1
+        `) as any;
+        if (!empRow) return null;
+        const empleadoId = empRow.id;
+
+        // Puntualidad y retardos del mes
+        const nomRows = await db.execute(sql`
+          SELECT fecha, minutosRetardo, horaEntradaEsperada,
+            TIME(FROM_UNIXTIME(timestampEntrada/1000-6*3600)) as horaEntrada
+          FROM registro_nomina
+          WHERE empleadoId=${empleadoId} AND fecha BETWEEN ${fi} AND ${ff}
+            AND horaEntradaEsperada IS NOT NULL
+          ORDER BY fecha
+        `) as any;
+        const dias = nomRows[0] as any[];
+        const diasPresente = dias.filter((d: any) => d.horaEntrada !== null).length;
+        const diasAusente = dias.filter((d: any) => d.horaEntrada === null).length;
+        const retardos = dias.filter((d: any) => d.minutosRetardo > 0);
+        const minRetardoTotal = retardos.reduce((s: number, d: any) => s + Number(d.minutosRetardo), 0);
+        const puntualidadPct = dias.length > 0
+          ? Math.round((dias.filter((d: any) => !d.minutosRetardo || d.minutosRetardo <= 5).length / dias.length) * 100)
+          : null;
+
+        // Observaciones del mes
+        const obsRows = await db.execute(sql`
+          SELECT tipo, COUNT(*) as total,
+            ROUND(AVG(CASE WHEN cumple=1 THEN 100 ELSE 0 END), 1) as score
+          FROM observaciones_kpi
+          WHERE empleadoId=${empleadoId} AND DATE(createdAt) BETWEEN ${fi} AND ${ff}
+          GROUP BY tipo
+        `) as any;
+        const obs: Record<string, { total: number; score: number }> = {};
+        for (const r of (obsRows[0] as any[])) obs[r.tipo] = { total: Number(r.total), score: Number(r.score) };
+
+        return {
+          empleadoId, nombre: empRow.nombre, puesto: empRow.puesto, mes: mesStr,
+          asistencia: { diasPresente, diasAusente, retardos: retardos.length, minRetardoTotal, puntualidadPct },
+          detalleNomina: dias,
+          observaciones: obs,
+        };
+      }),
+  }),
+
   // --- Horarios Semanales (nuevo módulo con turnos + actividades) ---
   horarios: horariosRouter,
 
@@ -1960,6 +2019,28 @@ return { success: true, id };
         const numero = parseInt(texto.replace(/[^0-9]/g, ''));
         return { texto, numero: isNaN(numero) ? null : numero };
       }),
+
+    verificarCaraVisible: protectedProcedure
+      .input(z.object({ imageUrl: z.string() }))
+      .mutation(async ({ input }) => {
+        try {
+          const { invokeLLM } = await import('./_core/llm');
+          const response = await invokeLLM({
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image_url' as const, image_url: { url: input.imageUrl, detail: 'low' as const } },
+                { type: 'text' as const, text: 'Does this photo clearly show a human face? Answer only "yes" or "no".' },
+              ],
+            }],
+          });
+          const raw = response?.choices?.[0]?.message?.content ?? '';
+          const texto = (typeof raw === 'string' ? raw : '').toLowerCase().trim();
+          return { caraVisible: texto.startsWith('yes') };
+        } catch {
+          return { caraVisible: true }; // fail-open
+        }
+      }),
   }),
 
   // ─── Avisos Generales ──────────────────────────────────────────────────────
@@ -2136,6 +2217,58 @@ return { success: true, id };
         return calcularKpiSnapshotMensual(input.sucursalId, input.mes);
       }),
 
+  }),
+
+  // ─── Reporte mensual de fallos por empleado ───────────────────────────────
+  reporteMensual: router({
+    fallosPorEmpleado: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), mes: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (!['superadmin','owner','manager','leader'].includes(ctx.user.role))
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        const { getDb } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const db = await getDb();
+        if (!db) return [];
+        const [y, m] = input.mes.split('-');
+        const fi = `${y}-${m}-01`;
+        const ff = `${y}-${m}-${new Date(Number(y), Number(m), 0).getDate()}`;
+
+        const rows = await db.execute(sql`
+          SELECT
+            e.id as empleadoId, e.nombre,
+            o.tipo,
+            COUNT(*) as total,
+            SUM(CASE WHEN o.cumple=0 THEN 1 ELSE 0 END) as fallos,
+            ROUND(SUM(CASE WHEN o.cumple=1 THEN 100 ELSE 0 END)/COUNT(*),1) as score,
+            GROUP_CONCAT(CASE WHEN o.cumple=0 THEN o.notas END ORDER BY o.createdAt SEPARATOR '||') as notasFallos
+          FROM observaciones_kpi o
+          JOIN empleados e ON e.id=o.empleadoId
+          WHERE o.sucursalId=${input.sucursalId}
+            AND DATE(o.createdAt) BETWEEN ${fi} AND ${ff}
+          GROUP BY e.id, e.nombre, o.tipo
+          ORDER BY e.nombre, fallos DESC
+        `) as any;
+
+        // Group by employee
+        const map: Record<number, any> = {};
+        for (const r of (rows[0] as any[])) {
+          if (!map[r.empleadoId]) {
+            map[r.empleadoId] = { empleadoId: r.empleadoId, nombre: r.nombre, tipos: {} };
+          }
+          map[r.empleadoId].tipos[r.tipo] = {
+            total: Number(r.total),
+            fallos: Number(r.fallos),
+            score: Number(r.score),
+            notasFallos: r.notasFallos ? (r.notasFallos as string).split('||').filter(Boolean) : [],
+          };
+        }
+        return Object.values(map).sort((a: any, b: any) => {
+          const fa = Object.values(a.tipos).reduce((s: number, t: any) => s + t.fallos, 0) as number;
+          const fb = Object.values(b.tipos).reduce((s: number, t: any) => s + t.fallos, 0) as number;
+          return fb - fa;
+        });
+      }),
   }),
 });
 
