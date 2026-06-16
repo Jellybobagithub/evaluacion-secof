@@ -410,37 +410,35 @@ export const horariosRouter = router({
         const nuevoTurnoId = (insertResult as any).insertId as number;
 
         const { actividadesCatalogo: acCat } = await import("../../drizzle/schema");
+        const { rotacionAreas: ra2 } = await import("../../drizzle/schema");
 
         const catalogo = await db.select().from(acCat)
           .where(eq(acCat.activa, true))
-          .orderBy(acCat.categoria, acCat.orden);
+          .orderBy(acCat.orden);
 
         const areaActual = (rotActual as any).area as string;
 
-        // 1. Filtrar por área compatible con este empleado
-        const porArea = catalogo.filter((a: any) => {
-          if (areaActual === 'comodin') return false;
-          if (areaActual === 'caja_y_preparacion') return true;
-          const compat = a.areaCompatible ?? 'todas';
-          if (compat === 'todas') return true;
-          return compat === areaActual;
-        });
-
-        // 2. Repartir por índice entre empleados activos del día (excluye comodines y ausentes)
-        const { rotacionAreas: ra2 } = await import("../../drizzle/schema");
+        // Empleados activos del día para repartir equitativamente
         const equipoHoy = await db.select({ empleadoId: ra2.empleadoId })
           .from(ra2)
           .where(and(eq(ra2.sucursalId, input.sucursalId), eq((ra2 as any).fecha, input.fecha)));
         const idsUnicos = [...new Set(
-          equipoHoy
-            .map((r: any) => r.empleadoId as number)
-            .filter((id: number) => id !== null)
+          equipoHoy.map((r: any) => r.empleadoId as number).filter(Boolean)
         )].sort((a, b) => a - b);
         const miIndex = idsUnicos.indexOf(input.empleadoId);
         const total = idsUnicos.length || 1;
-        const actFiltradas = miIndex === -1
-          ? porArea
-          : porArea.filter((_: any, i: number) => i % total === miIndex);
+
+        // Solo actividades DIARIAS (categoria='D'): filtrar por área y repartir por índice
+        // Semanales/Mensuales NO se asignan en cada turno diario
+        const diarias = catalogo.filter((a: any) => {
+          if (a.categoria !== 'D') return false;
+          if (areaActual === 'comodin') return false;
+          if (areaActual === 'caja_y_preparacion') return true;
+          return (a.areaCompatible ?? 'todas') === areaActual || (a.areaCompatible ?? 'todas') === 'todas';
+        });
+        const actFiltradas = diarias.filter((_: any, i: number) =>
+          miIndex === -1 ? true : i % total === miIndex
+        );
 
         if (actFiltradas.length > 0) {
           await db.insert(turnoActividades).values(
