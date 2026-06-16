@@ -417,38 +417,30 @@ export const horariosRouter = router({
 
         const areaActual = (rotActual as any).area as string;
 
-        // Determinar área efectiva para asignación de actividades
-        // Si el empleado tiene "caja_y_preparacion", revisar qué otras áreas cubre el resto del equipo ese día
-        let areaEfectiva = areaActual;
-        if (areaActual === 'caja_y_preparacion') {
-          const { rotacionAreas: ra2 } = await import("../../drizzle/schema");
-          const equipoHoy = await db.select().from(ra2)
-            .where(and(
-              eq(ra2.sucursalId, input.sucursalId),
-              eq((ra2 as any).fecha, input.fecha),
-            ));
-          // Áreas de los otros compañeros (excluir al empleado actual)
-          const otrasAreas = equipoHoy
-            .filter((r: any) => r.empleadoId !== input.empleadoId)
-            .map((r: any) => r.area as string);
-          const otroCubreCajaExacto = otrasAreas.some(a => a === 'caja');
-          const otroCubrePrepExacto = otrasAreas.some(a => a === 'preparacion');
-          const otroCubreCaja = otroCubreCajaExacto || otrasAreas.some(a => a === 'caja_y_preparacion');
-          const otroCubrePrep = otroCubrePrepExacto || otrasAreas.some(a => a === 'caja_y_preparacion');
-          // Priorizar áreas específicas: si hay alguien explícito en caja, este empleado toma prep y viceversa
-          if (otroCubreCajaExacto && !otroCubrePrepExacto) areaEfectiva = 'preparacion';
-          else if (otroCubrePrepExacto && !otroCubreCajaExacto) areaEfectiva = 'caja';
-          else if (otroCubreCaja && !otroCubrePrep) areaEfectiva = 'preparacion';
-          else if (otroCubrePrep && !otroCubreCaja) areaEfectiva = 'caja';
-        }
-
-        const actFiltradas = catalogo.filter((a: any) => {
+        // 1. Filtrar por área compatible con este empleado
+        const porArea = catalogo.filter((a: any) => {
+          if (areaActual === 'comodin') return false;
+          if (areaActual === 'caja_y_preparacion') return true;
           const compat = a.areaCompatible ?? 'todas';
-          if (compat === 'todas')                          return true;
-          if (areaEfectiva === 'caja_y_preparacion')       return true;
-          if (areaEfectiva === 'comodin')                  return false;
-          return compat === areaEfectiva;
+          if (compat === 'todas') return true;
+          return compat === areaActual;
         });
+
+        // 2. Repartir por índice entre empleados activos del día (excluye comodines y ausentes)
+        const { rotacionAreas: ra2 } = await import("../../drizzle/schema");
+        const equipoHoy = await db.select({ empleadoId: ra2.empleadoId })
+          .from(ra2)
+          .where(and(eq(ra2.sucursalId, input.sucursalId), eq((ra2 as any).fecha, input.fecha)));
+        const idsUnicos = [...new Set(
+          equipoHoy
+            .map((r: any) => r.empleadoId as number)
+            .filter((id: number) => id !== null)
+        )].sort((a, b) => a - b);
+        const miIndex = idsUnicos.indexOf(input.empleadoId);
+        const total = idsUnicos.length || 1;
+        const actFiltradas = miIndex === -1
+          ? porArea
+          : porArea.filter((_: any, i: number) => i % total === miIndex);
 
         if (actFiltradas.length > 0) {
           await db.insert(turnoActividades).values(
