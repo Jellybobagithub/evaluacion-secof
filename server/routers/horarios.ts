@@ -416,12 +416,34 @@ export const horariosRouter = router({
           .orderBy(acCat.categoria, acCat.orden);
 
         const areaActual = (rotActual as any).area as string;
+
+        // Determinar área efectiva para asignación de actividades
+        // Si el empleado tiene "caja_y_preparacion", revisar qué otras áreas cubre el resto del equipo ese día
+        let areaEfectiva = areaActual;
+        if (areaActual === 'caja_y_preparacion') {
+          const { rotacionAreas: ra2 } = await import("../../drizzle/schema");
+          const equipoHoy = await db.select().from(ra2)
+            .where(and(
+              eq(ra2.sucursalId, input.sucursalId),
+              eq((ra2 as any).fecha, input.fecha),
+            ));
+          // Áreas de los otros compañeros (excluir al empleado actual)
+          const otrasAreas = equipoHoy
+            .filter((r: any) => r.empleadoId !== input.empleadoId)
+            .map((r: any) => r.area as string);
+          const otroCubreCaja = otrasAreas.some(a => a === 'caja' || a === 'caja_y_preparacion');
+          const otroCubrePrep = otrasAreas.some(a => a === 'preparacion' || a === 'caja_y_preparacion');
+          if (otroCubreCaja && !otroCubrePrep) areaEfectiva = 'preparacion';
+          else if (otroCubrePrep && !otroCubreCaja) areaEfectiva = 'caja';
+          // Si ambas están cubiertas por otros, el empleado sigue con caja_y_preparacion (apertura/cierre)
+        }
+
         const actFiltradas = catalogo.filter((a: any) => {
           const compat = a.areaCompatible ?? 'todas';
-          if (compat === 'todas')                        return true;
-          if (areaActual === 'caja_y_preparacion')       return true;
-          if (areaActual === 'comodin')                  return true;
-          return compat === areaActual;
+          if (compat === 'todas')                          return true;
+          if (areaEfectiva === 'caja_y_preparacion')       return true;
+          if (areaEfectiva === 'comodin')                  return false; // comodín no tiene actividades fijas
+          return compat === areaEfectiva;
         });
 
         if (actFiltradas.length > 0) {
