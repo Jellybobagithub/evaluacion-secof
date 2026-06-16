@@ -431,11 +431,15 @@ export const horariosRouter = router({
           const otrasAreas = equipoHoy
             .filter((r: any) => r.empleadoId !== input.empleadoId)
             .map((r: any) => r.area as string);
-          const otroCubreCaja = otrasAreas.some(a => a === 'caja' || a === 'caja_y_preparacion');
-          const otroCubrePrep = otrasAreas.some(a => a === 'preparacion' || a === 'caja_y_preparacion');
-          if (otroCubreCaja && !otroCubrePrep) areaEfectiva = 'preparacion';
+          const otroCubreCajaExacto = otrasAreas.some(a => a === 'caja');
+          const otroCubrePrepExacto = otrasAreas.some(a => a === 'preparacion');
+          const otroCubreCaja = otroCubreCajaExacto || otrasAreas.some(a => a === 'caja_y_preparacion');
+          const otroCubrePrep = otroCubrePrepExacto || otrasAreas.some(a => a === 'caja_y_preparacion');
+          // Priorizar áreas específicas: si hay alguien explícito en caja, este empleado toma prep y viceversa
+          if (otroCubreCajaExacto && !otroCubrePrepExacto) areaEfectiva = 'preparacion';
+          else if (otroCubrePrepExacto && !otroCubreCajaExacto) areaEfectiva = 'caja';
+          else if (otroCubreCaja && !otroCubrePrep) areaEfectiva = 'preparacion';
           else if (otroCubrePrep && !otroCubreCaja) areaEfectiva = 'caja';
-          // Si ambas están cubiertas por otros, el empleado sigue con caja_y_preparacion (apertura/cierre)
         }
 
         const actFiltradas = catalogo.filter((a: any) => {
