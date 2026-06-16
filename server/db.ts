@@ -55,6 +55,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
 
 export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return user ?? null;
 }
