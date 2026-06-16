@@ -103,16 +103,23 @@ export const rotacionRouter = router({
       if (!["owner","superadmin","manager","leader"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const { getDb } = await import("../db");
       const db = await getDb();
-      if (!db) return [];
+      if (!db) return { asignaciones: [], ausentesSet: [] };
       const { rotacionAreas, empleados } = await import("../../drizzle/schema");
-      const { eq, and, gte, lte } = await import("drizzle-orm");
-      return db.select({ id: rotacionAreas.id, empleadoId: rotacionAreas.empleadoId, fecha: rotacionAreas.fecha,
+      const { eq, and, gte, lte, sql } = await import("drizzle-orm");
+      const asignaciones = await db.select({ id: rotacionAreas.id, empleadoId: rotacionAreas.empleadoId, fecha: rotacionAreas.fecha,
         area: rotacionAreas.area, horaInicio: rotacionAreas.horaInicio, horaFin: rotacionAreas.horaFin,
         esManual: rotacionAreas.esManual, notas: rotacionAreas.notas,
         empleadoNombre: empleados.nombre, empleadoApellido: empleados.apellido })
         .from(rotacionAreas).leftJoin(empleados, eq(rotacionAreas.empleadoId, empleados.id))
         .where(and(eq(rotacionAreas.sucursalId, input.sucursalId), gte(rotacionAreas.fecha, input.fechaInicio), lte(rotacionAreas.fecha, input.fechaFin)))
         .orderBy(rotacionAreas.fecha, rotacionAreas.horaInicio);
+      // Ausentes eventuales de la semana para excluirlos del "Sin área asignada"
+      const ausentesRows = await db.execute(sql`
+        SELECT empleadoId, DATE_FORMAT(fecha,'%Y-%m-%d') as fecha FROM ajustes_eventuales
+        WHERE sucursalId=${input.sucursalId} AND ausente=1 AND fecha >= ${input.fechaInicio} AND fecha <= ${input.fechaFin}
+      `);
+      const ausentesSet = (ausentesRows[0] as any[]).map((r: any) => `${r.empleadoId}|${r.fecha}`);
+      return { asignaciones, ausentesSet };
     }),
 
   generarSemana: protectedProcedure

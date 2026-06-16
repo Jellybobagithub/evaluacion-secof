@@ -194,10 +194,12 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
   const [editDialog, setEditDialog] = useState<{id?:number;empleadoId:number;fecha:string;nombre:string;area:string;horaInicio:string;horaFin:string}|null>(null);
   const semana = getWeekRange(weekOffset);
 
-  const { data: rotacion = [], refetch, isLoading } = trpc.rotacion.getSemana.useQuery(
+  const { data: rotacionData, refetch, isLoading } = trpc.rotacion.getSemana.useQuery(
     { sucursalId: sucursalId ?? 0, fechaInicio: semana.inicio, fechaFin: semana.fin },
     { enabled: !!sucursalId }
   );
+  const rotacion = rotacionData?.asignaciones ?? [];
+  const ausentesSet = new Set(rotacionData?.ausentesSet ?? []);
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
     { sucursalId: sucursalId ?? 0 }, { enabled: !!sucursalId }
   );
@@ -320,6 +322,7 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
             const diaSemana = new Date(fecha + "T12:00:00Z").getUTCDay();
             const fechaLabel = new Date(fecha + "T12:00:00Z").toLocaleDateString("es-MX",{weekday:"short",day:"numeric",month:"short"});
             const empSinAsignar = empleados.filter(e => {
+              if (ausentesSet.has(`${e.id}|${fecha}`)) return false;
               let hp: Record<number,any> = {};
               try { const h = (e as any).horarioPersonal; hp = typeof h==="string"?JSON.parse(h):(h??{}); } catch {}
               return hp[diaSemana]!==null && hp[diaSemana]!==undefined && !asignaciones.find(a => a.empleadoId===e.id);
