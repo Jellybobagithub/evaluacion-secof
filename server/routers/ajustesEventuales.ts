@@ -54,6 +54,27 @@ export const ajustesEventualesRouter = router({
           updatedAt   = NOW()
       `);
 
+      // Sync a rotacionAreas para que aparezca en Rotación Semanal
+      if (!input.ausente && input.horaEntrada && input.horaSalida) {
+        const rotRow = await db.execute(sql`
+          SELECT id FROM rotacion_areas
+          WHERE sucursalId=${input.sucursalId} AND empleadoId=${input.empleadoId} AND fecha=${input.fecha}
+          LIMIT 1
+        `);
+        if ((rotRow[0] as any[]).length === 0) {
+          await db.execute(sql`
+            INSERT INTO rotacion_areas (sucursalId, empleadoId, fecha, area, horaInicio, horaFin, esManual, notas)
+            VALUES (${input.sucursalId}, ${input.empleadoId}, ${input.fecha},
+                    'caja_y_preparacion', ${input.horaEntrada}, ${input.horaSalida}, 1, 'Ajuste eventual')
+          `);
+        } else {
+          await db.execute(sql`
+            UPDATE rotacion_areas SET horaInicio=${input.horaEntrada}, horaFin=${input.horaSalida}, esManual=1
+            WHERE sucursalId=${input.sucursalId} AND empleadoId=${input.empleadoId} AND fecha=${input.fecha}
+          `);
+        }
+      }
+
       // Auto-crear turnosSemana si no existe, para que aparezca en Mi Turno
       if (!input.ausente && input.horaEntrada && input.horaSalida) {
         const existeTurno = await db.execute(sql`
