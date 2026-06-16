@@ -161,13 +161,17 @@ export const rotacionRouter = router({
       await db.delete(rotacionAreas).where(and(eq(rotacionAreas.sucursalId, input.sucursalId), gte(rotacionAreas.fecha, input.fechaInicio), lte(rotacionAreas.fecha, input.fechaFin), eq(rotacionAreas.esManual, false)));
       if (sugerencia.length > 0) await db.insert(rotacionAreas).values(sugerencia.map(s => ({ sucursalId: input.sucursalId, empleadoId: s.empleadoId, fecha: s.fecha, area: s.area as any, horaInicio: s.horaInicio ?? null, horaFin: s.horaFin ?? null, esManual: 0 as any, notas: null })));
 
-      // Insertar extras eventuales (no ausentes, con horario) que no estaban en la rotación base
+      // Insertar extras eventuales (no ausentes, con horario) que no tienen ninguna fila en rotacion_areas
       const extras = ajustes.filter(a => !a.ausente && a.horaEntrada && a.horaSalida);
       for (const ex of extras) {
-        const existe = sugerencia.some(s => s.empleadoId === ex.empleadoId && s.fecha === ex.fecha);
-        if (!existe) {
+        const yaExiste = await db.execute(sql`
+          SELECT id FROM rotacion_areas
+          WHERE sucursalId=${input.sucursalId} AND empleadoId=${ex.empleadoId} AND fecha=${ex.fecha}
+          LIMIT 1
+        `);
+        if ((yaExiste[0] as any[]).length === 0) {
           await db.execute(sql`
-            INSERT IGNORE INTO rotacion_areas (sucursalId, empleadoId, fecha, area, horaInicio, horaFin, esManual, notas)
+            INSERT INTO rotacion_areas (sucursalId, empleadoId, fecha, area, horaInicio, horaFin, esManual, notas)
             VALUES (${input.sucursalId}, ${ex.empleadoId}, ${ex.fecha}, 'caja_y_preparacion', ${ex.horaEntrada}, ${ex.horaSalida}, 1, 'Ajuste eventual')
           `);
         }
