@@ -191,7 +191,7 @@ function TimelineDia({ bloques, empleados }: { bloques: any[]; empleados: any[] 
 // ─── Tab: Rotación Semanal ────────────────────────────────────────────────────
 function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [editDialog, setEditDialog] = useState<{empleadoId:number;fecha:string;nombre:string;area:string;horaInicio:string;horaFin:string}|null>(null);
+  const [editDialog, setEditDialog] = useState<{id?:number;empleadoId:number;fecha:string;nombre:string;area:string;horaInicio:string;horaFin:string}|null>(null);
   const semana = getWeekRange(weekOffset);
 
   const { data: rotacion = [], refetch, isLoading } = trpc.rotacion.getSemana.useQuery(
@@ -343,7 +343,7 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
                       <span className={`text-xs font-medium px-2 py-1 rounded-full border ${AREA_CONFIG[a.area]?.color ?? "bg-gray-100"}`}>
                         {AREA_CONFIG[a.area]?.label ?? a.area}
                       </span>
-                      <button onClick={() => setEditDialog({empleadoId:a.empleadoId,fecha,nombre:(a.empleadoNombre??"")+" "+(a.empleadoApellido??""),area:a.area,horaInicio:a.horaInicio??"",horaFin:a.horaFin??""})}
+                      <button onClick={() => setEditDialog({id:a.id,empleadoId:a.empleadoId,fecha,nombre:(a.empleadoNombre??"")+" "+(a.empleadoApellido??""),area:a.area,horaInicio:a.horaInicio??"",horaFin:a.horaFin??""})}
                         className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -394,7 +394,7 @@ function RotacionSemanalTab({ sucursalId }: { sucursalId: number | null }) {
                 </div>
               </div>
               <Button className="w-full" disabled={editarMut.isPending}
-                onClick={() => editarMut.mutate({sucursalId:sucursalId??30001,empleadoId:editDialog.empleadoId,fecha:editDialog.fecha,area:editDialog.area as any,horaInicio:editDialog.horaInicio||undefined,horaFin:editDialog.horaFin||undefined})}>
+                onClick={() => editarMut.mutate({id:editDialog.id,sucursalId:sucursalId??30001,empleadoId:editDialog.empleadoId,fecha:editDialog.fecha,area:editDialog.area as any,horaInicio:editDialog.horaInicio||undefined,horaFin:editDialog.horaFin||undefined})}>
                 {editarMut.isPending?"Guardando...":"Guardar cambio"}
               </Button>
             </div>

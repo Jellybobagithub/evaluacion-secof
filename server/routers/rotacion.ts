@@ -138,9 +138,12 @@ export const rotacionRouter = router({
     }),
 
   editarDia: protectedProcedure
-    .input(z.object({ sucursalId: z.number(), empleadoId: z.number(), fecha: z.string(),
+    .input(z.object({
+      id: z.number().optional(), // si se pasa, edita por id (más preciso)
+      sucursalId: z.number(), empleadoId: z.number(), fecha: z.string(),
       area: z.enum(["caja","preparacion","comodin","caja_y_preparacion"]),
-      horaInicio: z.string().optional(), horaFin: z.string().optional(), notas: z.string().optional() }))
+      horaInicio: z.string().optional(), horaFin: z.string().optional(), notas: z.string().optional()
+    }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner","superadmin","manager","leader"].includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN" });
       const { getDb } = await import("../db");
@@ -148,11 +151,18 @@ export const rotacionRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       const { rotacionAreas } = await import("../../drizzle/schema");
       const { eq, and } = await import("drizzle-orm");
-      const existing = await db.select().from(rotacionAreas)
-        .where(and(eq(rotacionAreas.sucursalId, input.sucursalId), eq(rotacionAreas.empleadoId, input.empleadoId), eq(rotacionAreas.fecha, input.fecha))).limit(1);
-      const data = { sucursalId: input.sucursalId, empleadoId: input.empleadoId, fecha: input.fecha, area: input.area, horaInicio: input.horaInicio ?? null, horaFin: input.horaFin ?? null, esManual: true, notas: input.notas ?? null };
-      if (existing.length > 0) await db.update(rotacionAreas).set(data).where(eq(rotacionAreas.id, existing[0].id));
-      else await db.insert(rotacionAreas).values(data);
+      const updateData = { area: input.area, horaInicio: input.horaInicio ?? null, horaFin: input.horaFin ?? null, esManual: true, notas: input.notas ?? null };
+      if (input.id) {
+        // Edición precisa por id de fila
+        await db.update(rotacionAreas).set(updateData).where(eq(rotacionAreas.id, input.id));
+      } else {
+        // Fallback: buscar primer registro del empleado en esa fecha
+        const existing = await db.select().from(rotacionAreas)
+          .where(and(eq(rotacionAreas.sucursalId, input.sucursalId), eq(rotacionAreas.empleadoId, input.empleadoId), eq(rotacionAreas.fecha, input.fecha))).limit(1);
+        const fullData = { sucursalId: input.sucursalId, empleadoId: input.empleadoId, fecha: input.fecha, ...updateData };
+        if (existing.length > 0) await db.update(rotacionAreas).set(fullData).where(eq(rotacionAreas.id, existing[0].id));
+        else await db.insert(rotacionAreas).values(fullData);
+      }
       return { success: true };
     }),
 
