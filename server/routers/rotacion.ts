@@ -131,9 +131,41 @@ export const rotacionRouter = router({
       const fechas: string[] = [];
       const cur = new Date(input.fechaInicio + "T12:00:00Z"); const end = new Date(input.fechaFin + "T12:00:00Z");
       while (cur <= end) { fechas.push(cur.toISOString().split("T")[0]); cur.setUTCDate(cur.getUTCDate() + 1); }
-      const sugerencia = generarSugerencia(emps.map(e => ({ ...e, apellido: e.apellido ?? null })), fechas, historial.map(h => ({ empleadoId: h.empleadoId, area: h.area })));
+      // Leer ajustes eventuales del periodo para excluir ausentes y agregar extras
+      const { sql } = await import("drizzle-orm");
+      const ajustesRows = await db.execute(sql`
+        SELECT empleadoId, fecha, ausente, horaEntrada, horaSalida
+        FROM ajustes_eventuales
+        WHERE sucursalId=${input.sucursalId} AND fecha >= ${input.fechaInicio} AND fecha <= ${input.fechaFin}
+      `);
+      const ajustes = ajustesRows[0] as { empleadoId: number; fecha: string; ausente: number; horaEntrada: string | null; horaSalida: string | null }[];
+      const ausentesSet = new Set(ajustes.filter(a => a.ausente).map(a => `${a.empleadoId}|${a.fecha}`));
+
+      // Para la sugerencia, excluir empleados ausentes en días específicos
+      const empsConAusencias = emps.map(e => {
+        // Inyectar días de descanso extra (ausencias eventuales) en horarioPersonal no es directo,
+        // así que filtramos la sugerencia después
+        return { ...e, apellido: e.apellido ?? null };
+      });
+      const sugerenciaRaw = generarSugerencia(empsConAusencias, fechas, historial.map(h => ({ empleadoId: h.empleadoId, area: h.area })));
+      // Quitar entradas de ausentes eventuales
+      const sugerencia = sugerenciaRaw.filter(s => !ausentesSet.has(`${s.empleadoId}|${s.fecha}`));
+
       await db.delete(rotacionAreas).where(and(eq(rotacionAreas.sucursalId, input.sucursalId), gte(rotacionAreas.fecha, input.fechaInicio), lte(rotacionAreas.fecha, input.fechaFin), eq(rotacionAreas.esManual, false)));
       if (sugerencia.length > 0) await db.insert(rotacionAreas).values(sugerencia.map(s => ({ sucursalId: input.sucursalId, empleadoId: s.empleadoId, fecha: s.fecha, area: s.area as any, horaInicio: s.horaInicio ?? null, horaFin: s.horaFin ?? null, esManual: 0 as any, notas: null })));
+
+      // Insertar extras eventuales (no ausentes, con horario) que no estaban en la rotación base
+      const extras = ajustes.filter(a => !a.ausente && a.horaEntrada && a.horaSalida);
+      for (const ex of extras) {
+        const existe = sugerencia.some(s => s.empleadoId === ex.empleadoId && s.fecha === ex.fecha);
+        if (!existe) {
+          await db.execute(sql`
+            INSERT IGNORE INTO rotacion_areas (sucursalId, empleadoId, fecha, area, horaInicio, horaFin, esManual, notas)
+            VALUES (${input.sucursalId}, ${ex.empleadoId}, ${ex.fecha}, 'caja_y_preparacion', ${ex.horaEntrada}, ${ex.horaSalida}, 1, 'Ajuste eventual')
+          `);
+        }
+      }
+
       return { success: true, generados: sugerencia.length };
     }),
 
