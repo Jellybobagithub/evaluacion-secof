@@ -1,4 +1,4 @@
-# ESTADO SECOF — 11 jun 2026
+# ESTADO SECOF — 16 jun 2026
 
 ## Producción
 - URL: secof.snowteatienda.com
@@ -77,16 +77,23 @@
 
 ---
 
-## Pendientes nuevos — 12 jun 2026 (TODOS COMPLETADOS ✅)
+## Completados sesión 16-jun-2026
 
-### Features operativas
-17. ~~Revisar conteo de vasos~~ — COMPLETADO 12-jun (CuadreVasos migrado a SucursalContext global)
-18. ~~Alerta cara en checada~~ — COMPLETADO 12-jun (turno.verificarCaraVisible LLM vision en AsistenciaQR apertura)
-19. ~~Consumo interno~~ — COMPLETADO 12-jun (ConsumoInterno.tsx + inventario.consumoInterno router → inv_movimientos)
-20. ~~Impersonar usuario como admin~~ — COMPLETADO 12-jun (AdminUsuarios botón + /api/auth/impersonate + ImpersonationBanner)
-21. ~~Cuadre de vasos reporte de cierre~~ — COMPLETADO 12-jun (incluido en #17, página ya tenía reporte)
-22. ~~Vista empleado sus KPIs~~ — COMPLETADO 12-jun (MiKpi.tsx + miKpi.resumen endpoint, ruta /mi-kpi)
-23. ~~Reporte mensual fallos~~ — COMPLETADO 12-jun (ReporteMensual.tsx + reporteMensual.fallosPorEmpleado, ruta /reporte-mensual)
+- ~~#17-23~~ — completados en sesión anterior (12-jun)
+- ~~Actividades limpieza líderes~~ — líderes reciben actividades igual que anfitriones
+- ~~Ajuste Eventual → Rotación Semanal sync~~ — guardar ajuste eventual upserta rotacion_areas
+- ~~generarSemana respeta ajustes eventuales~~ — ausentes excluidos, extras incluidos; no duplica
+- ~~Rotación Semanal oculta ausentes~~ — getSemana devuelve ausentesSet, frontend filtra
+- ~~PM2 proceso correcto~~ — id=2 (name "secof"), no id=1
+- ~~Catálogo actividades actualizado~~ — área_compatible correcta por tabla oficial (prep:13, caja:18)
+- ~~Solo diarias se asignan por turno~~ — S y M no se asignan diariamente
+- ~~Distribución equitativa por día~~ — round-robin entre empleados activos del día
+
+## Pendientes nuevos — 16 jun 2026
+
+### Actividades semanales/mensuales
+- Semanales (S1-S14): asignar una vez por semana rotando entre empleados (pendiente implementar)
+- Mensuales (M1-M3): asignar una vez por mes rotando (pendiente implementar)
 
 # SECOF — Contexto para Claude Code
 
