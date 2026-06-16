@@ -8,7 +8,7 @@ import {
   Building2, ClipboardList, AlertTriangle, CheckCircle2, Activity,
   ArrowUpRight, ArrowDownRight, Minus, ShieldCheck, Users, ChevronRight,
   DollarSign, FileText, BarChart3, Target, Store, UserCheck, ClipboardCheck,
-  TrendingDown, Calendar, PlusCircle, Eye,
+  TrendingDown, Calendar, PlusCircle, Eye, Star,
 } from "lucide-react";
 import { getCalificacion } from "../../../shared/evaluacionData";
 import { hasRoleAccess } from "@/components/RoleGuard";
@@ -274,6 +274,25 @@ export default function Home() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Acceso rápido Mis KPIs (solo líder, no manager/owner) —————————————— */}
+      {isLeader && !isManager && (
+        <Card className="border-0 shadow-sm bg-gradient-to-r from-violet-50 to-indigo-50 cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => setLocation("/mi-kpi")}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Mis KPIs</p>
+                <p className="text-sm font-semibold mt-1 text-violet-700">Puntualidad · Evaluaciones · Desempeño</p>
+                <p className="text-xs text-muted-foreground mt-1">Ver mi resumen del mes →</p>
+              </div>
+              <div className="h-11 w-11 rounded-xl bg-violet-100 flex items-center justify-center">
+                <Star className="h-5 w-5 text-violet-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── FILA 1.5: Alerta de merma de vasos (si hay descuadres recientes) —————— */}
       {isManager && cuadresConDescuadre.length > 0 && (

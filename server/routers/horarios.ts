@@ -409,8 +409,18 @@ export const horariosRouter = router({
         } as any);
         const nuevoTurnoId = (insertResult as any).insertId as number;
 
-        // Actividades del catálogo filtradas por área
-        const { actividadesCatalogo: acCat } = await import("../../drizzle/schema");
+        // Solo anfitriones (host) reciben checklist de limpieza — líderes y superiores no
+        const { empleados: empTable, users: usersTable, actividadesCatalogo: acCat } = await import("../../drizzle/schema");
+        const [empRow] = await db.select({ userId: empTable.userId })
+          .from(empTable).where(eq(empTable.id, input.empleadoId)).limit(1);
+        let rolEmpleado = 'host';
+        if (empRow?.userId) {
+          const [uRow] = await db.select({ role: usersTable.role })
+            .from(usersTable).where(eq(usersTable.id, empRow.userId)).limit(1);
+          rolEmpleado = uRow?.role ?? 'host';
+        }
+        const esLiderOSuperior = ['leader','manager','owner','superadmin'].includes(rolEmpleado);
+
         const catalogo = await db.select().from(acCat)
           .where(eq(acCat.activa, true))
           .orderBy(acCat.categoria, acCat.orden);
@@ -438,11 +448,12 @@ export const horariosRouter = router({
           // Si ambas están cubiertas por otros, el empleado sigue con caja_y_preparacion (apertura/cierre)
         }
 
-        const actFiltradas = catalogo.filter((a: any) => {
+        // Líderes y superiores no tienen checklist de limpieza
+        const actFiltradas = esLiderOSuperior ? [] : catalogo.filter((a: any) => {
           const compat = a.areaCompatible ?? 'todas';
           if (compat === 'todas')                          return true;
           if (areaEfectiva === 'caja_y_preparacion')       return true;
-          if (areaEfectiva === 'comodin')                  return false; // comodín no tiene actividades fijas
+          if (areaEfectiva === 'comodin')                  return false;
           return compat === areaEfectiva;
         });
 
