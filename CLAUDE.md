@@ -2,7 +2,7 @@
 
 ## Producción
 - URL: secof.snowteatienda.com
-- VPS: 216.238.81.192 | PM2 id=1 | port 5000
+- VPS: 216.238.81.192 | PM2 id=2 (name "secof") | port 5000
 - DB: secof_db (MySQL 8.0)
 - Repo: github.com/Jellybobagithub/evaluacion-secof
 
@@ -91,7 +91,7 @@
 # SECOF — Contexto para Claude Code
 
 Stack: React 19 + Vite + TypeScript + Tailwind + Express + tRPC + Drizzle ORM + MySQL 8
-VPS: 216.238.81.192, PM2 id=1, puerto 5000, carpeta /var/www/secof
+VPS: 216.238.81.192, PM2 id=2 (name "secof"), puerto 5000, carpeta /var/www/secof
 Build: pnpm build desde /var/www/secof
 Restart: pm2 restart 1
 Repo: github.com/Jellybobagithub/evaluacion-secof
