@@ -33,6 +33,83 @@ function fechaHoy() {
   return new Date().toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" });
 }
 
+// ─── KPI inline para anfitriones ─────────────────────────────────────────────
+const KPITC: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
+  servicio:    { label: "Servicio", emoji: "🛎️", criterios: { saludo: "Saludo", sonrisa: "Actitud", uniforme: "Uniforme", despedida: "Despedida", venta_sug: "Venta sugerida" } },
+  preparacion: { label: "Preparaciones", emoji: "🧋", criterios: { receta: "Receta", tiempo: "Tiempo", temperatura: "Temperatura", presentacion: "Presentación" } },
+  caja:        { label: "Caja", emoji: "💰", criterios: { cambio: "Cambio", ticket: "Ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" } },
+};
+const MESES_KPI = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+function HostKpiInline({ miKpiMes, miLimpieza, onVerDetalle }: { miKpiMes: any; miLimpieza: any[]; onVerDetalle: () => void }) {
+  const obs = miKpiMes?.observaciones ?? {};
+  const mesReal = miKpiMes?.mes ?? "";
+  const [y, m2] = mesReal ? mesReal.split('-').map(Number) : [0, 0];
+  const mesLabel = m2 ? `${MESES_KPI[m2]} ${y}` : "";
+  const criteriosFallo = miKpiMes?.criteriosFallo ?? {};
+  const areasMejora: { tipo: string; key: string; label: string; pct: number }[] = [];
+  for (const [tipo, criterios] of Object.entries(criteriosFallo as Record<string, Record<string, { fallos: number; total: number }>>)) {
+    for (const [k, v] of Object.entries(criterios)) {
+      if (v.fallos > 0 && v.total > 0) areasMejora.push({ tipo, key: k, label: KPITC[tipo]?.criterios[k] ?? k, pct: Math.round(v.fallos / v.total * 100) });
+    }
+  }
+  areasMejora.sort((a, b) => b.pct - a.pct);
+  const tiposEval = (["servicio", "preparacion", "caja"] as const).filter(t => obs[t]);
+  const miEmp = miLimpieza[0] ?? null;
+  const diasInc = miEmp ? miEmp.dias.filter((d: any) => d.completadas < d.total) : [];
+  const limpCol = !miEmp ? '' : miEmp.pct >= 90 ? 'text-green-400 bg-green-500/15 border-green-500/30' : miEmp.pct >= 70 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' : 'text-red-400 bg-red-500/15 border-red-500/30';
+  if (tiposEval.length === 0 && !miEmp) return null;
+  return (
+    <div className="px-4 pb-4">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Mis evaluaciones{mesLabel ? ` — ${mesLabel}` : ''}</p>
+      <div className="space-y-2">
+        {tiposEval.length > 0 && (
+          <div className={`grid gap-2 ${tiposEval.length === 1 ? 'grid-cols-1' : tiposEval.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {tiposEval.map(tipo => {
+              const o = obs[tipo];
+              const col = o.score >= 85 ? 'text-green-400 bg-green-500/15 border-green-500/30' : o.score >= 60 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' : 'text-red-400 bg-red-500/15 border-red-500/30';
+              return (
+                <div key={tipo} className={`rounded-2xl p-3 border ${col}`}>
+                  <p className="text-lg">{KPITC[tipo].emoji}</p>
+                  <p className="text-xl font-bold mt-1">{o.score.toFixed(0)}%</p>
+                  <p className="text-xs opacity-70 mt-0.5">{KPITC[tipo].label}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {areasMejora.length > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3">
+            <p className="text-xs font-semibold text-amber-400 mb-2">⚠ Áreas a mejorar</p>
+            <div className="space-y-1">
+              {areasMejora.slice(0, 3).map(a => (
+                <div key={`${a.tipo}-${a.key}`} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300">{KPITC[a.tipo]?.emoji} {a.label}</span>
+                  <span className="text-red-400 font-medium">{a.pct}% fallo</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {miEmp && (
+          <div className={`rounded-2xl p-3 border ${limpCol}`}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs opacity-70">🧹 Limpieza del mes</span>
+              <span className="text-lg font-bold">{miEmp.pct}%</span>
+            </div>
+            <p className="text-xs opacity-70">{miEmp.diasCompletos}/{miEmp.diasCerrados} días completos</p>
+            {diasInc.length > 0 && <p className="text-xs text-red-400 mt-1">⚠ {diasInc.length} día{diasInc.length !== 1 ? 's' : ''} con tareas pendientes</p>}
+          </div>
+        )}
+        <button onClick={onVerDetalle} className="w-full flex items-center justify-between bg-white/10 hover:bg-white/15 rounded-2xl px-4 py-2.5 transition-all">
+          <span className="text-xs text-slate-300">Ver detalle completo</span>
+          <ChevronRight className="w-4 h-4 text-slate-500" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function MiTurno() {
   const { user } = useAuth();
@@ -777,92 +854,13 @@ export default function MiTurno() {
       </div>
 
       {/* Mis evaluaciones del mes — solo para anfitriones */}
-      {isHost && miKpiMes && (() => {
-        const kd = miKpiMes as any;
-        const obs = kd.observaciones ?? {};
-        const mesReal = kd.mes ?? mes;
-        const [y, m2] = mesReal.split('-').map(Number);
-        const MESES = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-        const mesLabel = `${MESES[m2]} ${y}`;
-        const TIPO_CONFIG: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
-          servicio:    { label: "Servicio", emoji: "🛎️", criterios: { saludo: "Saludo", sonrisa: "Actitud", uniforme: "Uniforme", despedida: "Despedida", venta_sug: "Venta sugerida" }},
-          preparacion: { label: "Preparaciones", emoji: "🧋", criterios: { receta: "Receta", tiempo: "Tiempo", temperatura: "Temperatura", presentacion: "Presentación" }},
-          caja:        { label: "Caja", emoji: "💰", criterios: { cambio: "Cambio", ticket: "Ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" }},
-        };
-        const criteriosFallo = kd.criteriosFallo ?? {};
-        const areasMejora: { tipo: string; key: string; label: string; pct: number }[] = [];
-        for (const [tipo, criterios] of Object.entries(criteriosFallo as Record<string, Record<string, { fallos: number; total: number }>>)) {
-          for (const [k, v] of Object.entries(criterios)) {
-            if (v.fallos > 0 && v.total > 0) areasMejora.push({ tipo, key: k, label: TIPO_CONFIG[tipo]?.criterios[k] ?? k, pct: Math.round(v.fallos/v.total*100) });
-          }
-        }
-        areasMejora.sort((a, b) => b.pct - a.pct);
-        const tiposEval = (["servicio","preparacion","caja"] as const).filter(t => obs[t]);
-        if (tiposEval.length === 0) return null;
-        return (
-          <div className="px-4 pb-4">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Mis evaluaciones — {mesLabel}</p>
-            <div className="space-y-2">
-              {/* Scores por tipo */}
-              <div className={`grid gap-2 ${tiposEval.length === 1 ? 'grid-cols-1' : tiposEval.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                {tiposEval.map(tipo => {
-                  const o = obs[tipo];
-                  const col = o.score >= 85 ? 'text-green-400 bg-green-500/15 border-green-500/30' : o.score >= 60 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' : 'text-red-400 bg-red-500/15 border-red-500/30';
-                  return (
-                    <div key={tipo} className={`rounded-2xl p-3 border ${col}`}>
-                      <p className="text-lg">{TIPO_CONFIG[tipo].emoji}</p>
-                      <p className="text-xl font-bold mt-1">{o.score.toFixed(0)}%</p>
-                      <p className="text-xs opacity-70 mt-0.5">{TIPO_CONFIG[tipo].label}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Áreas de mejora */}
-              {areasMejora.length > 0 && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3">
-                  <p className="text-xs font-semibold text-amber-400 mb-2">⚠ Áreas a mejorar</p>
-                  <div className="space-y-1">
-                    {areasMejora.slice(0, 3).map(a => (
-                      <div key={`${a.tipo}-${a.key}`} className="flex items-center justify-between text-xs">
-                        <span className="text-slate-300">{TIPO_CONFIG[a.tipo]?.emoji} {a.label}</span>
-                        <span className="text-red-400 font-medium">{a.pct}% fallo</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {/* Limpieza del mes */}
-              {(() => {
-                const miEmp = (miLimpieza as any[])[0];
-                if (!miEmp) return null;
-                const diasInc = miEmp.dias.filter((d: any) => d.completadas < d.total);
-                const col = miEmp.pct >= 90 ? 'text-green-400 bg-green-500/15 border-green-500/30'
-                  : miEmp.pct >= 70 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30'
-                  : 'text-red-400 bg-red-500/15 border-red-500/30';
-                return (
-                  <div className={`rounded-2xl p-3 border ${col}`}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs opacity-70">🧹 Limpieza del mes</span>
-                      <span className="text-lg font-bold">{miEmp.pct}%</span>
-                    </div>
-                    <p className="text-xs opacity-70">{miEmp.diasCompletos}/{miEmp.diasCerrados} días completos</p>
-                    {diasInc.length > 0 && (
-                      <p className="text-xs text-red-400 mt-1">⚠ {diasInc.length} día{diasInc.length !== 1 ? 's' : ''} con tareas pendientes</p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Link a detalle completo */}
-              <button onClick={() => navigate('/mi-kpi')}
-                className="w-full flex items-center justify-between bg-white/10 hover:bg-white/15 rounded-2xl px-4 py-2.5 transition-all">
-                <span className="text-xs text-slate-300">Ver detalle completo</span>
-                <ChevronRight className="w-4 h-4 text-slate-500" />
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+      {isHost && miKpiMes && (
+        <HostKpiInline
+          miKpiMes={miKpiMes}
+          miLimpieza={miLimpieza as any[]}
+          onVerDetalle={() => navigate('/mi-kpi')}
+        />
+      )}
 
       {/* KPIs del mes (Nivel 2) */}
       <div className="px-4 pb-4">
