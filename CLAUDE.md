@@ -14,28 +14,24 @@
 
 ## Pendientes — alta prioridad 🔴
 
-### Bugs (código)
-1. `puntualidadPct` hardcodeado al 95% — calcular retardos reales vs horario de turno
-2. `reportes_diarios` sync incompleto — 10 productos sin mapear en `inv_productos_venta`
-6. Historial detalle: teórico histórico muestra 0 — fix pendiente
-
-### Infraestructura
-15. Migrar nightly Odoo sync de `setTimeout` a cron real — gaps multi-día en `venta_odoo`
+*(todos completados — ver historial de commits)*
+- ~~1. puntualidadPct~~ — COMPLETADO (commit daf7a78)
+- ~~2. reportes_diarios sync~~ — COMPLETADO (commit 5cecaae)
+- ~~6. Teórico histórico~~ — COMPLETADO (commit 5cecaae)
+- ~~15. Cron Odoo sync~~ — COMPLETADO (commit 5cecaae)
 
 ---
 
 ## Pendientes — media prioridad 🟡
 
-### Bugs (código)
-3. `metas_mensuales.baseAnterior` incorrecto — sincronizar desde `ventas_historicas`
+*(bugs/datos completados — ver historial)*
+- ~~3. metas_mensuales.baseAnterior~~ — COMPLETADO (commit d3d5901)
+- ~~4. Ana Claudia tipoContrato~~ — COMPLETADO (commit d3d5901)
+- ~~5. Luz baja~~ — COMPLETADO (commit d3d5901)
+- ~~7. KPI frecuencia evaluaciones~~ — COMPLETADO (commit d3d5901)
+- ~~8. responsable en plan_accion~~ — COMPLETADO (commit d3d5901)
 
-### Datos
-4. Ana Claudia (empleadoId=180006) — cambiar `tipoContrato` de `fulltime` a `finde`
-5. Luz — confirmar baja formal en sistema
-
-### Features
-7. KPI frecuencia evaluaciones semanales — agregar al snapshot del líder (ej. Emily: 2/5 semanas)
-8. Campo `responsable` en `plan_accion` — NULL en todos los registros, poblar y separar dueño vs líder
+### Features pendientes 🟡
 17. Revisar conteo de vasos — auditar flujo completo de CuadreVasos, validar que cuadre cierre correcto
 18. Alerta foto checada — si la foto de uniforme no cumple (cara no visible u otro problema), notificar al líder
 19. Surtido de vasos a isla — registrar cuando surten vasos desde bodega a isla y descontarlo del inventario
