@@ -428,25 +428,85 @@ export const horariosRouter = router({
         const miIndex = idsUnicos.indexOf(input.empleadoId);
         const total = idsUnicos.length || 1;
 
-        // Solo actividades DIARIAS (categoria='D'): filtrar por área y repartir por índice
-        // Semanales/Mensuales NO se asignan en cada turno diario
-        const diarias = catalogo.filter((a: any) => {
-          if (a.categoria !== 'D') return false;
+        const porArea = (cat: string) => catalogo.filter((a: any) => {
+          if (a.categoria !== cat) return false;
           if (areaActual === 'comodin') return false;
           if (areaActual === 'caja_y_preparacion') return true;
           return (a.areaCompatible ?? 'todas') === areaActual || (a.areaCompatible ?? 'todas') === 'todas';
         });
-        const actFiltradas = diarias.filter((_: any, i: number) =>
+
+        // DIARIAS: siempre, repartidas entre empleados del día
+        const actDiarias = porArea('D').filter((_: any, i: number) =>
           miIndex === -1 ? true : i % total === miIndex
         );
 
-        if (actFiltradas.length > 0) {
+        // Rangos de semana (lun–dom) y mes para esta fecha
+        const fObj = new Date(input.fecha + 'T12:00:00Z');
+        const dow = fObj.getUTCDay();
+        const lunes = new Date(fObj); lunes.setUTCDate(fObj.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+        const domingo = new Date(lunes); domingo.setUTCDate(lunes.getUTCDate() + 6);
+        const weekStart = lunes.toISOString().split('T')[0];
+        const weekEnd   = domingo.toISOString().split('T')[0];
+        const monthStart = `${fObj.getUTCFullYear()}-${String(fObj.getUTCMonth()+1).padStart(2,'0')}-01`;
+        const monthEnd   = new Date(Date.UTC(fObj.getUTCFullYear(), fObj.getUTCMonth()+1, 0)).toISOString().split('T')[0];
+
+        // Helper: ¿ya tiene actividades de esta categoría en el rango?
+        const yaTieneEnRango = async (categoria: string, desde: string, hasta: string) => {
+          const r = await db.execute(sql`
+            SELECT COUNT(*) as cnt FROM turno_actividades ta
+            JOIN turnos_semana ts ON ts.id = ta.turnoId
+            JOIN actividades_catalogo ac ON ac.clave = ta.actividadClave
+            WHERE ts.sucursalId=${input.sucursalId} AND ts.empleadoId=${input.empleadoId}
+              AND ts.fecha >= ${desde} AND ts.fecha <= ${hasta}
+              AND ac.categoria = ${categoria}
+          `);
+          return ((r[0] as any[])[0].cnt as number) > 0;
+        };
+
+        // Empleados activos en la semana (para repartir semanales)
+        const empsSemana = await db.execute(sql`
+          SELECT DISTINCT empleadoId FROM rotacion_areas
+          WHERE sucursalId=${input.sucursalId} AND fecha >= ${weekStart} AND fecha <= ${weekEnd}
+          ORDER BY empleadoId
+        `);
+        const idsSemana = (empsSemana[0] as any[]).map((r: any) => r.empleadoId as number);
+        const miIdxSem  = idsSemana.indexOf(input.empleadoId);
+        const totSem    = idsSemana.length || 1;
+
+        // SEMANALES: una sola vez por semana por empleado, repartidas entre empleados de la semana
+        let actSemanales: any[] = [];
+        if (!(await yaTieneEnRango('S', weekStart, weekEnd))) {
+          actSemanales = porArea('S').filter((_: any, i: number) =>
+            miIdxSem === -1 ? true : i % totSem === miIdxSem
+          );
+        }
+
+        // Empleados activos en el mes (para repartir mensuales)
+        const empsMes = await db.execute(sql`
+          SELECT DISTINCT empleadoId FROM rotacion_areas
+          WHERE sucursalId=${input.sucursalId} AND fecha >= ${monthStart} AND fecha <= ${monthEnd}
+          ORDER BY empleadoId
+        `);
+        const idsMes   = (empsMes[0] as any[]).map((r: any) => r.empleadoId as number);
+        const miIdxMes = idsMes.indexOf(input.empleadoId);
+        const totMes   = idsMes.length || 1;
+
+        // MENSUALES: una sola vez por mes por empleado, repartidas entre empleados del mes
+        let actMensuales: any[] = [];
+        if (!(await yaTieneEnRango('M', monthStart, monthEnd))) {
+          actMensuales = porArea('M').filter((_: any, i: number) =>
+            miIdxMes === -1 ? true : i % totMes === miIdxMes
+          );
+        }
+
+        const todasAct = [...actDiarias, ...actSemanales, ...actMensuales];
+        if (todasAct.length > 0) {
           await db.insert(turnoActividades).values(
-            actFiltradas.map((a: any) => ({
-              turnoId:       nuevoTurnoId,
+            todasAct.map((a: any) => ({
+              turnoId:        nuevoTurnoId,
               actividadClave: a.clave,
-              completada:    false,
-              esPendiente:   false,
+              completada:     false,
+              esPendiente:    false,
             }))
           );
         }
