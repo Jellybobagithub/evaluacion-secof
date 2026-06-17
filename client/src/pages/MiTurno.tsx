@@ -164,16 +164,8 @@ export default function MiTurno() {
     { enabled: !!sucursalId }
   );
 
-  // KPIs propios del mes (para anfitriones)
+  // KPIs propios del mes (para anfitriones) — declaradas DESPUÉS de mes
   const isHost = ['host'].includes(user?.role ?? '');
-  const { data: miKpiMes } = trpc.miKpi.resumen.useQuery(
-    { mes },
-    { enabled: isHost }
-  );
-  const { data: miLimpieza = [] } = trpc.kpiAnfitriones.cumplimientoLimpieza.useQuery(
-    { sucursalId: sucursalId ?? 0, mes },
-    { enabled: isHost && !!sucursalId }
-  );
 
   // Última evaluación SECOF
   const { data: evaluaciones = [] } = trpc.evaluaciones.list.useQuery(
@@ -329,6 +321,16 @@ export default function MiTurno() {
   const { data: mermasMes } = trpc.kpiLider.mermas.useQuery(
     { sucursalId: sucursalId ?? 0, fechaInicio: mesInicio, fechaFin: mesFin },
     { enabled: !!sucursalId }
+  );
+
+  // Queries de KPI del mes para anfitriones — van DESPUÉS de que mes esté declarado
+  const { data: miKpiMes } = trpc.miKpi.resumen.useQuery(
+    { mes },
+    { enabled: isHost }
+  );
+  const { data: miLimpieza = [] } = trpc.kpiAnfitriones.cumplimientoLimpieza.useQuery(
+    { sucursalId: sucursalId ?? 0, mes },
+    { enabled: isHost && !!sucursalId }
   );
 
   // Acciones rápidas — filtradas por rol
