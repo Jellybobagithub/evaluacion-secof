@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { KPI_TIPOS as TIPO_LABELS } from "@/lib/kpiTipos";
 import { useSucursal } from "@/context/SucursalContext";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -66,12 +67,6 @@ const CRITERIOS_CAJA = [
   { id: "ticket", label: "Entrega ticket al cliente" },
   { id: "descuadre", label: "Sin descuadres de caja al cierre (≤$20 tolerancia)" },
 ];
-
-const TIPO_LABELS: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
-  servicio:    { label: "Servicio", emoji: "🛎️", criterios: { saludo: "Saluda al cliente", sonrisa: "Actitud y sonrisa", uniforme: "Uniforme correcto", despedida: "Despedida cordial", venta_sug: "Venta sugerida" }},
-  preparacion: { label: "Preparaciones", emoji: "🧋", criterios: { receta: "Siguió la receta", tiempo: "Tiempo de preparación", temperatura: "Entrega la bebida en su punto", presentacion: "Presentación del producto" }},
-  caja:        { label: "Caja", emoji: "💰", criterios: { cambio: "Cambio correcto", ticket: "Entregó ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" }},
-};
 
 const TIPO_CONFIG: Record<string, { label: string; criterios: typeof CRITERIOS_SERVICIO; color: string; icon: string }> = {
   servicio: { label: "Calidad de Servicio", criterios: CRITERIOS_SERVICIO, color: "bg-blue-100 text-blue-800", icon: "⭐" },

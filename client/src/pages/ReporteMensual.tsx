@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { KPI_TIPOS as TIPO_CONFIG } from "@/lib/kpiTipos";
 import { trpc } from "@/lib/trpc";
 import { useSucursal } from "@/context/SucursalContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,12 +8,6 @@ import { ChevronDown, ChevronUp, FileBarChart2, AlertCircle } from "lucide-react
 
 function getMesActual() { return new Date().toISOString().slice(0, 7); }
 const MESES = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-
-const TIPO_CONFIG: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
-  servicio:    { label: "Servicio", emoji: "🛎️", criterios: { saludo: "Saludo al cliente", sonrisa: "Sonrisa y actitud", uniforme: "Uniforme correcto", despedida: "Despedida cordial", venta_sug: "Venta sugerida" }},
-  preparacion: { label: "Preparaciones", emoji: "🧋", criterios: { receta: "Siguió la receta", tiempo: "Tiempo de preparación", temperatura: "Entrega la bebida en su punto", presentacion: "Presentación del producto" }},
-  caja:        { label: "Caja", emoji: "💰", criterios: { cambio: "Cambio correcto", ticket: "Entregó ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" }},
-};
 
 function ScoreBadge({ score }: { score: number }) {
   const cls = score >= 85 ? "bg-green-100 text-green-700 border-green-200"

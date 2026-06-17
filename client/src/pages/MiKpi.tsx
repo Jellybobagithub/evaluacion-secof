@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { KPI_TIPOS as TIPO_CONFIG } from "@/lib/kpiTipos";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +14,6 @@ function semaforo(val: number, meta: number) {
 }
 
 const MESES = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-
-const TIPO_CONFIG: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
-  servicio:    { label: "Servicio al cliente", emoji: "🛎️", criterios: { saludo: "Saludo al cliente", sonrisa: "Sonrisa y actitud", uniforme: "Uniforme correcto", despedida: "Despedida cordial", venta_sug: "Venta sugerida" }},
-  preparacion: { label: "Preparaciones",       emoji: "🧋", criterios: { receta: "Siguió la receta", tiempo: "Tiempo de preparación", temperatura: "Entrega la bebida en su punto (No muy espesa, No Aguada)", presentacion: "Presentación del producto" }},
-  caja:        { label: "Caja",                emoji: "💰", criterios: { cambio: "Cambio correcto", ticket: "Entregó ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" }},
-};
 
 function CriterioBar({ label, fallos, total }: { label: string; fallos: number; total: number }) {
   const pctFallo = total > 0 ? Math.round((fallos / total) * 100) : 0;

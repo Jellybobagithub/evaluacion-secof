@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { KPI_TIPOS as KPITC } from "@/lib/kpiTipos";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,11 +35,6 @@ function fechaHoy() {
 }
 
 // ─── KPI inline para anfitriones ─────────────────────────────────────────────
-const KPITC: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
-  servicio:    { label: "Servicio", emoji: "🛎️", criterios: { saludo: "Saludo", sonrisa: "Actitud", uniforme: "Uniforme", despedida: "Despedida", venta_sug: "Venta sugerida" } },
-  preparacion: { label: "Preparaciones", emoji: "🧋", criterios: { receta: "Receta", tiempo: "Tiempo", temperatura: "Temperatura", presentacion: "Presentación" } },
-  caja:        { label: "Caja", emoji: "💰", criterios: { cambio: "Cambio", ticket: "Ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" } },
-};
 const MESES_KPI = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
 function HostKpiInline({ miKpiMes, miLimpieza, onVerDetalle }: { miKpiMes: any; miLimpieza: any[]; onVerDetalle: () => void }) {
