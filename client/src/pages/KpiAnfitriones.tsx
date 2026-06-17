@@ -278,6 +278,10 @@ export default function KpiAnfitriones() {
   const [notas, setNotas] = useState("");
 
   const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
+
+  const isHost = user?.role === "host";
+  const canEdit = ["owner", "superadmin", "manager", "leader"].includes(user?.role ?? "");
+
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId }
@@ -337,9 +341,6 @@ export default function KpiAnfitriones() {
     },
     onError: (e) => toast.error(e.message),
   });
-
-  const isHost = user?.role === "host";
-  const canEdit = ["owner", "superadmin", "manager", "leader"].includes(user?.role ?? "");
 
   // Para anfitriones: obtener su propio registro de empleado
   const { data: miEmpleado } = trpc.empleados.miEmpleado.useQuery(
