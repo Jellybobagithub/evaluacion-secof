@@ -91,6 +91,13 @@ export default function MiTurno() {
     { enabled: !!sucursalId }
   );
 
+  // KPIs propios del mes (para anfitriones)
+  const isHost = ['host'].includes(user?.role ?? '');
+  const { data: miKpiMes } = trpc.miKpi.resumen.useQuery(
+    { mes },
+    { enabled: isHost }
+  );
+
   // Última evaluación SECOF
   const { data: evaluaciones = [] } = trpc.evaluaciones.list.useQuery(
     { sucursalId: sucursalId ?? undefined },
@@ -287,7 +294,7 @@ export default function MiTurno() {
       sublabel: kpiSemana != null ? `Esta semana: ${kpiSemana}%` : "Ver mis evaluaciones",
       color: "text-yellow-600",
       bg: "bg-yellow-50 border-yellow-200",
-      path: "/kpi-anfitriones",
+      path: "/mi-kpi",
       done: false,
       minRole: 'host',
     },
@@ -764,6 +771,72 @@ export default function MiTurno() {
           ))}
         </div>
       </div>
+
+      {/* Mis evaluaciones del mes — solo para anfitriones */}
+      {isHost && miKpiMes && (() => {
+        const kd = miKpiMes as any;
+        const obs = kd.observaciones ?? {};
+        const mesReal = kd.mes ?? mes;
+        const [y, m2] = mesReal.split('-').map(Number);
+        const MESES = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+        const mesLabel = `${MESES[m2]} ${y}`;
+        const TIPO_CONFIG: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
+          servicio:    { label: "Servicio", emoji: "🛎️", criterios: { saludo: "Saludo", sonrisa: "Actitud", uniforme: "Uniforme", despedida: "Despedida", venta_sug: "Venta sugerida" }},
+          preparacion: { label: "Preparaciones", emoji: "🧋", criterios: { receta: "Receta", tiempo: "Tiempo", temperatura: "Temperatura", presentacion: "Presentación" }},
+          caja:        { label: "Caja", emoji: "💰", criterios: { cambio: "Cambio", ticket: "Ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" }},
+        };
+        const criteriosFallo = kd.criteriosFallo ?? {};
+        const areasMejora: { tipo: string; key: string; label: string; pct: number }[] = [];
+        for (const [tipo, criterios] of Object.entries(criteriosFallo as Record<string, Record<string, { fallos: number; total: number }>>)) {
+          for (const [k, v] of Object.entries(criterios)) {
+            if (v.fallos > 0 && v.total > 0) areasMejora.push({ tipo, key: k, label: TIPO_CONFIG[tipo]?.criterios[k] ?? k, pct: Math.round(v.fallos/v.total*100) });
+          }
+        }
+        areasMejora.sort((a, b) => b.pct - a.pct);
+        const tiposEval = (["servicio","preparacion","caja"] as const).filter(t => obs[t]);
+        if (tiposEval.length === 0) return null;
+        return (
+          <div className="px-4 pb-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Mis evaluaciones — {mesLabel}</p>
+            <div className="space-y-2">
+              {/* Scores por tipo */}
+              <div className={`grid gap-2 ${tiposEval.length === 1 ? 'grid-cols-1' : tiposEval.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                {tiposEval.map(tipo => {
+                  const o = obs[tipo];
+                  const col = o.score >= 85 ? 'text-green-400 bg-green-500/15 border-green-500/30' : o.score >= 60 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30' : 'text-red-400 bg-red-500/15 border-red-500/30';
+                  return (
+                    <div key={tipo} className={`rounded-2xl p-3 border ${col}`}>
+                      <p className="text-lg">{TIPO_CONFIG[tipo].emoji}</p>
+                      <p className="text-xl font-bold mt-1">{o.score.toFixed(0)}%</p>
+                      <p className="text-xs opacity-70 mt-0.5">{TIPO_CONFIG[tipo].label}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Áreas de mejora */}
+              {areasMejora.length > 0 && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3">
+                  <p className="text-xs font-semibold text-amber-400 mb-2">⚠ Áreas a mejorar</p>
+                  <div className="space-y-1">
+                    {areasMejora.slice(0, 3).map(a => (
+                      <div key={`${a.tipo}-${a.key}`} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-300">{TIPO_CONFIG[a.tipo]?.emoji} {a.label}</span>
+                        <span className="text-red-400 font-medium">{a.pct}% fallo</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Link a detalle completo */}
+              <button onClick={() => navigate('/mi-kpi')}
+                className="w-full flex items-center justify-between bg-white/10 hover:bg-white/15 rounded-2xl px-4 py-2.5 transition-all">
+                <span className="text-xs text-slate-300">Ver detalle completo</span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* KPIs del mes (Nivel 2) */}
       <div className="px-4 pb-4">

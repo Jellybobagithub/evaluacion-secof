@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { BarChart2, Plus, Star, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Clock, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
+import { BarChart2, Plus, Star, CheckCircle2, XCircle, ChevronLeft, ChevronRight, Clock, DollarSign, TrendingUp, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Obtener semana ISO (ej: "2026-W13")
@@ -67,6 +67,12 @@ const CRITERIOS_CAJA = [
   { id: "descuadre", label: "Sin descuadres de caja al cierre (≤$20 tolerancia)" },
 ];
 
+const TIPO_LABELS: Record<string, { label: string; emoji: string; criterios: Record<string, string> }> = {
+  servicio:    { label: "Servicio", emoji: "🛎️", criterios: { saludo: "Saluda al cliente", sonrisa: "Actitud y sonrisa", uniforme: "Uniforme correcto", despedida: "Despedida cordial", venta_sug: "Venta sugerida" }},
+  preparacion: { label: "Preparaciones", emoji: "🧋", criterios: { receta: "Siguió la receta", tiempo: "Tiempo de preparación", temperatura: "Entrega la bebida en su punto", presentacion: "Presentación del producto" }},
+  caja:        { label: "Caja", emoji: "💰", criterios: { cambio: "Cambio correcto", ticket: "Entregó ticket", descuadre: "Sin descuadre", cobro_correcto: "Cobro correcto" }},
+};
+
 const TIPO_CONFIG: Record<string, { label: string; criterios: typeof CRITERIOS_SERVICIO; color: string; icon: string }> = {
   servicio: { label: "Calidad de Servicio", criterios: CRITERIOS_SERVICIO, color: "bg-blue-100 text-blue-800", icon: "⭐" },
   preparacion: { label: "Precisión en Preparación", criterios: CRITERIOS_PREPARACION, color: "bg-green-100 text-green-800", icon: "🧋" },
@@ -84,6 +90,8 @@ export default function KpiAnfitriones() {
   const [notas, setNotas] = useState("");
 
   const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
+  const [expandidoEmp, setExpandidoEmp] = useState<Record<number, boolean>>({});
+  const [expandidoTipo, setExpandidoTipo] = useState<Record<string, boolean>>({});
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId }
@@ -119,6 +127,12 @@ export default function KpiAnfitriones() {
   const { data: descuadres = [] } = trpc.kpiLider.descuadresCaja.useQuery(
     { sucursalId: sucursalId ?? 0, fechaInicio: mesInicioStr, fechaFin: mesFinStr },
     { enabled: !!sucursalId }
+  );
+
+  // Resultados mensuales por criterio (solo líderes)
+  const { data: resultadosMes = [] } = trpc.reporteMensual.fallosPorEmpleado.useQuery(
+    { sucursalId: sucursalId ?? 0, mes },
+    { enabled: !!sucursalId && canEdit }
   );
 
   const registrarMut = trpc.kpiAnfitriones.registrar.useMutation({
@@ -244,10 +258,11 @@ export default function KpiAnfitriones() {
       {sucursalId && (!isHost || miEmpleado) && (
         <>
           <Tabs defaultValue="servicio">
-            <TabsList className="grid grid-cols-3 w-full max-w-md">
+            <TabsList className={`grid w-full max-w-xl ${canEdit ? 'grid-cols-4' : 'grid-cols-3'}`}>
               <TabsTrigger value="servicio">⭐ Servicio</TabsTrigger>
               <TabsTrigger value="puntualidad">🕐 Puntualidad</TabsTrigger>
               <TabsTrigger value="caja">💰 Caja</TabsTrigger>
+              {canEdit && <TabsTrigger value="resultados">📊 Resultados</TabsTrigger>}
             </TabsList>
 
           <TabsContent value="servicio" className="mt-4 space-y-4">
@@ -487,6 +502,113 @@ export default function KpiAnfitriones() {
               </div>
             )}
           </TabsContent>
+
+          {/* Tab Resultados por criterio — solo líderes */}
+          {canEdit && (
+          <TabsContent value="resultados" className="mt-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium">Mes:</label>
+              <input type="month" value={mes} onChange={e => setMes(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
+            </div>
+            {(resultadosMes as any[]).length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">Sin evaluaciones este mes</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(resultadosMes as any[]).map((emp: any) => {
+                  const totalFallos = Object.values(emp.tipos).reduce((s: number, t: any) => s + t.fallos, 0) as number;
+                  const isOpen = expandidoEmp[emp.empleadoId] ?? false;
+                  return (
+                    <Card key={emp.empleadoId} className={`border ${totalFallos > 0 ? 'border-red-200' : 'border-green-200'}`}>
+                      <button className="w-full text-left" onClick={() => setExpandidoEmp(p => ({ ...p, [emp.empleadoId]: !p[emp.empleadoId] }))}>
+                        <CardContent className="py-3 px-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0">
+                                {emp.nombre.charAt(0)}
+                              </div>
+                              <p className="font-medium text-sm">{emp.nombre}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {totalFallos > 0
+                                ? <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">{totalFallos} fallo{totalFallos !== 1 ? 's' : ''}</span>
+                                : <span className="text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded">✓ Sin fallos</span>
+                              }
+                              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                            </div>
+                          </div>
+                          {/* Mini scores */}
+                          {!isOpen && (
+                            <div className="flex gap-2 mt-2 flex-wrap">
+                              {(["servicio","preparacion","caja"] as const).map(tipo => {
+                                const t = emp.tipos[tipo];
+                                if (!t) return null;
+                                const col = t.score >= 85 ? 'text-green-700 bg-green-50 border-green-200' : t.score >= 60 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-red-700 bg-red-50 border-red-200';
+                                return <span key={tipo} className={`text-xs px-2 py-0.5 rounded border ${col}`}>{TIPO_LABELS[tipo].emoji} {t.score.toFixed(0)}%</span>;
+                              })}
+                            </div>
+                          )}
+                        </CardContent>
+                      </button>
+                      {isOpen && (
+                        <div className="border-t px-4 pb-4 pt-2 space-y-2">
+                          {(["servicio","preparacion","caja"] as const).map(tipo => {
+                            const t = emp.tipos[tipo];
+                            if (!t) return null;
+                            const cfg = TIPO_LABELS[tipo];
+                            const tKey = `${emp.empleadoId}-${tipo}`;
+                            const tipoOpen = expandidoTipo[tKey] ?? (t.fallos > 0);
+                            const criteriosConFallo = Object.entries(t.criterios as Record<string, { fallos: number; total: number }>)
+                              .filter(([, v]) => v.fallos > 0).sort(([, a], [, b]) => b.fallos - a.fallos);
+                            return (
+                              <div key={tipo} className={`rounded-lg border overflow-hidden ${t.fallos > 0 ? 'border-red-200' : 'border-green-200'}`}>
+                                <button className={`w-full flex items-center justify-between px-3 py-2 ${t.fallos > 0 ? 'bg-red-50' : 'bg-green-50'}`}
+                                  onClick={() => setExpandidoTipo(p => ({ ...p, [tKey]: !p[tKey] }))}>
+                                  <span className="text-sm font-medium">{cfg.emoji} {cfg.label}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${t.score >= 85 ? 'text-green-700' : t.score >= 60 ? 'text-amber-700' : 'text-red-700'}`}>{t.score.toFixed(0)}%</span>
+                                    <span className="text-xs text-muted-foreground">{t.fallos}/{t.total}</span>
+                                    {tipoOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                                  </div>
+                                </button>
+                                {tipoOpen && (
+                                  <div className="px-3 py-2 bg-white space-y-1.5">
+                                    {criteriosConFallo.map(([k, v]) => (
+                                      <div key={k} className="flex items-center justify-between text-xs">
+                                        <span className="text-red-700">⚠ {cfg.criterios[k] ?? k}</span>
+                                        <span className="font-medium text-red-600 shrink-0 ml-2">{v.fallos}/{v.total} ({Math.round(v.fallos/v.total*100)}%)</span>
+                                      </div>
+                                    ))}
+                                    {Object.entries(t.criterios as Record<string, { fallos: number; total: number }>)
+                                      .filter(([, v]) => v.fallos === 0).map(([k, v]) => (
+                                      <div key={k} className="flex items-center justify-between text-xs text-muted-foreground">
+                                        <span>✓ {cfg.criterios[k] ?? k}</span>
+                                        <span>{v.total} eval.</span>
+                                      </div>
+                                    ))}
+                                    {t.notasFallos?.length > 0 && (
+                                      <div className="pt-1 border-t space-y-1">
+                                        {t.notasFallos.map((n: string, i: number) => (
+                                          <p key={i} className="text-xs text-muted-foreground italic">"{n}"</p>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+          )}
 
           </Tabs>
         </>
