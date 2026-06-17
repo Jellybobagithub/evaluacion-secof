@@ -316,11 +316,11 @@ export default function MiTurno() {
   }, [mes]);
   const { data: cumplimientoMes } = trpc.kpiLider.cumplimientoReportes.useQuery(
     { sucursalId: sucursalId ?? 0, fechaInicio: mesInicio, fechaFin: mesFin },
-    { enabled: !!sucursalId }
+    { enabled: !!sucursalId && !isHost }
   );
   const { data: mermasMes } = trpc.kpiLider.mermas.useQuery(
     { sucursalId: sucursalId ?? 0, fechaInicio: mesInicio, fechaFin: mesFin },
-    { enabled: !!sucursalId }
+    { enabled: !!sucursalId && !isHost }
   );
 
   // Queries de KPI del mes para anfitriones — van DESPUÉS de que mes esté declarado

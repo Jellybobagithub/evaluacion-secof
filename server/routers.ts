@@ -1266,7 +1266,7 @@ export const appRouter = router({
 
         // Buscar empleadoId por userId
         const [[empRow]] = await db.execute(sql`
-          SELECT id, nombre, puesto FROM empleados WHERE userId=${ctx.user.id} LIMIT 1
+          SELECT id, nombre, rol as puesto FROM empleados WHERE userId=${ctx.user.id} LIMIT 1
         `) as any;
         if (!empRow) return null;
         const empleadoId = empRow.id;
