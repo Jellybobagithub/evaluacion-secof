@@ -79,6 +79,199 @@ const TIPO_CONFIG: Record<string, { label: string; criterios: typeof CRITERIOS_S
   caja: { label: "Manejo de Caja", criterios: CRITERIOS_CAJA, color: "bg-orange-100 text-orange-800", icon: "💰" },
 };
 
+// ─── Sub-componentes de tabs para evitar conflictos de variables en el bundle ──
+
+function LimpiezaTabContent({ data, mes, onMesChange }: { data: any[]; mes: string; onMesChange: (m: string) => void }) {
+  const [abierto, setAbierto] = useState<Record<number, boolean>>({});
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium">Mes:</label>
+        <input type="month" value={mes} onChange={e => onMesChange(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
+      </div>
+      {data.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Sin turnos cerrados este mes</p>
+          <p className="text-sm mt-1">Las actividades aparecen cuando se cierra el turno</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {data.map((emp: any) => {
+            const open = abierto[emp.empleadoId] ?? false;
+            const borderCls = emp.pct >= 90 ? 'border-green-200' : emp.pct >= 70 ? 'border-amber-200' : 'border-red-200';
+            const textCls = emp.pct >= 90 ? 'text-green-600' : emp.pct >= 70 ? 'text-amber-600' : 'text-red-600';
+            const bgCls = emp.pct >= 90 ? 'bg-green-50' : emp.pct >= 70 ? 'bg-amber-50' : 'bg-red-50';
+            const barCls = emp.pct >= 90 ? 'bg-green-500' : emp.pct >= 70 ? 'bg-amber-500' : 'bg-red-500';
+            const incompletos = emp.dias.filter((d: any) => d.completadas < d.total);
+            return (
+              <Card key={emp.empleadoId} className={`border ${borderCls}`}>
+                <button className="w-full text-left" onClick={() => setAbierto(p => ({ ...p, [emp.empleadoId]: !p[emp.empleadoId] }))}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${bgCls} ${textCls}`}>
+                          {emp.nombre.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{emp.nombre}</p>
+                          <p className="text-xs text-muted-foreground">{emp.diasCompletos}/{emp.diasCerrados} días completos</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-bold px-2 py-0.5 rounded border ${bgCls} ${textCls}`}>{emp.pct}%</span>
+                        {incompletos.length > 0 && (
+                          <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">{incompletos.length} día{incompletos.length !== 1 ? 's' : ''} incompleto{incompletos.length !== 1 ? 's' : ''}</span>
+                        )}
+                        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                    </div>
+                    <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${barCls}`} style={{ width: `${emp.pct}%` }} />
+                    </div>
+                  </CardContent>
+                </button>
+                {open && (
+                  <div className="border-t px-4 py-3 space-y-1.5">
+                    {emp.dias.map((d: any) => {
+                      const cumplido = d.completadas >= d.total;
+                      return (
+                        <div key={d.fecha} className={`flex items-center justify-between text-xs px-2 py-1.5 rounded-lg ${cumplido ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className="flex items-center gap-2">
+                            {cumplido ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                            <span className={cumplido ? 'text-green-700' : 'text-red-700'}>
+                              {new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            </span>
+                          </div>
+                          <span className={`font-medium ${cumplido ? 'text-green-700' : 'text-red-700'}`}>{d.completadas}/{d.total} tareas</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultadosTabContent({ data, mes, onMesChange }: { data: any[]; mes: string; onMesChange: (m: string) => void }) {
+  const [abiertoEmp, setAbiertoEmp] = useState<Record<number, boolean>>({});
+  const [abiertoTipo, setAbiertoTipo] = useState<Record<string, boolean>>({});
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium">Mes:</label>
+        <input type="month" value={mes} onChange={e => onMesChange(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
+      </div>
+      {data.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Sin evaluaciones este mes</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {data.map((emp: any) => {
+            const totalFallos = Object.values(emp.tipos).reduce((s: number, t: any) => s + t.fallos, 0) as number;
+            const empOpen = abiertoEmp[emp.empleadoId] ?? false;
+            const empBorderCls = totalFallos > 0 ? 'border-red-200' : 'border-green-200';
+            return (
+              <Card key={emp.empleadoId} className={`border ${empBorderCls}`}>
+                <button className="w-full text-left" onClick={() => setAbiertoEmp(p => ({ ...p, [emp.empleadoId]: !p[emp.empleadoId] }))}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0">
+                          {emp.nombre.charAt(0)}
+                        </div>
+                        <p className="font-medium text-sm">{emp.nombre}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {totalFallos > 0
+                          ? <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">{totalFallos} fallo{totalFallos !== 1 ? 's' : ''}</span>
+                          : <span className="text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded">✓ Sin fallos</span>
+                        }
+                        {empOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                    </div>
+                    {!empOpen && (
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {(["servicio","preparacion","caja"] as const).map(tipo => {
+                          const tipoData = emp.tipos[tipo];
+                          if (!tipoData) return null;
+                          const scoreCls = tipoData.score >= 85 ? 'text-green-700 bg-green-50 border-green-200' : tipoData.score >= 60 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-red-700 bg-red-50 border-red-200';
+                          return <span key={tipo} className={`text-xs px-2 py-0.5 rounded border ${scoreCls}`}>{TIPO_LABELS[tipo].emoji} {tipoData.score.toFixed(0)}%</span>;
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </button>
+                {empOpen && (
+                  <div className="border-t px-4 pb-4 pt-2 space-y-2">
+                    {(["servicio","preparacion","caja"] as const).map(tipo => {
+                      const tipoData = emp.tipos[tipo];
+                      if (!tipoData) return null;
+                      const cfg = TIPO_LABELS[tipo];
+                      const tKey = `${emp.empleadoId}-${tipo}`;
+                      const tipoOpen = abiertoTipo[tKey] ?? (tipoData.fallos > 0);
+                      const conFallo = Object.entries(tipoData.criterios as Record<string, { fallos: number; total: number }>)
+                        .filter(([, v]) => v.fallos > 0).sort(([, a], [, b]) => b.fallos - a.fallos);
+                      const sinFallo = Object.entries(tipoData.criterios as Record<string, { fallos: number; total: number }>)
+                        .filter(([, v]) => v.fallos === 0);
+                      const tipoBorderCls = tipoData.fallos > 0 ? 'border-red-200' : 'border-green-200';
+                      const tipoBgCls = tipoData.fallos > 0 ? 'bg-red-50' : 'bg-green-50';
+                      const tipoScoreCls = tipoData.score >= 85 ? 'text-green-700' : tipoData.score >= 60 ? 'text-amber-700' : 'text-red-700';
+                      return (
+                        <div key={tipo} className={`rounded-lg border overflow-hidden ${tipoBorderCls}`}>
+                          <button className={`w-full flex items-center justify-between px-3 py-2 ${tipoBgCls}`}
+                            onClick={() => setAbiertoTipo(p => ({ ...p, [tKey]: !p[tKey] }))}>
+                            <span className="text-sm font-medium">{cfg.emoji} {cfg.label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${tipoScoreCls}`}>{tipoData.score.toFixed(0)}%</span>
+                              <span className="text-xs text-muted-foreground">{tipoData.fallos}/{tipoData.total}</span>
+                              {tipoOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                            </div>
+                          </button>
+                          {tipoOpen && (
+                            <div className="px-3 py-2 bg-white space-y-1.5">
+                              {conFallo.map(([k, v]) => (
+                                <div key={k} className="flex items-center justify-between text-xs">
+                                  <span className="text-red-700">⚠ {cfg.criterios[k] ?? k}</span>
+                                  <span className="font-medium text-red-600 shrink-0 ml-2">{v.fallos}/{v.total} ({Math.round(v.fallos/v.total*100)}%)</span>
+                                </div>
+                              ))}
+                              {sinFallo.map(([k, v]) => (
+                                <div key={k} className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>✓ {cfg.criterios[k] ?? k}</span>
+                                  <span>{v.total} eval.</span>
+                                </div>
+                              ))}
+                              {tipoData.notasFallos?.length > 0 && (
+                                <div className="pt-1 border-t space-y-1">
+                                  {tipoData.notasFallos.map((n: string, i: number) => (
+                                    <p key={i} className="text-xs text-muted-foreground italic">"{n}"</p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function KpiAnfitriones() {
   const { user } = useAuth();
   const { sucursalId } = useSucursal();
@@ -90,8 +283,6 @@ export default function KpiAnfitriones() {
   const [notas, setNotas] = useState("");
 
   const [mes, setMes] = useState(() => new Date().toISOString().slice(0, 7));
-  const [expandidoEmp, setExpandidoEmp] = useState<Record<number, boolean>>({});
-  const [expandidoTipo, setExpandidoTipo] = useState<Record<string, boolean>>({});
   const { data: empleados = [] } = trpc.empleados.list.useQuery(
     { sucursalId: sucursalId ?? 0 },
     { enabled: !!sucursalId }
@@ -510,187 +701,15 @@ export default function KpiAnfitriones() {
             )}
           </TabsContent>
 
-          {/* Tab Limpieza — cumplimiento de actividades diarias */}
-          <TabsContent value="limpieza" className="mt-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium">Mes:</label>
-              <input type="month" value={mes} onChange={e => setMes(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
-            </div>
-            {(cumplimientoLimpieza as any[]).length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Sin turnos cerrados este mes</p>
-                <p className="text-sm mt-1">Las actividades aparecen cuando se cierra el turno</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {(cumplimientoLimpieza as any[]).map((emp: any) => {
-                  const isOpen = expandidoEmp[emp.empleadoId] ?? false;
-                  const col = emp.pct >= 90 ? 'border-green-200' : emp.pct >= 70 ? 'border-amber-200' : 'border-red-200';
-                  const colText = emp.pct >= 90 ? 'text-green-600' : emp.pct >= 70 ? 'text-amber-600' : 'text-red-600';
-                  const colBg = emp.pct >= 90 ? 'bg-green-50' : emp.pct >= 70 ? 'bg-amber-50' : 'bg-red-50';
-                  const diasIncompletos = emp.dias.filter((d: any) => d.completadas < d.total);
-                  return (
-                    <Card key={emp.empleadoId} className={`border ${col}`}>
-                      <button className="w-full text-left" onClick={() => setExpandidoEmp(p => ({ ...p, [emp.empleadoId]: !p[emp.empleadoId] }))}>
-                        <CardContent className="py-3 px-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${colBg} ${colText}`}>
-                                {emp.nombre.charAt(0)}
-                              </div>
-                              <div>
-                                <p className="font-medium text-sm">{emp.nombre}</p>
-                                <p className="text-xs text-muted-foreground">{emp.diasCompletos}/{emp.diasCerrados} días completos</p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-sm font-bold px-2 py-0.5 rounded border ${colBg} ${colText} border-current/20`}>{emp.pct}%</span>
-                              {diasIncompletos.length > 0 && (
-                                <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">{diasIncompletos.length} día{diasIncompletos.length !== 1 ? 's' : ''} incompleto{diasIncompletos.length !== 1 ? 's' : ''}</span>
-                              )}
-                              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                            </div>
-                          </div>
-                          <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full ${emp.pct >= 90 ? 'bg-green-500' : emp.pct >= 70 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${emp.pct}%` }} />
-                          </div>
-                        </CardContent>
-                      </button>
-                      {isOpen && (
-                        <div className="border-t px-4 py-3">
-                          <div className="space-y-1.5">
-                            {emp.dias.map((d: any) => {
-                              const ok = d.completadas >= d.total;
-                              const [, , dd] = d.fecha.split('-');
-                              return (
-                                <div key={d.fecha} className={`flex items-center justify-between text-xs px-2 py-1.5 rounded-lg ${ok ? 'bg-green-50' : 'bg-red-50'}`}>
-                                  <div className="flex items-center gap-2">
-                                    {ok ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />}
-                                    <span className={ok ? 'text-green-700' : 'text-red-700'}>
-                                      {new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })}
-                                    </span>
-                                  </div>
-                                  <span className={`font-medium ${ok ? 'text-green-700' : 'text-red-700'}`}>
-                                    {d.completadas}/{d.total} tareas
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
+          {/* Tab Limpieza */}
+          <TabsContent value="limpieza" className="mt-4">
+            <LimpiezaTabContent data={cumplimientoLimpieza as any[]} mes={mes} onMesChange={setMes} />
           </TabsContent>
 
-          {/* Tab Resultados por criterio — solo líderes */}
+          {/* Tab Resultados — solo líderes */}
           {canEdit && (
-          <TabsContent value="resultados" className="mt-4 space-y-4">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium">Mes:</label>
-              <input type="month" value={mes} onChange={e => setMes(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
-            </div>
-            {(resultadosMes as any[]).length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Sin evaluaciones este mes</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {(resultadosMes as any[]).map((emp: any) => {
-                  const totalFallos = Object.values(emp.tipos).reduce((s: number, t: any) => s + t.fallos, 0) as number;
-                  const isOpen = expandidoEmp[emp.empleadoId] ?? false;
-                  return (
-                    <Card key={emp.empleadoId} className={`border ${totalFallos > 0 ? 'border-red-200' : 'border-green-200'}`}>
-                      <button className="w-full text-left" onClick={() => setExpandidoEmp(p => ({ ...p, [emp.empleadoId]: !p[emp.empleadoId] }))}>
-                        <CardContent className="py-3 px-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-sm shrink-0">
-                                {emp.nombre.charAt(0)}
-                              </div>
-                              <p className="font-medium text-sm">{emp.nombre}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {totalFallos > 0
-                                ? <span className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">{totalFallos} fallo{totalFallos !== 1 ? 's' : ''}</span>
-                                : <span className="text-xs font-medium text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded">✓ Sin fallos</span>
-                              }
-                              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                            </div>
-                          </div>
-                          {/* Mini scores */}
-                          {!isOpen && (
-                            <div className="flex gap-2 mt-2 flex-wrap">
-                              {(["servicio","preparacion","caja"] as const).map(tipo => {
-                                const t = emp.tipos[tipo];
-                                if (!t) return null;
-                                const col = t.score >= 85 ? 'text-green-700 bg-green-50 border-green-200' : t.score >= 60 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-red-700 bg-red-50 border-red-200';
-                                return <span key={tipo} className={`text-xs px-2 py-0.5 rounded border ${col}`}>{TIPO_LABELS[tipo].emoji} {t.score.toFixed(0)}%</span>;
-                              })}
-                            </div>
-                          )}
-                        </CardContent>
-                      </button>
-                      {isOpen && (
-                        <div className="border-t px-4 pb-4 pt-2 space-y-2">
-                          {(["servicio","preparacion","caja"] as const).map(tipo => {
-                            const t = emp.tipos[tipo];
-                            if (!t) return null;
-                            const cfg = TIPO_LABELS[tipo];
-                            const tKey = `${emp.empleadoId}-${tipo}`;
-                            const tipoOpen = expandidoTipo[tKey] ?? (t.fallos > 0);
-                            const criteriosConFallo = Object.entries(t.criterios as Record<string, { fallos: number; total: number }>)
-                              .filter(([, v]) => v.fallos > 0).sort(([, a], [, b]) => b.fallos - a.fallos);
-                            return (
-                              <div key={tipo} className={`rounded-lg border overflow-hidden ${t.fallos > 0 ? 'border-red-200' : 'border-green-200'}`}>
-                                <button className={`w-full flex items-center justify-between px-3 py-2 ${t.fallos > 0 ? 'bg-red-50' : 'bg-green-50'}`}
-                                  onClick={() => setExpandidoTipo(p => ({ ...p, [tKey]: !p[tKey] }))}>
-                                  <span className="text-sm font-medium">{cfg.emoji} {cfg.label}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${t.score >= 85 ? 'text-green-700' : t.score >= 60 ? 'text-amber-700' : 'text-red-700'}`}>{t.score.toFixed(0)}%</span>
-                                    <span className="text-xs text-muted-foreground">{t.fallos}/{t.total}</span>
-                                    {tipoOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                                  </div>
-                                </button>
-                                {tipoOpen && (
-                                  <div className="px-3 py-2 bg-white space-y-1.5">
-                                    {criteriosConFallo.map(([k, v]) => (
-                                      <div key={k} className="flex items-center justify-between text-xs">
-                                        <span className="text-red-700">⚠ {cfg.criterios[k] ?? k}</span>
-                                        <span className="font-medium text-red-600 shrink-0 ml-2">{v.fallos}/{v.total} ({Math.round(v.fallos/v.total*100)}%)</span>
-                                      </div>
-                                    ))}
-                                    {Object.entries(t.criterios as Record<string, { fallos: number; total: number }>)
-                                      .filter(([, v]) => v.fallos === 0).map(([k, v]) => (
-                                      <div key={k} className="flex items-center justify-between text-xs text-muted-foreground">
-                                        <span>✓ {cfg.criterios[k] ?? k}</span>
-                                        <span>{v.total} eval.</span>
-                                      </div>
-                                    ))}
-                                    {t.notasFallos?.length > 0 && (
-                                      <div className="pt-1 border-t space-y-1">
-                                        {t.notasFallos.map((n: string, i: number) => (
-                                          <p key={i} className="text-xs text-muted-foreground italic">"{n}"</p>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
+          <TabsContent value="resultados" className="mt-4">
+            <ResultadosTabContent data={resultadosMes as any[]} mes={mes} onMesChange={setMes} />
           </TabsContent>
           )}
 
