@@ -1160,6 +1160,71 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+
+    cumplimientoLimpieza: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), mes: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const { getDb } = await import('./db');
+        const { sql } = await import('drizzle-orm');
+        const db = await getDb();
+        if (!db) return [];
+        const isLeader = ['superadmin','owner','manager','leader'].includes(ctx.user.role);
+
+        // Para anfitriones, limitar a su propio empleadoId
+        let empleadoIdFilter = '';
+        if (!isLeader) {
+          const [[emp]] = await db.execute(sql`
+            SELECT id FROM empleados WHERE userId=${ctx.user.id} LIMIT 1
+          `) as any;
+          if (!emp) return [];
+          empleadoIdFilter = `AND ts.empleadoId = ${emp.id}`;
+        }
+
+        const mesInicio = `${input.mes}-01`;
+        const [y, m] = input.mes.split('-').map(Number);
+        const mesFin = new Date(y, m, 0).toISOString().slice(0, 10);
+
+        const [rows] = await db.execute(sql`
+          SELECT
+            ts.empleadoId,
+            e.nombre, e.apellido,
+            DATE_FORMAT(ts.fecha,'%Y-%m-%d') as fecha,
+            COUNT(ta.id) as total,
+            SUM(ta.completada) as completadas
+          FROM turnos_semana ts
+          JOIN turno_actividades ta ON ta.turnoId = ts.id
+          JOIN actividades_catalogo ac ON ac.clave = ta.actividadClave
+          JOIN empleados e ON e.id = ts.empleadoId
+          WHERE ts.sucursalId = ${input.sucursalId}
+            AND ts.fecha BETWEEN ${mesInicio} AND ${mesFin}
+            AND ts.cerrado = 1
+            AND ac.categoria = 'D'
+            AND ta.esPendiente = 0
+          GROUP BY ts.empleadoId, ts.fecha, e.nombre, e.apellido
+          ORDER BY ts.fecha ASC
+        `) as any;
+
+        // Agrupar por empleado
+        const empMap: Record<number, { empleadoId: number; nombre: string; diasCerrados: number; diasCompletos: number; pct: number; dias: { fecha: string; total: number; completadas: number; pct: number }[] }> = {};
+        for (const r of rows as any[]) {
+          const id = r.empleadoId;
+          if (!empMap[id]) empMap[id] = {
+            empleadoId: id,
+            nombre: `${r.nombre} ${r.apellido ?? ''}`.trim(),
+            diasCerrados: 0, diasCompletos: 0, pct: 0, dias: [],
+          };
+          const total = Number(r.total);
+          const comp = Number(r.completadas ?? 0);
+          const pct = total > 0 ? Math.round(comp / total * 100) : 100;
+          empMap[id].dias.push({ fecha: r.fecha, total, completadas: comp, pct });
+          empMap[id].diasCerrados++;
+          if (comp >= total) empMap[id].diasCompletos++;
+        }
+        return Object.values(empMap).map(e => ({
+          ...e,
+          pct: e.diasCerrados > 0 ? Math.round(e.diasCompletos / e.diasCerrados * 100) : 100,
+        }));
+      }),
   }),
 
   // --- Mi KPI (vista empleado de sus propios KPIs) ---

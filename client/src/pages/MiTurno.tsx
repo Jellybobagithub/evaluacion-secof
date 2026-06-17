@@ -97,6 +97,10 @@ export default function MiTurno() {
     { mes },
     { enabled: isHost }
   );
+  const { data: miLimpieza = [] } = trpc.kpiAnfitriones.cumplimientoLimpieza.useQuery(
+    { sucursalId: sucursalId ?? 0, mes },
+    { enabled: isHost && !!sucursalId }
+  );
 
   // Última evaluación SECOF
   const { data: evaluaciones = [] } = trpc.evaluaciones.list.useQuery(
@@ -827,6 +831,28 @@ export default function MiTurno() {
                   </div>
                 </div>
               )}
+              {/* Limpieza del mes */}
+              {(() => {
+                const miEmp = (miLimpieza as any[])[0];
+                if (!miEmp) return null;
+                const diasInc = miEmp.dias.filter((d: any) => d.completadas < d.total);
+                const col = miEmp.pct >= 90 ? 'text-green-400 bg-green-500/15 border-green-500/30'
+                  : miEmp.pct >= 70 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30'
+                  : 'text-red-400 bg-red-500/15 border-red-500/30';
+                return (
+                  <div className={`rounded-2xl p-3 border ${col}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs opacity-70">🧹 Limpieza del mes</span>
+                      <span className="text-lg font-bold">{miEmp.pct}%</span>
+                    </div>
+                    <p className="text-xs opacity-70">{miEmp.diasCompletos}/{miEmp.diasCerrados} días completos</p>
+                    {diasInc.length > 0 && (
+                      <p className="text-xs text-red-400 mt-1">⚠ {diasInc.length} día{diasInc.length !== 1 ? 's' : ''} con tareas pendientes</p>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Link a detalle completo */}
               <button onClick={() => navigate('/mi-kpi')}
                 className="w-full flex items-center justify-between bg-white/10 hover:bg-white/15 rounded-2xl px-4 py-2.5 transition-all">

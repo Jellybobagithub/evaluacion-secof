@@ -129,6 +129,12 @@ export default function KpiAnfitriones() {
     { enabled: !!sucursalId }
   );
 
+  // Cumplimiento de limpieza diaria
+  const { data: cumplimientoLimpieza = [] } = trpc.kpiAnfitriones.cumplimientoLimpieza.useQuery(
+    { sucursalId: sucursalId ?? 0, mes },
+    { enabled: !!sucursalId }
+  );
+
   // Resultados mensuales por criterio (solo líderes)
   const { data: resultadosMes = [] } = trpc.reporteMensual.fallosPorEmpleado.useQuery(
     { sucursalId: sucursalId ?? 0, mes },
@@ -258,10 +264,11 @@ export default function KpiAnfitriones() {
       {sucursalId && (!isHost || miEmpleado) && (
         <>
           <Tabs defaultValue="servicio">
-            <TabsList className={`grid w-full max-w-xl ${canEdit ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <TabsList className={`grid w-full max-w-2xl ${canEdit ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger value="servicio">⭐ Servicio</TabsTrigger>
               <TabsTrigger value="puntualidad">🕐 Puntualidad</TabsTrigger>
               <TabsTrigger value="caja">💰 Caja</TabsTrigger>
+              <TabsTrigger value="limpieza">🧹 Limpieza</TabsTrigger>
               {canEdit && <TabsTrigger value="resultados">📊 Resultados</TabsTrigger>}
             </TabsList>
 
@@ -499,6 +506,83 @@ export default function KpiAnfitriones() {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Tab Limpieza — cumplimiento de actividades diarias */}
+          <TabsContent value="limpieza" className="mt-4 space-y-4">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium">Mes:</label>
+              <input type="month" value={mes} onChange={e => setMes(e.target.value)} className="border rounded-md px-3 py-1.5 text-sm" />
+            </div>
+            {(cumplimientoLimpieza as any[]).length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <TrendingUp className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">Sin turnos cerrados este mes</p>
+                <p className="text-sm mt-1">Las actividades aparecen cuando se cierra el turno</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(cumplimientoLimpieza as any[]).map((emp: any) => {
+                  const isOpen = expandidoEmp[emp.empleadoId] ?? false;
+                  const col = emp.pct >= 90 ? 'border-green-200' : emp.pct >= 70 ? 'border-amber-200' : 'border-red-200';
+                  const colText = emp.pct >= 90 ? 'text-green-600' : emp.pct >= 70 ? 'text-amber-600' : 'text-red-600';
+                  const colBg = emp.pct >= 90 ? 'bg-green-50' : emp.pct >= 70 ? 'bg-amber-50' : 'bg-red-50';
+                  const diasIncompletos = emp.dias.filter((d: any) => d.completadas < d.total);
+                  return (
+                    <Card key={emp.empleadoId} className={`border ${col}`}>
+                      <button className="w-full text-left" onClick={() => setExpandidoEmp(p => ({ ...p, [emp.empleadoId]: !p[emp.empleadoId] }))}>
+                        <CardContent className="py-3 px-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${colBg} ${colText}`}>
+                                {emp.nombre.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">{emp.nombre}</p>
+                                <p className="text-xs text-muted-foreground">{emp.diasCompletos}/{emp.diasCerrados} días completos</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-bold px-2 py-0.5 rounded border ${colBg} ${colText} border-current/20`}>{emp.pct}%</span>
+                              {diasIncompletos.length > 0 && (
+                                <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded">{diasIncompletos.length} día{diasIncompletos.length !== 1 ? 's' : ''} incompleto{diasIncompletos.length !== 1 ? 's' : ''}</span>
+                              )}
+                              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                            </div>
+                          </div>
+                          <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${emp.pct >= 90 ? 'bg-green-500' : emp.pct >= 70 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${emp.pct}%` }} />
+                          </div>
+                        </CardContent>
+                      </button>
+                      {isOpen && (
+                        <div className="border-t px-4 py-3">
+                          <div className="space-y-1.5">
+                            {emp.dias.map((d: any) => {
+                              const ok = d.completadas >= d.total;
+                              const [, , dd] = d.fecha.split('-');
+                              return (
+                                <div key={d.fecha} className={`flex items-center justify-between text-xs px-2 py-1.5 rounded-lg ${ok ? 'bg-green-50' : 'bg-red-50'}`}>
+                                  <div className="flex items-center gap-2">
+                                    {ok ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <XCircle className="w-3.5 h-3.5 text-red-500" />}
+                                    <span className={ok ? 'text-green-700' : 'text-red-700'}>
+                                      {new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                    </span>
+                                  </div>
+                                  <span className={`font-medium ${ok ? 'text-green-700' : 'text-red-700'}`}>
+                                    {d.completadas}/{d.total} tareas
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
