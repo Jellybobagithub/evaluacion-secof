@@ -259,8 +259,19 @@ function ImpersonationBanner() {
       <button
         className="underline font-semibold"
         onClick={async () => {
+          const adminId = localStorage.getItem("secof_admin_id");
           localStorage.removeItem("secof_impersonating");
-          await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+          localStorage.removeItem("secof_admin_id");
+          if (adminId) {
+            await fetch("/api/auth/stop-impersonate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ adminId: Number(adminId) }),
+              credentials: "include",
+            }).catch(() => {});
+          } else {
+            await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+          }
           window.location.href = "/";
         }}
       >

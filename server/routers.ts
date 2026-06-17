@@ -2281,33 +2281,51 @@ return { success: true, id };
         const fi = `${y}-${m}-01`;
         const ff = `${y}-${m}-${new Date(Number(y), Number(m), 0).getDate()}`;
 
+        // Totales por empleado+tipo
         const rows = await db.execute(sql`
-          SELECT
-            e.id as empleadoId, e.nombre,
-            o.tipo,
+          SELECT e.id as empleadoId, e.nombre, o.tipo,
             COUNT(*) as total,
             SUM(CASE WHEN o.cumple=0 THEN 1 ELSE 0 END) as fallos,
             ROUND(SUM(CASE WHEN o.cumple=1 THEN 100 ELSE 0 END)/COUNT(*),1) as score,
             GROUP_CONCAT(CASE WHEN o.cumple=0 THEN o.notas END ORDER BY o.createdAt SEPARATOR '||') as notasFallos
           FROM observaciones_kpi o
           JOIN empleados e ON e.id=o.empleadoId
-          WHERE o.sucursalId=${input.sucursalId}
-            AND DATE(o.createdAt) BETWEEN ${fi} AND ${ff}
+          WHERE o.sucursalId=${input.sucursalId} AND DATE(o.createdAt) BETWEEN ${fi} AND ${ff}
           GROUP BY e.id, e.nombre, o.tipo
           ORDER BY e.nombre, fallos DESC
         `) as any;
 
-        // Group by employee
+        // Detalle por criterio (JSON detalle)
+        const detRows = await db.execute(sql`
+          SELECT e.id as empleadoId, o.tipo, o.detalle, o.cumple
+          FROM observaciones_kpi o
+          JOIN empleados e ON e.id=o.empleadoId
+          WHERE o.sucursalId=${input.sucursalId} AND DATE(o.createdAt) BETWEEN ${fi} AND ${ff}
+        `) as any;
+
+        // Acumular fallos por criterio
+        const criterioMap: Record<number, Record<string, Record<string, { fallos: number; total: number }>>> = {};
+        for (const r of (detRows[0] as any[])) {
+          const empId = r.empleadoId as number;
+          const tipo = r.tipo as string;
+          if (!criterioMap[empId]) criterioMap[empId] = {};
+          if (!criterioMap[empId][tipo]) criterioMap[empId][tipo] = {};
+          let det: Record<string, boolean> = {};
+          try { det = typeof r.detalle === 'string' ? JSON.parse(r.detalle) : r.detalle; } catch {}
+          for (const [k, v] of Object.entries(det)) {
+            if (!criterioMap[empId][tipo][k]) criterioMap[empId][tipo][k] = { fallos: 0, total: 0 };
+            criterioMap[empId][tipo][k].total++;
+            if (!v) criterioMap[empId][tipo][k].fallos++;
+          }
+        }
+
         const map: Record<number, any> = {};
         for (const r of (rows[0] as any[])) {
-          if (!map[r.empleadoId]) {
-            map[r.empleadoId] = { empleadoId: r.empleadoId, nombre: r.nombre, tipos: {} };
-          }
+          if (!map[r.empleadoId]) map[r.empleadoId] = { empleadoId: r.empleadoId, nombre: r.nombre, tipos: {} };
           map[r.empleadoId].tipos[r.tipo] = {
-            total: Number(r.total),
-            fallos: Number(r.fallos),
-            score: Number(r.score),
+            total: Number(r.total), fallos: Number(r.fallos), score: Number(r.score),
             notasFallos: r.notasFallos ? (r.notasFallos as string).split('||').filter(Boolean) : [],
+            criterios: criterioMap[r.empleadoId]?.[r.tipo] ?? {},
           };
         }
         return Object.values(map).sort((a: any, b: any) => {

@@ -349,6 +349,8 @@ export default function AdminUsuarios() {
                                 credentials: "include",
                               });
                               if (r.ok) {
+                                const data = await r.json();
+                                if (data.adminId) localStorage.setItem("secof_admin_id", String(data.adminId));
                                 window.location.href = "/";
                               } else {
                                 toast.error("No se pudo impersonar");

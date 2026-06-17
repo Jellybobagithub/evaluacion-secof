@@ -161,10 +161,36 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-      res.json({ success: true, name: targetUser.name, email: targetUser.email, role: targetUser.role });
+      res.json({ success: true, name: targetUser.name, email: targetUser.email, role: targetUser.role, adminId: callerUser.id });
     } catch (error) {
       console.error("[Impersonate] Error", error);
       res.status(500).json({ error: "Error al impersonar usuario" });
+    }
+  });
+
+  // ─── Stop impersonate: restore admin session ──────────────────────────────
+  app.post("/api/auth/stop-impersonate", async (req: Request, res: Response) => {
+    try {
+      const adminId = req.body?.adminId;
+      if (!adminId || typeof adminId !== "number") {
+        res.status(400).json({ error: "adminId requerido" });
+        return;
+      }
+      const adminUser = await db.getUserById(adminId);
+      if (!adminUser || adminUser.role !== "superadmin") {
+        res.status(403).json({ error: "El usuario original no es superadmin" });
+        return;
+      }
+      const sessionToken = await sdk.createSessionToken(adminUser.openId, {
+        name: adminUser.name || "",
+        expiresInMs: ONE_YEAR_MS,
+      });
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[StopImpersonate] Error", error);
+      res.status(500).json({ error: "Error al restaurar sesión" });
     }
   });
 
