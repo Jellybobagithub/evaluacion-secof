@@ -1201,7 +1201,7 @@ export const appRouter = router({
           ? Math.round((dias.filter((d: any) => !d.minutosRetardo || d.minutosRetardo <= 5).length / dias.length) * 100)
           : null;
 
-        // Observaciones del mes
+        // Observaciones del mes — score por tipo
         const obsRows = await db.execute(sql`
           SELECT tipo, COUNT(*) as total,
             ROUND(AVG(CASE WHEN cumple=1 THEN 100 ELSE 0 END), 1) as score
@@ -1212,11 +1212,35 @@ export const appRouter = router({
         const obs: Record<string, { total: number; score: number }> = {};
         for (const r of (obsRows[0] as any[])) obs[r.tipo] = { total: Number(r.total), score: Number(r.score) };
 
+        // Fallos por criterio — desglose del detalle JSON por tipo
+        const detRows = await db.execute(sql`
+          SELECT tipo, detalle, cumple, notas, DATE(createdAt) as fecha
+          FROM observaciones_kpi
+          WHERE empleadoId=${empleadoId} AND DATE(createdAt) BETWEEN ${fi} AND ${ff}
+          ORDER BY createdAt DESC
+        `) as any;
+        const criteriosFallo: Record<string, Record<string, { fallos: number; total: number }>> = {};
+        const notasMes: { tipo: string; notas: string; fecha: string }[] = [];
+        for (const r of (detRows[0] as any[])) {
+          const tipo = r.tipo as string;
+          if (!criteriosFallo[tipo]) criteriosFallo[tipo] = {};
+          let det: Record<string, boolean> = {};
+          try { det = typeof r.detalle === 'string' ? JSON.parse(r.detalle) : r.detalle; } catch {}
+          for (const [k, v] of Object.entries(det)) {
+            if (!criteriosFallo[tipo][k]) criteriosFallo[tipo][k] = { fallos: 0, total: 0 };
+            criteriosFallo[tipo][k].total++;
+            if (!v) criteriosFallo[tipo][k].fallos++;
+          }
+          if (r.notas) notasMes.push({ tipo, notas: r.notas, fecha: r.fecha });
+        }
+
         return {
           empleadoId, nombre: empRow.nombre, puesto: empRow.puesto, mes: mesStr,
           asistencia: { diasPresente, diasAusente, retardos: retardos.length, minRetardoTotal, puntualidadPct },
           detalleNomina: dias,
           observaciones: obs,
+          criteriosFallo,
+          notasMes,
         };
       }),
   }),
