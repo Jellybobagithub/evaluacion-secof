@@ -52,7 +52,9 @@ export default function MiKpi() {
     </div>
   );
 
-  const [y, m] = mes.split("-").map(Number);
+  // El backend puede devolver un mes diferente si el pedido no tiene datos
+  const mesReal = (data as any).mes ?? mes;
+  const [y, m] = mesReal.split("-").map(Number);
   const mesLabel = `${MESES[m]} ${y}`;
   const { asistencia: a, observaciones: obs, criteriosFallo = {}, notasMes = [] } = data as any;
 
@@ -77,6 +79,11 @@ export default function MiKpi() {
         <input type="month" value={mes} onChange={e => setMes(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm" />
       </div>
+      {mesReal !== mes && (
+        <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Sin evaluaciones en el mes seleccionado — mostrando {mesLabel}
+        </div>
+      )}
 
       {/* Asistencia */}
       <Card className="border">

@@ -1171,7 +1171,30 @@ export const appRouter = router({
         const { sql } = await import('drizzle-orm');
         const db = await getDb();
         if (!db) return null;
-        const mesStr = input.mes ?? new Date().toISOString().slice(0, 7);
+        let mesStr = input.mes ?? new Date().toISOString().slice(0, 7);
+
+        // Buscar empleadoId primero para verificar si hay datos en el mes pedido
+        const [[empCheck]] = await db.execute(sql`
+          SELECT id FROM empleados WHERE userId=${ctx.user.id} LIMIT 1
+        `) as any;
+        if (empCheck) {
+          const [yc, mc] = mesStr.split('-');
+          const fic = `${yc}-${mc}-01`;
+          const ffc = `${yc}-${mc}-${new Date(Number(yc), Number(mc), 0).getDate()}`;
+          const [[cntObs]] = await db.execute(sql`
+            SELECT COUNT(*) as cnt FROM observaciones_kpi
+            WHERE empleadoId=${empCheck.id} AND DATE(createdAt) BETWEEN ${fic} AND ${ffc}
+          `) as any;
+          // Si no hay datos en el mes pedido, buscar el mes más reciente con datos
+          if (Number(cntObs.cnt) === 0) {
+            const [[lastObs]] = await db.execute(sql`
+              SELECT DATE_FORMAT(createdAt,'%Y-%m') as mes FROM observaciones_kpi
+              WHERE empleadoId=${empCheck.id} ORDER BY createdAt DESC LIMIT 1
+            `) as any;
+            if (lastObs?.mes) mesStr = lastObs.mes;
+          }
+        }
+
         const [y, m] = mesStr.split('-');
         const fi = `${y}-${m}-01`;
         const ff = `${y}-${m}-${new Date(Number(y), Number(m), 0).getDate()}`;
