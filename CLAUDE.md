@@ -36,6 +36,12 @@
 ### Features
 7. KPI frecuencia evaluaciones semanales — agregar al snapshot del líder (ej. Emily: 2/5 semanas)
 8. Campo `responsable` en `plan_accion` — NULL en todos los registros, poblar y separar dueño vs líder
+17. Revisar conteo de vasos — auditar flujo completo de CuadreVasos, validar que cuadre cierre correcto
+18. Alerta foto checada — si la foto de uniforme no cumple (cara no visible u otro problema), notificar al líder
+19. Surtido de vasos a isla — registrar cuando surten vasos desde bodega a isla y descontarlo del inventario
+20. Seguimiento cuadre de vasos — historial/reporte para líder de cuadres por día (faltantes, sobrantes, tendencia)
+21. Anfitriones ven sus KPIs y áreas de mejora — vista tipo MiKpi más detallada con áreas donde fallan
+22. Reporte preparaciones y servicio — ver en qué rubros específicos fallaron al mes (desglose por tipo de fallo)
 
 ---
 
