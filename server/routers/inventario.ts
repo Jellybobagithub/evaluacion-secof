@@ -1514,57 +1514,6 @@ export const inventarioRouter = router({
         return { ok: true };
       }),
 
-    // Transferir stock de bodega a isla
-    surtidoIslaConfirmar: protectedProcedure
-      .input(z.object({
-        sucursalId: z.number(),
-        items: z.array(z.object({ productoId: z.number(), cantidad: z.number() })),
-        notas: z.string().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        if (!["superadmin","owner","manager"].includes(ctx.user.role))
-          throw new TRPCError({ code: "FORBIDDEN" });
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-        const getCteo = async (tipo: string) => {
-          const alm = await db.execute(sql`SELECT id FROM inv_almacenes WHERE sucursalId=${input.sucursalId} AND nombre LIKE ${"%"+tipo+"%"} AND activo=1 LIMIT 1`);
-          const almId = (alm[0] as any[])[0]?.id; if (!almId) return null;
-          const ct = await db.execute(sql`SELECT id FROM inv_conteo_fisico WHERE sucursalId=${input.sucursalId} AND almacenId=${almId} ORDER BY fechaConteo DESC, id DESC LIMIT 1`);
-          return (ct[0] as any[])[0]?.id ?? null;
-        };
-        const bodegaId = await getCteo("odega");
-        const islaId   = await getCteo("sla");
-        if (!bodegaId) throw new TRPCError({ code: "NOT_FOUND", message: "Sin conteo de bodega registrado" });
-        if (!islaId)   throw new TRPCError({ code: "NOT_FOUND", message: "Sin conteo de isla registrado" });
-
-        for (const item of input.items) {
-          if (item.cantidad <= 0) continue;
-          // Restar de bodega
-          const b = await db.execute(sql`SELECT id, cantidadPiezas FROM inv_conteo_detalle WHERE conteoId=${bodegaId} AND productoId=${item.productoId} LIMIT 1`);
-          if ((b[0] as any[]).length > 0) {
-            const nuevo = Math.max(0, Number((b[0] as any[])[0].cantidadPiezas) - item.cantidad);
-            await db.execute(sql`UPDATE inv_conteo_detalle SET cantidadPiezas=${nuevo} WHERE conteoId=${bodegaId} AND productoId=${item.productoId}`);
-          }
-          // Sumar a isla
-          const is = await db.execute(sql`SELECT id, cantidadPiezas FROM inv_conteo_detalle WHERE conteoId=${islaId} AND productoId=${item.productoId} LIMIT 1`);
-          if ((is[0] as any[]).length > 0) {
-            const nuevo = Number((is[0] as any[])[0].cantidadPiezas) + item.cantidad;
-            await db.execute(sql`UPDATE inv_conteo_detalle SET cantidadPiezas=${nuevo} WHERE conteoId=${islaId} AND productoId=${item.productoId}`);
-          } else {
-            await db.execute(sql`INSERT INTO inv_conteo_detalle (conteoId, productoId, cantidadPiezas, cantidadGramos) VALUES (${islaId}, ${item.productoId}, ${item.cantidad}, 0)`);
-          }
-        }
-        // Registrar en historial de surtidos
-        const fecha = new Date().toISOString().split("T")[0];
-        const r = await db.execute(sql`INSERT INTO inv_surtidos (sucursalId, fecha, estado, notas, creadoPorId) VALUES (${input.sucursalId}, ${fecha}, 'confirmado', ${`[ISLA] ${input.notas ?? ''}`}, ${ctx.user.id})`);
-        const sid = (r[0] as any).insertId;
-        for (const i of input.items) {
-          if (i.cantidad > 0) await db.execute(sql`INSERT INTO inv_surtido_detalle (surtidoId, productoId, cantidadPiezas, cantidadGramos) VALUES (${sid}, ${i.productoId}, ${i.cantidad}, 0)`);
-        }
-        return { ok: true };
-      }),
-
     // Ajustar cantidades de un surtido ya confirmado (ej: proveedor surtió de más/menos)
     surtidoAjustar: protectedProcedure
       .input(z.object({

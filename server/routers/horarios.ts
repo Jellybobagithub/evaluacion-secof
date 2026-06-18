@@ -770,12 +770,64 @@ export const horariosRouter = router({
 
       let turnosCreados = 0;
 
+      // ── Rotación S/M por empleado ─────────────────────────────────────────
+      // Para cada actividad S/M, buscamos quién la hizo ÚLTIMO para asignarla
+      // al siguiente empleado en la lista (round-robin).
+      const empIds = emps.map(e => e.id);
+
+      // Último empleado que tuvo asignada cada actividad S/M (completada o no)
+      const ultimoEmpPorActividad: Record<string, number> = {};
+      if (empIds.length > 0) {
+        const histRows = await db.execute(sql`
+          SELECT ta.actividadClave, ts.empleadoId
+          FROM turno_actividades ta
+          JOIN turnos_semana ts ON ts.id = ta.turnoId
+          JOIN actividades_catalogo ac ON ac.clave = ta.actividadClave
+          WHERE ts.sucursalId = ${input.sucursalId}
+            AND ac.categoria IN ('S','M','B')
+          ORDER BY ts.fecha DESC, ta.id DESC
+        `);
+        for (const r of histRows[0] as any[]) {
+          if (!ultimoEmpPorActividad[r.actividadClave]) {
+            ultimoEmpPorActividad[r.actividadClave] = r.empleadoId;
+          }
+        }
+      }
+
+      // Siguiente empleado en rotación para una actividad dada
+      function siguienteEmpRotacion(clave: string, disponiblesHoy: typeof emps): typeof emps[0] | null {
+        if (disponiblesHoy.length === 0) return null;
+        const ultimo = ultimoEmpPorActividad[clave];
+        if (!ultimo) return disponiblesHoy[0];
+        const idxUltimo = empIds.indexOf(ultimo);
+        // Buscar el siguiente en la lista global que esté disponible hoy
+        for (let i = 1; i <= empIds.length; i++) {
+          const candidato = empIds[(idxUltimo + i) % empIds.length];
+          const encontrado = disponiblesHoy.find(e => e.id === candidato);
+          if (encontrado) return encontrado;
+        }
+        return disponiblesHoy[0];
+      }
+
+      // ── Mensuales: solo asignar si no se han asignado este mes ───────────
+      const mesActual = fechas[0].slice(0, 7); // "YYYY-MM"
+      const mAsignadoMesRows = await db.execute(sql`
+        SELECT COUNT(*) as cnt
+        FROM turno_actividades ta
+        JOIN turnos_semana ts ON ts.id = ta.turnoId
+        JOIN actividades_catalogo ac ON ac.clave = ta.actividadClave
+        WHERE ts.sucursalId = ${input.sucursalId}
+          AND ac.categoria = 'M'
+          AND DATE_FORMAT(ts.fecha, '%Y-%m') = ${mesActual}
+      `);
+      const mYaAsignadoEsteMes = Number((mAsignadoMesRows[0] as any[])[0]?.cnt ?? 0) > 0;
+
       // Distribuir actividades S/B equitativamente entre los 7 días
       // Solo el comodín (o el primer turno si no hay comodín) recibe S/B/M
       const totalDias = fechas.length;
       const sbPorDia = Math.ceil(actividadesSBPendientes.length / Math.max(totalDias, 1));
       let sbOffset = 0;
-      const asignarM = actividadesM.length > 0;
+      const asignarM = actividadesM.length > 0 && !mYaAsignadoEsteMes;
 
       for (let dIdx = 0; dIdx < fechas.length; dIdx++) {
         const fecha = fechas[dIdx];
@@ -797,10 +849,22 @@ export const horariosRouter = router({
 
         const numTurnosHoy = Math.min(empsDisponiblesHoy.length, turnosDia.length);
 
-        // Actividades S/B para este día (se asignan al comodín o al primer turno)
+        // Actividades S/B para este día — asignadas individualmente por rotación
         const sbHoy = actividadesSBPendientes.slice(sbOffset, sbOffset + sbPorDia).map(a => a.clave);
         sbOffset += sbHoy.length;
         const mHoy = (dIdx === 0 && asignarM) ? actividadesM : [];
+
+        // Pre-asignar cada actividad S/M/B al empleado que le toca en rotación
+        const extrasXEmp: Record<number, string[]> = {};
+        for (const clave of [...sbHoy, ...mHoy]) {
+          const target = siguienteEmpRotacion(clave, empsDisponiblesHoy);
+          if (target) {
+            if (!extrasXEmp[target.id]) extrasXEmp[target.id] = [];
+            extrasXEmp[target.id].push(clave);
+            // Avanzar rotación local para que la siguiente actividad vaya al siguiente
+            ultimoEmpPorActividad[clave] = target.id;
+          }
+        }
 
         for (let tIdx = 0; tIdx < numTurnosHoy; tIdx++) {
           const turnoConfig = turnosDia[tIdx];
@@ -811,30 +875,27 @@ export const horariosRouter = router({
           // El líder puede estar en cualquier área, se asigna según posición
           const areaReal = esLider ? turnoConfig.area : turnoConfig.area;
           const esComodin = areaReal === "Comodín" || esLider;
-          const esCajaOBarra = areaReal === "Caja" || areaReal === "Barra";
 
           // Con 2 turnos (entre semana), el comodín no existe:
           // repartir actividades D-comodin entre los 2 turnos (mitad cada uno)
           const hayComodinHoy = esFinde && empsDisponiblesHoy.length >= 3;
 
+          // Actividades S/M/B que le corresponden a este empleado hoy (por rotación)
+          const extrasEmp = extrasXEmp[emp.id] ?? [];
+
           let actsTurno: string[] = [];
 
           if (esComodin && hayComodinHoy) {
             // COMODÍN (fin de semana con 3 personas):
-            // Todas las actividades D + S/B de hoy + M si aplica
-            actsTurno = [...actividadesDCaja, ...actividadesDPreparacion, ...actividadesDComodin, ...actividadesDLeve, ...sbHoy, ...mHoy];
+            actsTurno = [...actividadesDCaja, ...actividadesDPreparacion, ...actividadesDComodin, ...actividadesDLeve, ...extrasEmp];
           } else if (!hayComodinHoy && tIdx === 0) {
             // PRIMER TURNO sin comodín (entre semana): Caja
-            // Actividades de caja + mitad de comodín + mitad de S/B
             const mitadComodin = actividadesDComodin.slice(0, Math.ceil(actividadesDComodin.length / 2));
-            const mitadSB = sbHoy.slice(0, Math.ceil(sbHoy.length / 2));
-            actsTurno = [...actividadesDCaja, ...actividadesDLeve, ...mitadComodin, ...mitadSB, ...mHoy];
+            actsTurno = [...actividadesDCaja, ...actividadesDLeve, ...mitadComodin, ...extrasEmp];
           } else if (!hayComodinHoy && tIdx === 1) {
             // SEGUNDO TURNO sin comodín (entre semana): Preparación
-            // Actividades de preparación + otra mitad de comodín + otra mitad de S/B
             const mitadComodin = actividadesDComodin.slice(Math.ceil(actividadesDComodin.length / 2));
-            const mitadSB = sbHoy.slice(Math.ceil(sbHoy.length / 2));
-            actsTurno = [...actividadesDPreparacion, ...actividadesDLeve, ...mitadComodin, ...mitadSB];
+            actsTurno = [...actividadesDPreparacion, ...actividadesDLeve, ...mitadComodin, ...extrasEmp];
           } else if (areaReal === "Caja") {
             // CAJA con comodín presente (fin de semana):
             actsTurno = [...actividadesDCaja, ...actividadesDLeve];
