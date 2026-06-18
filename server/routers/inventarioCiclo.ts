@@ -58,6 +58,13 @@ async function calcular(db: any, sucursalId: number, fuente: string) {
       cons[id].p += Number(r.p||0); cons[id].g += Number(r.g||0);
     }
   }
+  // Surtidos a isla: reducen stock de bodega igual que consumo
+  const islaR = await db.execute(sql`SELECT productoId, SUM(cantidadPiezas) as p, SUM(cantidadGramos) as g FROM inv_movimientos WHERE sucursalId=${sucursalId} AND tipo='surtido_isla' AND DATE(createdAt)>=${bd} GROUP BY productoId`);
+  for (const r of islaR[0] as any[]) {
+    const id = Number(r.productoId);
+    if (!cons[id]) cons[id] = { p: 0, g: 0 };
+    cons[id].p += Number(r.p||0); cons[id].g += Number(r.g||0);
+  }
 
   const prR = await db.execute(sql`SELECT id, nombre, categoria, unidadConteo as unidad, pesoNetoPorUnidad as pn FROM inv_productos WHERE activo=1`);
   const prods: Record<number,any> = {};
@@ -169,6 +176,8 @@ export const inventarioCicloRouter = router({
         const consR = await db.execute(sql`SELECT productoId, SUM(cantidadPiezas) as p FROM inv_movimientos WHERE sucursalId=${input.sucursalId} AND tipo='consumo_preparacion' AND DATE(createdAt) BETWEEN ${ci.fechaConteo} AND ${cf.fechaConteo} GROUP BY productoId`);
         const cm:Record<number,number>={};
         for (const c of consR[0] as any[]) cm[c.productoId]=Number(c.p||0);
+        const islaR2 = await db.execute(sql`SELECT productoId, SUM(cantidadPiezas) as p FROM inv_movimientos WHERE sucursalId=${input.sucursalId} AND tipo='surtido_isla' AND DATE(createdAt) BETWEEN ${ci.fechaConteo} AND ${cf.fechaConteo} GROUP BY productoId`);
+        for (const r of islaR2[0] as any[]) cm[r.productoId]=(cm[r.productoId]||0)+Number(r.p||0);
         let totT=0, totF=0;
         const pids=new Set([...Object.keys(fm),...Object.keys(im)].map(Number));
         for (const pid of pids) {
@@ -313,6 +322,12 @@ export const inventarioCicloRouter = router({
       const consR = await db.execute(sql`SELECT productoId, SUM(cantidadPiezas) as p, SUM(cantidadGramos) as g FROM inv_movimientos WHERE sucursalId=${ct.sucursalId} AND tipo='consumo_preparacion' AND DATE(createdAt) BETWEEN ${fechaBase} AND ${ct.fechaConteo} GROUP BY productoId`);
       const consMap: Record<number,{p:number;g:number}> = {};
       for (const r of consR[0] as any[]) consMap[Number(r.productoId)] = { p:Number(r.p||0), g:Number(r.g||0) };
+      const islaR3 = await db.execute(sql`SELECT productoId, SUM(cantidadPiezas) as p, SUM(cantidadGramos) as g FROM inv_movimientos WHERE sucursalId=${ct.sucursalId} AND tipo='surtido_isla' AND DATE(createdAt) BETWEEN ${fechaBase} AND ${ct.fechaConteo} GROUP BY productoId`);
+      for (const r of islaR3[0] as any[]) {
+        const id = Number(r.productoId);
+        if (!consMap[id]) consMap[id] = { p:0, g:0 };
+        consMap[id].p += Number(r.p||0); consMap[id].g += Number(r.g||0);
+      }
 
       const items = (detR[0] as any[]).map((d:any) => {
         const pn = Number(d.pn)||0;

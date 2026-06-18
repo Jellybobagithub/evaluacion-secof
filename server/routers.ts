@@ -2156,6 +2156,39 @@ return { success: true, id };
              ${ctx.user.id}, ${input.empleadoId ?? null})
         `);
         const insertId = (result[0] as any).insertId;
+
+        // Descontar de stock de bodega vía inv_movimientos
+        if (input.vasosEntregados > 0) {
+          const vasoRows = await db2.execute(sq`
+            SELECT id FROM inv_productos WHERE nombre LIKE '%Vaso Snowtea%' LIMIT 1
+          `);
+          const vasoId = (vasoRows[0] as any[])[0]?.id ?? null;
+          if (vasoId) {
+            await db2.execute(sq`
+              INSERT INTO inv_movimientos (sucursalId, productoId, tipo, cantidadPiezas, cantidadGramos, referenciaId, referenciaTipo, notas, registradoPorId)
+              VALUES (${input.sucursalId}, ${vasoId}, 'surtido_isla', ${input.vasosEntregados}, 0,
+                      ${insertId}, 'surtido_isla',
+                      ${`Surtido a isla ${input.fecha} turno ${input.tipoTurno}${input.notas ? ': ' + input.notas : ''}`},
+                      ${ctx.user.id})
+            `);
+          }
+        }
+        if (input.popotesEntregados > 0) {
+          const popoRows = await db2.execute(sq`
+            SELECT id FROM inv_productos WHERE nombre LIKE '%Popote%' LIMIT 1
+          `);
+          const popoId = (popoRows[0] as any[])[0]?.id ?? null;
+          if (popoId) {
+            await db2.execute(sq`
+              INSERT INTO inv_movimientos (sucursalId, productoId, tipo, cantidadPiezas, cantidadGramos, referenciaId, referenciaTipo, notas, registradoPorId)
+              VALUES (${input.sucursalId}, ${popoId}, 'surtido_isla', ${input.popotesEntregados}, 0,
+                      ${insertId}, 'surtido_isla',
+                      ${`Surtido a isla ${input.fecha} turno ${input.tipoTurno}${input.notas ? ': ' + input.notas : ''}`},
+                      ${ctx.user.id})
+            `);
+          }
+        }
+
         console.log(`[SurtidoIsla] ${input.vasosEntregados}v ${input.popotesEntregados}p → sucursal ${input.sucursalId} ${input.fecha} ${input.tipoTurno}`);
         return { success: true, id: insertId };
       }),
