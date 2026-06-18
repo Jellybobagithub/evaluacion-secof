@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { KPI_TIPOS as KPITC } from "@/lib/kpiTipos";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useSucursal } from "@/context/SucursalContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,9 +10,12 @@ import { useLocation } from "wouter";
 import {
   ClipboardCheck, ClipboardList, Users, TrendingUp,
   AlertTriangle, CheckCircle2, ChevronRight, Star,
-  Calendar, Clock, FileText, BarChart2, Sparkles, XCircle
+  Calendar, Clock, FileText, BarChart2, Sparkles, XCircle,
+  PackagePlus, GlassWater
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import Preparaciones from "@/components/Preparaciones";
 import ModalBienvenidaTurno from "@/components/ModalBienvenidaTurno";
 import ModalCierreTurno from "@/components/ModalCierreTurno";
@@ -103,6 +107,134 @@ function HostKpiInline({ miKpiMes, miLimpieza, onVerDetalle }: { miKpiMes: any; 
         </button>
       </div>
     </div>
+  );
+}
+
+// ─── Surtido a Isla (líder) ───────────────────────────────────────────────────
+function SurtidoIslaWidget({ sucursalId, fecha, tipoTurno }: {
+  sucursalId: number; fecha: string; tipoTurno: 'matutino' | 'vespertino'
+}) {
+  const [open, setOpen] = useState(false);
+  const [vasos, setVasos] = useState(0);
+  const [popotes, setPopotes] = useState(0);
+  const [notas, setNotas] = useState('');
+  const utils = trpc.useUtils();
+
+  const { data: surtidos = [] } = trpc.turno.getSurtidosIsla.useQuery(
+    { sucursalId, fecha },
+    { enabled: !!sucursalId }
+  );
+
+  const registrar = trpc.turno.registrarSurtidoIsla.useMutation({
+    onSuccess: () => {
+      utils.turno.getSurtidosIsla.invalidate();
+      toast.success('Surtido registrado');
+      setOpen(false);
+      setVasos(0);
+      setPopotes(0);
+      setNotas('');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const totalVasos = (surtidos as any[]).reduce((s: number, r: any) => s + (r.vasosEntregados ?? 0), 0);
+  const totalPopotes = (surtidos as any[]).reduce((s: number, r: any) => s + (r.popotesEntregados ?? 0), 0);
+
+  return (
+    <>
+      <div className="mx-4 mb-3">
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <GlassWater className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-semibold text-white">Surtido a Isla</span>
+            </div>
+            <button
+              onClick={() => setOpen(true)}
+              className="flex items-center gap-1.5 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 px-3 py-1.5 rounded-lg transition-colors border border-blue-500/30"
+            >
+              <PackagePlus className="w-3.5 h-3.5" />
+              Registrar surtido
+            </button>
+          </div>
+          {(surtidos as any[]).length === 0 ? (
+            <p className="text-xs text-slate-400">Sin surtidos registrados hoy</p>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex gap-4 text-sm mb-1">
+                {totalVasos > 0 && <span className="text-blue-300 font-semibold">+{totalVasos} vasos</span>}
+                {totalPopotes > 0 && <span className="text-cyan-300 font-semibold">+{totalPopotes} popotes</span>}
+              </div>
+              {(surtidos as any[]).map((s: any) => (
+                <div key={s.id} className="flex items-center justify-between text-xs text-slate-400">
+                  <span>
+                    {new Date(s.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                    {' · '}{s.registradoPorNombre ?? 'Líder'}
+                  </span>
+                  <span>
+                    {s.vasosEntregados > 0 && `${s.vasosEntregados}v`}
+                    {s.vasosEntregados > 0 && s.popotesEntregados > 0 && ' '}
+                    {s.popotesEntregados > 0 && `${s.popotesEntregados}p`}
+                    {s.notas && ` · ${s.notas}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GlassWater className="w-4 h-4 text-blue-500" />
+              Surtido a Isla
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Registra los vasos y/o popotes que estás entregando a la isla ahora.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Vasos</label>
+                <input
+                  type="number" min={0} value={vasos}
+                  onChange={e => setVasos(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full border rounded-md px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Popotes</label>
+                <input
+                  type="number" min={0} value={popotes}
+                  onChange={e => setPopotes(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-full border rounded-md px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Notas (opcional)</label>
+              <input
+                type="text" value={notas} onChange={e => setNotas(e.target.value)}
+                placeholder="ej. se rompió una torre"
+                className="w-full border rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+            <Button
+              disabled={vasos === 0 && popotes === 0 || registrar.isPending}
+              onClick={() => registrar.mutate({ sucursalId, fecha, tipoTurno, vasosEntregados: vasos, popotesEntregados: popotes, notas: notas || undefined })}
+            >
+              {registrar.isPending ? 'Registrando…' : 'Registrar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -908,6 +1040,15 @@ export default function MiTurno() {
           </div>
         </div>
       </div>
+
+      {/* Surtido a isla — solo para líderes con turno activo */}
+      {isLeaderPlus && sucursalId && (
+        <SurtidoIslaWidget
+          sucursalId={sucursalId}
+          fecha={hoy}
+          tipoTurno={tipoTurnoSeleccionado}
+        />
+      )}
 
       {/* Acceso a módulos — filtrados por rol */}
       {(() => {

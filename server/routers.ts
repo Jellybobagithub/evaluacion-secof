@@ -1950,8 +1950,18 @@ export const appRouter = router({
               ORDER BY id DESC LIMIT 1
             `);
             const apertura = (aperRows[0] as any[])[0] ?? null;
-            const vasosApertura = apertura?.conteoVasos ?? null;
+            const vasosAperturaBase = apertura?.conteoVasos ?? null;
             const sellApertura = apertura?.contadorSelladora ?? null;
+
+            // 2b. Surtidos a isla durante el día — suman al conteo disponible
+            const surtidoRows = await db2.execute(sqlOdoo`
+              SELECT COALESCE(SUM(vasosEntregados), 0) as totalVasos,
+                     COALESCE(SUM(popotesEntregados), 0) as totalPopotes
+              FROM turno_surtido_isla
+              WHERE sucursalId = ${input.sucursalId} AND fecha = ${input.fecha}
+            `);
+            const vasosSurtidos = Number((surtidoRows[0] as any[])[0]?.totalVasos ?? 0);
+            const vasosApertura = vasosAperturaBase != null ? vasosAperturaBase + vasosSurtidos : null;
 
             // 3. Check selladora: (cierre_contador - apertura_contador) vs odoo
             const sellDelta = (input.contadorSelladoraCierre != null && sellApertura != null)
@@ -2116,6 +2126,60 @@ return { success: true, id };
           }
         }
         return resultados;
+      }),
+
+    // Registrar surtido de vasos/popotes a isla durante el turno
+    registrarSurtidoIsla: protectedProcedure
+      .input(z.object({
+        sucursalId: z.number(),
+        fecha: z.string(),
+        tipoTurno: z.enum(['matutino', 'vespertino']),
+        vasosEntregados: z.number().int().min(0).default(0),
+        popotesEntregados: z.number().int().min(0).default(0),
+        notas: z.string().optional(),
+        empleadoId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { sql: sq } = await import("drizzle-orm");
+        const { getDb } = await import("./db");
+        const db2 = await getDb();
+        if (!db2) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+        const result = await db2.execute(sq`
+          INSERT INTO turno_surtido_isla
+            (sucursalId, fecha, tipoTurno, timestamp, vasosEntregados, popotesEntregados, notas, registradoPorId, empleadoId)
+          VALUES
+            (${input.sucursalId}, ${input.fecha}, ${input.tipoTurno}, ${Date.now()},
+             ${input.vasosEntregados}, ${input.popotesEntregados}, ${input.notas ?? null},
+             ${ctx.user.id}, ${input.empleadoId ?? null})
+        `);
+        const insertId = (result[0] as any).insertId;
+        console.log(`[SurtidoIsla] ${input.vasosEntregados}v ${input.popotesEntregados}p → sucursal ${input.sucursalId} ${input.fecha} ${input.tipoTurno}`);
+        return { success: true, id: insertId };
+      }),
+
+    // Obtener surtidos de isla por fecha
+    getSurtidosIsla: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), fecha: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { sql: sq } = await import("drizzle-orm");
+        const { getDb } = await import("./db");
+        const db2 = await getDb();
+        if (!db2) return [];
+        const rows = await db2.execute(sq`
+          SELECT s.*, e.nombre as empleadoNombre, u.name as registradoPorNombre
+          FROM turno_surtido_isla s
+          LEFT JOIN empleados e ON e.id = s.empleadoId
+          LEFT JOIN users u ON u.id = s.registradoPorId
+          WHERE s.sucursalId = ${input.sucursalId} AND s.fecha = ${input.fecha}
+          ORDER BY s.timestamp
+        `);
+        return rows[0] as any[];
       }),
 
     // Historial de cuadres por empleado — para seguimiento de colaboradores
