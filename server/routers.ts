@@ -1928,6 +1928,7 @@ export const appRouter = router({
           const { getDb } = await import("./db");
           const db2 = await getDb();
           if (db2) {
+            // 1. Ventas Odoo del día
             const odooRows = await db2.execute(sqlOdoo`
               SELECT COALESCE(SUM(vc.cantidad), 0) as total
               FROM inv_ventas_captura vc
@@ -1938,45 +1939,100 @@ export const appRouter = router({
                 AND pv.nombre NOT LIKE '%Cortesia%'
             `);
             const vasosOdoo = Number((odooRows[0] as any[])[0]?.total ?? 0);
-            const vasosSelladoras = input.vasosVendidosSelladora ?? 0;
-            const diferencia = vasosOdoo > 0 && vasosSelladoras > 0
-              ? Math.abs(vasosOdoo - vasosSelladoras) : null;
-            const alerta = diferencia !== null && diferencia > 5;
+
+            // 2. Obtener apertura del mismo turno para checks físico y selladora
+            const aperRows = await db2.execute(sqlOdoo`
+              SELECT conteoVasos, conteoPopotes, contadorSelladora
+              FROM turno_apertura
+              WHERE sucursalId = ${input.sucursalId}
+                AND fecha = ${input.fecha}
+                AND tipoTurno = ${input.tipoTurno}
+              ORDER BY id DESC LIMIT 1
+            `);
+            const apertura = (aperRows[0] as any[])[0] ?? null;
+            const vasosApertura = apertura?.conteoVasos ?? null;
+            const sellApertura = apertura?.contadorSelladora ?? null;
+
+            // 3. Check selladora: (cierre_contador - apertura_contador) vs odoo
+            const sellDelta = (input.contadorSelladoraCierre != null && sellApertura != null)
+              ? input.contadorSelladoraCierre - sellApertura : null;
+            const difSelladora = (sellDelta != null && vasosOdoo > 0)
+              ? Math.abs(sellDelta - vasosOdoo) : null;
+
+            // 4. Check físico: (apertura_vasos - odoo) vs cierre_vasos
+            const vasosEsperados = (vasosApertura != null && vasosOdoo > 0)
+              ? vasosApertura - vasosOdoo : null;
+            const difFisica = (vasosEsperados != null && input.conteoVasosFinal != null)
+              ? Math.abs(input.conteoVasosFinal - vasosEsperados) : null;
+
+            // 5. Alerta si cualquier diferencia > 5
+            const difPrincipal = difSelladora ?? difFisica ?? 0;
+            const alerta = (difSelladora != null && difSelladora > 5)
+                        || (difFisica != null && difFisica > 5);
+
             await db2.execute(sqlOdoo`
-              UPDATE turno_cierre SET vasosOdoo = ${vasosOdoo},
-              diferenciaCuadre = ${diferencia ?? 0}, alertaCuadre = ${alerta ? 1 : 0}
+              UPDATE turno_cierre
+              SET vasosOdoo = ${vasosOdoo},
+                  vasosApertura = ${vasosApertura},
+                  diferenciaCuadre = ${difPrincipal},
+                  diferenciaFisica = ${difFisica ?? null},
+                  alertaCuadre = ${alerta ? 1 : 0}
               WHERE id = ${id}
             `);
-            if (alerta && vasosOdoo > 0) {
-              const nodemailer = await import("nodemailer");
-              const transporter = nodemailer.default.createTransport({
-                host:"smtp.gmail.com", port:587, secure:false,
-                auth:{user:process.env.SMTP_USER, pass:process.env.SMTP_PASS}
+
+            const sucRows = await db2.execute(sqlOdoo`SELECT nombre FROM sucursales WHERE id = ${input.sucursalId}`);
+            const sucNombre = (sucRows[0] as any[])[0]?.nombre ?? "Tienda";
+            const turno = input.tipoTurno === "matutino" ? "Matutino" : "Vespertino";
+            const fmt = (n: number) => n.toLocaleString("es-MX");
+
+            if (alerta) {
+              // Aviso in-app para líderes de la sucursal
+              const { createAviso } = await import("./db");
+              const lineas: string[] = [];
+              if (difSelladora != null && difSelladora > 5)
+                lineas.push(`Selladora vs Odoo: ${fmt(difSelladora)} vasos de diferencia (vendidos selladora: ${sellDelta != null ? fmt(sellDelta) : '—'}, Odoo: ${fmt(vasosOdoo)})`);
+              if (difFisica != null && difFisica > 5)
+                lineas.push(`Físico: se esperaban ${vasosEsperados != null ? fmt(vasosEsperados) : '—'} vasos, se contaron ${input.conteoVasosFinal != null ? fmt(input.conteoVasosFinal) : '—'} (diferencia: ${fmt(difFisica)})`);
+              await createAviso({
+                sucursalId: input.sucursalId,
+                titulo: `🥤 Cuadre de vasos — alerta turno ${turno.toLowerCase()} ${input.fecha}`,
+                contenido: lineas.join('\n'),
+                tipo: 'urgente',
+                creadoPorId: ctx.user.id,
+                fechaExpiracion: input.fecha,
               });
-              const sucRows = await db2.execute(sqlOdoo`SELECT nombre FROM sucursales WHERE id = ${input.sucursalId}`);
-              const sucNombre = (sucRows[0] as any[])[0]?.nombre ?? "Tienda";
-              const turno = input.tipoTurno === "matutino" ? "Matutino" : "Vespertino";
-              const fmt = (n: number) => n.toLocaleString("es-MX");
-              const color = diferencia > 15 ? "#dc2626" : "#d97706";
-              const emails = (process.env.REPORT_EMAILS||"").split(",").map((e:string)=>e.trim()).filter(Boolean);
-              await transporter.sendMail({
-                from:`"SECOF Snowtea" <${process.env.SMTP_USER}>`,
-                to: emails.join(", "),
-                subject:`🥤 Alerta: ${fmt(diferencia!)} vasos diferencia — ${sucNombre} ${turno} ${input.fecha}`,
-                html:`<div style="font-family:sans-serif;max-width:500px;margin:auto;padding:20px">
-                  <h2 style="color:${color}">🥤 Cuadre de Vasos — Alerta</h2>
-                  <p><b>${sucNombre}</b> · Turno ${turno} · ${input.fecha}</p>
-                  <table style="width:100%;border-collapse:collapse;margin:16px 0">
-                    <tr><td style="padding:8px;background:#f0fdf4"><b>Odoo:</b></td><td style="padding:8px">${fmt(vasosOdoo)} vasos</td></tr>
-                    <tr><td style="padding:8px;background:#fef3c7"><b>Selladora:</b></td><td style="padding:8px">${fmt(vasosSelladoras)} vasos</td></tr>
-                    <tr><td style="padding:8px;background:#fef2f2"><b>Diferencia:</b></td><td style="padding:8px;color:${color};font-weight:700">${fmt(diferencia!)} vasos</td></tr>
-                  </table>
-                  <p style="color:#991b1b">⚠️ Revisar posible merma, venta no capturada o descuadre en selladora.</p>
-                </div>`
-              });
-              console.log(`[Cuadre] Alerta enviada: ${diferencia} vasos (${sucNombre} ${turno})`);
-            } else if (vasosOdoo > 0) {
-              console.log(`[Cuadre] OK: Odoo=${vasosOdoo} Selladora=${vasosSelladoras} Diff=${diferencia}`);
+
+              // Email de respaldo
+              try {
+                const nodemailer = await import("nodemailer");
+                const transporter = nodemailer.default.createTransport({
+                  host:"smtp.gmail.com", port:587, secure:false,
+                  auth:{user:process.env.SMTP_USER, pass:process.env.SMTP_PASS}
+                });
+                const color = difPrincipal > 15 ? "#dc2626" : "#d97706";
+                const emails = (process.env.REPORT_EMAILS||"").split(",").map((e:string)=>e.trim()).filter(Boolean);
+                await transporter.sendMail({
+                  from:`"SECOF Snowtea" <${process.env.SMTP_USER}>`,
+                  to: emails.join(", "),
+                  subject:`🥤 Cuadre vasos: diferencia turno ${turno} ${input.fecha} — ${sucNombre}`,
+                  html:`<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:20px">
+                    <h2 style="color:${color}">🥤 Cuadre de Vasos — Alerta</h2>
+                    <p><b>${sucNombre}</b> · Turno ${turno} · ${input.fecha}</p>
+                    <table style="width:100%;border-collapse:collapse;margin:16px 0">
+                      <tr><td style="padding:8px;background:#f0fdf4"><b>Apertura (conteo):</b></td><td style="padding:8px">${vasosApertura != null ? fmt(vasosApertura) : '—'} vasos</td></tr>
+                      <tr><td style="padding:8px;background:#f0fdf4"><b>Odoo (ventas):</b></td><td style="padding:8px">${fmt(vasosOdoo)} vasos</td></tr>
+                      <tr><td style="padding:8px;background:#fef3c7"><b>Esperado al cierre:</b></td><td style="padding:8px">${vasosEsperados != null ? fmt(vasosEsperados) : '—'} vasos</td></tr>
+                      <tr><td style="padding:8px;background:#fef3c7"><b>Contado al cierre:</b></td><td style="padding:8px">${input.conteoVasosFinal != null ? fmt(input.conteoVasosFinal) : '—'} vasos</td></tr>
+                      ${difFisica != null ? `<tr><td style="padding:8px;background:#fef2f2"><b>Diferencia física:</b></td><td style="padding:8px;color:${color};font-weight:700">${fmt(difFisica)} vasos</td></tr>` : ''}
+                      ${difSelladora != null ? `<tr><td style="padding:8px;background:#fef2f2"><b>Diferencia selladora:</b></td><td style="padding:8px;color:${color};font-weight:700">${fmt(difSelladora)} vasos</td></tr>` : ''}
+                    </table>
+                    <p style="color:#991b1b">⚠️ Dar seguimiento con el colaborador al día siguiente.</p>
+                  </div>`,
+                });
+              } catch(_) {}
+              console.log(`[Cuadre] Alerta: difFisica=${difFisica} difSelladora=${difSelladora} (${sucNombre} ${turno})`);
+            } else {
+              console.log(`[Cuadre] OK: odoo=${vasosOdoo} apertura=${vasosApertura} cierre=${input.conteoVasosFinal} (${turno})`);
             }
           }
         } catch(cuadreErr) { console.error("[Cuadre] Error:", cuadreErr); }
@@ -2060,6 +2116,59 @@ return { success: true, id };
           }
         }
         return resultados;
+      }),
+
+    // Historial de cuadres por empleado — para seguimiento de colaboradores
+    historialCuadresEmpleado: protectedProcedure
+      .input(z.object({ sucursalId: z.number(), dias: z.number().default(90) }))
+      .query(async ({ ctx, input }) => {
+        if (!['owner', 'manager', 'superadmin', 'leader'].includes(ctx.user.role)) {
+          throw new TRPCError({ code: 'FORBIDDEN' });
+        }
+        const { sql: sq } = await import("drizzle-orm");
+        const { getDb } = await import("./db");
+        const db2 = await getDb();
+        if (!db2) return [];
+        const fechaInicio = new Date(Date.now() - input.dias * 86400000).toISOString().slice(0, 10);
+        const rows = await db2.execute(sq`
+          SELECT
+            tc.empleadoId,
+            e.nombre,
+            COUNT(*) as totalCierres,
+            SUM(tc.alertaCuadre) as totalAlertas,
+            AVG(CASE WHEN tc.diferenciaFisica IS NOT NULL THEN tc.diferenciaFisica ELSE tc.diferenciaCuadre END) as avgDiferencia,
+            MAX(tc.fecha) as ultimaFecha,
+            SUM(CASE WHEN tc.diferenciaFisica IS NOT NULL AND tc.diferenciaFisica > 5 THEN 1 ELSE 0 END) as alertasFisicas,
+            SUM(CASE WHEN tc.diferenciaCuadre IS NOT NULL AND tc.diferenciaCuadre > 5 THEN 1 ELSE 0 END) as alertasSelladora,
+            JSON_ARRAYAGG(JSON_OBJECT(
+              'fecha', tc.fecha,
+              'tipoTurno', tc.tipoTurno,
+              'vasosOdoo', tc.vasosOdoo,
+              'vasosApertura', tc.vasosApertura,
+              'conteoVasosFinal', tc.conteoVasosFinal,
+              'diferenciaFisica', tc.diferenciaFisica,
+              'diferenciaCuadre', tc.diferenciaCuadre,
+              'alerta', tc.alertaCuadre
+            ) ORDER BY tc.fecha DESC) as historial
+          FROM turno_cierre tc
+          JOIN empleados e ON e.id = tc.empleadoId
+          WHERE tc.sucursalId = ${input.sucursalId}
+            AND tc.fecha >= ${fechaInicio}
+            AND tc.vasosOdoo IS NOT NULL
+          GROUP BY tc.empleadoId, e.nombre
+          ORDER BY totalAlertas DESC, e.nombre
+        `);
+        return (rows[0] as any[]).map((r: any) => ({
+          ...r,
+          totalCierres: Number(r.totalCierres),
+          totalAlertas: Number(r.totalAlertas),
+          alertasFisicas: Number(r.alertasFisicas),
+          alertasSelladora: Number(r.alertasSelladora),
+          avgDiferencia: r.avgDiferencia != null ? Math.round(Number(r.avgDiferencia)) : null,
+          historial: typeof r.historial === 'string' ? JSON.parse(r.historial) : (r.historial ?? []),
+          pctAlertas: Number(r.totalCierres) > 0
+            ? Math.round((Number(r.totalAlertas) / Number(r.totalCierres)) * 100) : 0,
+        }));
       }),
 
     // Obtener registros de turno con fotos (apertura + cierre) para líder/manager/dueño

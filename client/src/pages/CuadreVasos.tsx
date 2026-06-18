@@ -4,18 +4,16 @@ import { useSucursal } from "@/context/SucursalContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Scale, TrendingDown, CheckCircle2, AlertTriangle, ArrowLeft, Camera, User, ChevronDown, ChevronUp, Image as ImageIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Scale, TrendingDown, CheckCircle2, AlertTriangle, Camera, User, ChevronDown, ChevronUp, Image as ImageIcon, TrendingUp, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useLocation } from "wouter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function FotoMiniatura({ url, label }: { url?: string | null; label: string }) {
   const [open, setOpen] = useState(false);
   if (!url) return (
     <div className="flex flex-col items-center gap-1">
-      <div className="w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center">
-        <ImageIcon className="w-5 h-5 text-slate-300" />
+      <div className="w-14 h-14 rounded-lg bg-slate-100 border flex items-center justify-center">
+        <ImageIcon className="w-4 h-4 text-slate-300" />
       </div>
       <span className="text-[10px] text-slate-400">{label}</span>
     </div>
@@ -23,18 +21,12 @@ function FotoMiniatura({ url, label }: { url?: string | null; label: string }) {
   return (
     <>
       <div className="flex flex-col items-center gap-1 cursor-pointer" onClick={() => setOpen(true)}>
-        <img
-          src={url}
-          alt={label}
-          className="w-16 h-16 rounded-lg object-cover border border-slate-200 hover:border-blue-400 transition-colors"
-        />
+        <img src={url} alt={label} className="w-14 h-14 rounded-lg object-cover border hover:border-blue-400 transition-colors" />
         <span className="text-[10px] text-slate-500">{label}</span>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-sm">{label}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="text-sm">{label}</DialogTitle></DialogHeader>
           <img src={url} alt={label} className="w-full rounded-lg object-contain max-h-[70vh]" />
         </DialogContent>
       </Dialog>
@@ -42,18 +34,23 @@ function FotoMiniatura({ url, label }: { url?: string | null; label: string }) {
   );
 }
 
-export default function CuadreVasos() {
-  const { sucursalId } = useSucursal();
-  const [, navigate] = useLocation();
+function DifBadge({ val, label }: { val: number | null | undefined; label: string }) {
+  if (val == null) return <span className="text-xs text-muted-foreground">—</span>;
+  if (val === 0) return <span className="text-xs text-green-600 font-medium">✓ OK</span>;
+  const cls = val <= 5 ? "text-amber-600" : "text-red-600";
+  return <span className={`text-xs font-bold ${cls}`}>±{val} {label}</span>;
+}
+
+// ── Tab Historial ──────────────────────────────────────────────────────────────
+function HistorialTab({ sucursalId }: { sucursalId: number }) {
   const [dias, setDias] = useState(30);
   const [expandedFotos, setExpandedFotos] = useState<Record<string, boolean>>({});
 
   const { data: cuadres = [] } = trpc.turno.getCuadresRecientes.useQuery(
-    { sucursalId: sucursalId ?? 0, dias },
+    { sucursalId, dias },
     { enabled: !!sucursalId }
   );
 
-  // Calcular rango de fechas para el endpoint de fotos
   const { fechaInicio, fechaFin } = useMemo(() => {
     const hoy = new Date();
     const inicio = new Date(hoy);
@@ -66,270 +63,336 @@ export default function CuadreVasos() {
   }, [dias]);
 
   const { data: registrosConFotos = [] } = trpc.turno.getRegistrosTurnoConFotos.useQuery(
-    { sucursalId: sucursalId ?? 0, fechaInicio, fechaFin },
+    { sucursalId, fechaInicio, fechaFin },
     { enabled: !!sucursalId }
   );
 
-  // Estadísticas generales
-  const totalCuadres = cuadres.length;
-  const cuadresOk = cuadres.filter((c: any) => (c.mermaVasos ?? 0) === 0).length;
-  const cuadresConMerma = cuadres.filter((c: any) => (c.mermaVasos ?? 0) > 0).length;
-  const totalMerma = cuadres.reduce((acc: number, c: any) => acc + ((c.mermaVasos ?? 0) > 0 ? (c.mermaVasos ?? 0) : 0), 0);
-  const porcentajeCumplimiento = totalCuadres > 0 ? Math.round(cuadresOk / totalCuadres * 100) : 0;
-
-  // Mapa de fotos por fecha+tipoTurno para lookup rápido
   const fotosMap: Record<string, any> = {};
-  for (const r of registrosConFotos as any[]) {
-    fotosMap[`${r.fecha}-${r.tipoTurno}`] = r;
-  }
+  for (const r of registrosConFotos as any[]) fotosMap[`${r.fecha}-${r.tipoTurno}`] = r;
 
-  const toggleFotos = (key: string) => {
-    setExpandedFotos(prev => ({ ...prev, [key]: !prev[key] }));
-  };
+  const totalAlertas = cuadres.filter((c: any) => c.alertaCuadre).length;
+  const pctOk = cuadres.length > 0 ? Math.round((1 - totalAlertas / cuadres.length) * 100) : 0;
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
+    <div className="space-y-4">
+      {/* Filtro + resumen */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-3 text-sm">
+          <span className={`font-bold text-lg ${pctOk >= 90 ? 'text-green-600' : pctOk >= 70 ? 'text-amber-600' : 'text-red-600'}`}>{pctOk}%</span>
+          <span className="text-muted-foreground self-center">sin alerta · {totalAlertas} alertas de {cuadres.length} turnos</span>
+        </div>
+        <Select value={dias.toString()} onValueChange={v => setDias(Number(v))}>
+          <SelectTrigger className="w-36 text-xs h-8"><span>{dias} días</span></SelectTrigger>
+          <SelectContent position="item-aligned">
+            <SelectItem value="7">7 días</SelectItem>
+            <SelectItem value="14">14 días</SelectItem>
+            <SelectItem value="30">30 días</SelectItem>
+            <SelectItem value="60">60 días</SelectItem>
+            <SelectItem value="90">90 días</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {cuadres.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Scale className="w-10 h-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Sin cuadres con datos Odoo en este período</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {(cuadres as any[]).map((c: any) => {
+            const alerta = c.alertaCuadre;
+            const fechaKey = `${c.fecha}-${c.tipoTurno}`;
+            const fotos = fotosMap[fechaKey];
+            const expanded = expandedFotos[fechaKey] ?? false;
+            const tieneFotos = fotos && (fotos.apertura?.fotoSelladoUrl || fotos.apertura?.fotoUniformeUrl || fotos.cierre?.fotoSelladoCierreUrl);
+
+            return (
+              <div key={c.id} className={`rounded-xl border overflow-hidden ${alerta ? 'border-red-200' : 'border-green-200'}`}>
+                <div className={`px-4 py-3 ${alerta ? 'bg-red-50' : 'bg-green-50'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm">
+                          {new Date(c.fecha + 'T12:00:00').toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" })}
+                        </span>
+                        <Badge variant="outline" className="text-xs capitalize">{c.tipoTurno}</Badge>
+                        {c.empleadoNombre && <span className="text-xs text-muted-foreground">{c.empleadoNombre}</span>}
+                      </div>
+                      {/* Fila de datos: apertura → odoo → esperado → cierre */}
+                      <div className="mt-2 grid grid-cols-4 gap-1 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">Apertura</p>
+                          <p className="font-semibold">{c.vasosApertura ?? c.contadorApertura ?? '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Ventas Odoo</p>
+                          <p className="font-semibold">{c.vasosOdoo ?? '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Cierre real</p>
+                          <p className="font-semibold">{c.conteoVasosFinal ?? '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Selladora</p>
+                          <p className="font-semibold">{c.contadorSelladoraCierre ?? '—'}</p>
+                        </div>
+                      </div>
+                      {/* Diferencias */}
+                      {(c.diferenciaFisica != null || c.diferenciaCuadre != null) && (
+                        <div className="mt-1.5 flex gap-3 text-xs">
+                          {c.diferenciaFisica != null && (
+                            <span className={c.diferenciaFisica > 5 ? 'text-red-600 font-bold' : 'text-green-600'}>
+                              Físico: {c.diferenciaFisica === 0 ? '✓ OK' : `±${c.diferenciaFisica}`}
+                            </span>
+                          )}
+                          {c.diferenciaCuadre != null && (
+                            <span className={c.diferenciaCuadre > 5 ? 'text-red-600 font-bold' : 'text-green-600'}>
+                              Selladora: {c.diferenciaCuadre === 0 ? '✓ OK' : `±${c.diferenciaCuadre}`}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="shrink-0 flex flex-col items-center gap-0.5">
+                      {alerta
+                        ? <AlertTriangle className="w-5 h-5 text-red-500" />
+                        : <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                      <span className={`text-[10px] font-medium ${alerta ? 'text-red-600' : 'text-green-600'}`}>
+                        {alerta ? 'Alerta' : 'OK'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Fotos */}
+                  <button className="mt-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+                    onClick={() => setExpandedFotos(p => ({ ...p, [fechaKey]: !p[fechaKey] }))}>
+                    <Camera className="w-3.5 h-3.5" />
+                    {tieneFotos ? <>Evidencia {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}</> : <span className="text-slate-400">Sin fotos</span>}
+                  </button>
+                </div>
+
+                {expanded && fotos && (
+                  <div className="border-t bg-white p-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {fotos.apertura && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
+                            <User className="w-3 h-3" /> Apertura — {fotos.apertura.empleadoNombre}
+                          </p>
+                          <div className="flex gap-2 flex-wrap">
+                            <FotoMiniatura url={fotos.apertura.fotoUniformeUrl} label="Uniforme" />
+                            <FotoMiniatura url={fotos.apertura.fotoSelladoUrl} label="Selladora inicio" />
+                          </div>
+                          {fotos.apertura.contadorSelladora != null && (
+                            <p className="text-xs text-slate-500 mt-1">Contador: <strong>{fotos.apertura.contadorSelladora}</strong></p>
+                          )}
+                        </div>
+                      )}
+                      {fotos.cierre && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
+                            <User className="w-3 h-3" /> Cierre — {fotos.cierre.empleadoNombre}
+                          </p>
+                          <div className="flex gap-2 flex-wrap">
+                            <FotoMiniatura url={fotos.cierre.fotoSelladoCierreUrl} label="Selladora cierre" />
+                          </div>
+                          {fotos.cierre.contadorSelladoraCierre != null && (
+                            <p className="text-xs text-slate-500 mt-1">Contador: <strong>{fotos.cierre.contadorSelladoraCierre}</strong></p>
+                          )}
+                          {fotos.cierre.novedadesTurno && (
+                            <p className="text-xs text-slate-400 mt-1 italic">📝 "{fotos.cierre.novedadesTurno}"</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tab Seguimiento por empleado ──────────────────────────────────────────────
+function SeguimientoTab({ sucursalId }: { sucursalId: number }) {
+  const [dias, setDias] = useState(90);
+  const [expandido, setExpandido] = useState<Record<number, boolean>>({});
+
+  const { data: empleados = [], isLoading } = trpc.turno.historialCuadresEmpleado.useQuery(
+    { sucursalId, dias },
+    { enabled: !!sucursalId }
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-muted-foreground">Cuadres con datos Odoo por colaborador</p>
+        <Select value={dias.toString()} onValueChange={v => setDias(Number(v))}>
+          <SelectTrigger className="w-36 text-xs h-8"><span>{dias} días</span></SelectTrigger>
+          <SelectContent position="item-aligned">
+            <SelectItem value="30">30 días</SelectItem>
+            <SelectItem value="60">60 días</SelectItem>
+            <SelectItem value="90">90 días</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isLoading && <p className="text-sm text-muted-foreground py-8 text-center">Cargando...</p>}
+
+      {!isLoading && (empleados as any[]).length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Sin datos en este período</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {(empleados as any[]).map((emp: any) => {
+          const pctAlerta = emp.pctAlertas;
+          const colorPct = pctAlerta === 0 ? 'text-green-600' : pctAlerta <= 25 ? 'text-amber-600' : 'text-red-600';
+          const borderCls = pctAlerta === 0 ? 'border-green-200' : pctAlerta <= 25 ? 'border-amber-200' : 'border-red-200';
+          const bgCls = pctAlerta === 0 ? 'bg-green-50' : pctAlerta <= 25 ? 'bg-amber-50' : 'bg-red-50';
+          const isOpen = expandido[emp.empleadoId] ?? false;
+          const historial: any[] = emp.historial ?? [];
+
+          return (
+            <Card key={emp.empleadoId} className={`border ${borderCls}`}>
+              <button className="w-full text-left" onClick={() => setExpandido(p => ({ ...p, [emp.empleadoId]: !p[emp.empleadoId] }))}>
+                <CardContent className={`py-3 px-4 ${bgCls} rounded-t-lg`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-white/70 border flex items-center justify-center font-bold text-sm shrink-0">
+                        {emp.nombre.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{emp.nombre}</p>
+                        <p className="text-xs text-muted-foreground">{emp.totalCierres} cierres · últ. {emp.ultimaFecha}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className={`text-xl font-bold ${colorPct}`}>{pctAlerta}%</p>
+                        <p className="text-[10px] text-muted-foreground">alertas</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold">{emp.totalAlertas}</p>
+                        <p className="text-[10px] text-muted-foreground">de {emp.totalCierres}</p>
+                      </div>
+                      {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    </div>
+                  </div>
+
+                  {/* Mini barra de progreso */}
+                  <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${pctAlerta === 0 ? 'bg-green-500' : pctAlerta <= 25 ? 'bg-amber-500' : 'bg-red-500'}`}
+                      style={{ width: `${pctAlerta}%` }} />
+                  </div>
+
+                  {/* Tags de tipo de fallo */}
+                  {(emp.alertasFisicas > 0 || emp.alertasSelladora > 0) && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {emp.alertasFisicas > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">
+                          {emp.alertasFisicas}× físico
+                        </span>
+                      )}
+                      {emp.alertasSelladora > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-200">
+                          {emp.alertasSelladora}× selladora
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </button>
+
+              {isOpen && historial.length > 0 && (
+                <div className="border-t px-4 pb-3 pt-2">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2">Últimos 10 cierres</p>
+                  <div className="space-y-1">
+                    {historial.slice(0, 10).map((h: any, i: number) => {
+                      const hasFisica = h.diferenciaFisica != null && h.diferenciaFisica > 5;
+                      const hasSell = h.diferenciaCuadre != null && h.diferenciaCuadre > 5;
+                      const ok = !h.alerta;
+                      return (
+                        <div key={i} className={`flex items-center justify-between text-xs px-2 py-1 rounded ${ok ? 'bg-green-50' : 'bg-red-50'}`}>
+                          <div className="flex items-center gap-2">
+                            {ok ? <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" /> : <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />}
+                            <span className={ok ? 'text-green-700' : 'text-red-700'}>
+                              {h.fecha} <span className="opacity-60">{h.tipoTurno?.slice(0,3)}</span>
+                            </span>
+                          </div>
+                          <div className="flex gap-2 text-[10px]">
+                            {h.vasosApertura != null && <span className="text-muted-foreground">inicio:{h.vasosApertura}</span>}
+                            {h.vasosOdoo != null && <span className="text-muted-foreground">odoo:{h.vasosOdoo}</span>}
+                            {h.conteoVasosFinal != null && <span className="text-muted-foreground">cierre:{h.conteoVasosFinal}</span>}
+                            {hasFisica && <span className="text-red-600 font-bold">±{h.diferenciaFisica}</span>}
+                            {hasSell && <span className="text-orange-600 font-bold">sell:±{h.diferenciaCuadre}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Explicación */}
+      <Card className="bg-slate-50 border-slate-200">
+        <CardContent className="pt-3 pb-3">
+          <p className="text-xs font-semibold text-slate-600 mb-1.5">¿Cómo se calcula el cuadre?</p>
+          <div className="space-y-0.5 text-xs text-slate-500">
+            <p>• <strong>Físico:</strong> apertura_vasos − ventas_Odoo = esperado al cierre</p>
+            <p>• <strong>Selladora:</strong> contador_cierre − contador_apertura = ventas_Odoo</p>
+            <p>• Alerta cuando diferencia &gt; 5 vasos en cualquiera de los dos checks</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Página principal ──────────────────────────────────────────────────────────
+export default function CuadreVasos() {
+  const { sucursalId } = useSucursal();
+
+  return (
+    <div className="p-4 max-w-3xl mx-auto space-y-4">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1 as any)} className="shrink-0">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
         <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
           <Scale className="w-5 h-5 text-blue-500" />
         </div>
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">Cuadre de Vasos</h1>
-          <p className="text-sm text-muted-foreground">Historial de apertura vs cierre de turno</p>
+          <h1 className="text-xl font-bold">Cuadre de Vasos</h1>
+          <p className="text-sm text-muted-foreground">Físico · Selladora · Odoo</p>
         </div>
       </div>
 
-      {/* Filtro período */}
-      <Card>
-        <CardContent className="pt-4 pb-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="min-w-[140px]">
-              <Label className="text-xs text-muted-foreground mb-1 block">Período</Label>
-              <Select value={dias.toString()} onValueChange={v => setDias(Number(v))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent position="item-aligned">
-                  <SelectItem value="7">Últimos 7 días</SelectItem>
-                  <SelectItem value="14">Últimos 14 días</SelectItem>
-                  <SelectItem value="30">Últimos 30 días</SelectItem>
-                  <SelectItem value="60">Últimos 60 días</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="historial">
+        <TabsList className="w-full">
+          <TabsTrigger value="historial" className="flex-1 gap-1.5">
+            <TrendingDown className="w-3.5 h-3.5" /> Historial
+          </TabsTrigger>
+          <TabsTrigger value="seguimiento" className="flex-1 gap-1.5">
+            <Users className="w-3.5 h-3.5" /> Seguimiento
+          </TabsTrigger>
+        </TabsList>
 
-      {/* KPIs resumen */}
-      <>
-        {/* KPIs resumen */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className="text-3xl font-bold text-blue-600">{totalCuadres}</div>
-                <div className="text-xs text-muted-foreground mt-1">Turnos cerrados</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className={`text-3xl font-bold ${porcentajeCumplimiento >= 90 ? 'text-green-600' : porcentajeCumplimiento >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {porcentajeCumplimiento}%
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Sin merma</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className={`text-3xl font-bold ${cuadresConMerma === 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {cuadresConMerma}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Con merma</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4 text-center">
-                <div className={`text-3xl font-bold ${totalMerma === 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {totalMerma}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">Vasos merma total</div>
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="historial" className="mt-4">
+          {sucursalId ? <HistorialTab sucursalId={sucursalId} /> : null}
+        </TabsContent>
 
-          {/* Lista de cuadres con fotos */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingDown className="w-4 h-4" />
-                Historial de cuadres y evidencia fotográfica
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {cuadres.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground">
-                  <Scale className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No hay cuadres registrados en este período</p>
-                  <p className="text-xs mt-1">Los cuadres se generan al cerrar turno con inventario</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {cuadres.map((c: any) => {
-                    const diferencia = c.mermaVasos ?? 0;
-                    const esOk = diferencia === 0;
-                    const esMerma = diferencia > 0;
-                    const fechaKey = `${c.fecha}-${c.tipoTurno}`;
-                    const fotos = fotosMap[fechaKey];
-                    const fotosExpanded = expandedFotos[fechaKey] ?? false;
-                    const tieneFotos = fotos && (fotos.apertura?.fotoSelladoUrl || fotos.apertura?.fotoUniformeUrl || fotos.cierre?.fotoSelladoCierreUrl);
-
-                    return (
-                      <div key={c.id} className={`rounded-xl border overflow-hidden ${
-                        esOk ? 'border-green-200' :
-                        esMerma ? 'border-red-200' :
-                        'border-blue-200'
-                      }`}>
-                        {/* Fila principal del cuadre */}
-                        <div className={`p-4 ${esOk ? 'bg-green-50' : esMerma ? 'bg-red-50' : 'bg-blue-50'}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-sm">
-                                  {new Date(c.fecha + 'T12:00:00').toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" })}
-                                </span>
-                                <Badge variant="outline" className="text-xs capitalize">{c.tipoTurno ?? "Turno"}</Badge>
-                                {c.empleadoNombre && (
-                                  <span className="text-xs text-muted-foreground">{c.empleadoNombre}</span>
-                                )}
-                              </div>
-                              <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Apertura</p>
-                                  <p className="font-semibold">{c.contadorApertura ?? "—"}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Cierre</p>
-                                  <p className="font-semibold">{c.contadorSelladoraCierre ?? "—"}</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Vendidos</p>
-                                  <p className="font-semibold">{c.vasosVendidosSelladora ?? "—"}</p>
-                                </div>
-                              </div>
-                              {c.novedadesTurno && (
-                                <p className="text-xs text-muted-foreground mt-2 italic">📝 {c.novedadesTurno}</p>
-                              )}
-                            </div>
-                            <div className="shrink-0 text-right flex flex-col items-end gap-1">
-                              {esOk ? (
-                                <>
-                                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                  <span className="text-xs text-green-600 font-medium">Cuadrado</span>
-                                </>
-                              ) : esMerma ? (
-                                <>
-                                  <AlertTriangle className="w-5 h-5 text-red-500" />
-                                  <span className="text-lg font-bold text-red-600">-{diferencia}</span>
-                                  <span className="text-xs text-red-500">vasos merma</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="text-lg font-bold text-blue-600">+{Math.abs(diferencia)}</span>
-                                  <span className="text-xs text-blue-500">sobrante</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Botón para expandir fotos */}
-                          <button
-                            className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
-                            onClick={() => toggleFotos(fechaKey)}
-                          >
-                            <Camera className="w-3.5 h-3.5" />
-                            {tieneFotos ? (
-                              <>Evidencia fotográfica {fotosExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}</>
-                            ) : (
-                              <span className="text-slate-400">Sin fotos registradas</span>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Panel de fotos expandible */}
-                        {fotosExpanded && fotos && (
-                          <div className="border-t bg-white p-4">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {/* Apertura */}
-                              {fotos.apertura && (
-                                <div>
-                                  <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
-                                    <User className="w-3 h-3" />
-                                    Apertura — {fotos.apertura.empleadoNombre}
-                                  </p>
-                                  <div className="flex gap-3 flex-wrap">
-                                    <FotoMiniatura url={fotos.apertura.fotoUniformeUrl} label="Uniforme" />
-                                    <FotoMiniatura url={fotos.apertura.fotoSelladoUrl} label="Selladora inicio" />
-                                  </div>
-                                  {fotos.apertura.contadorSelladora != null && (
-                                    <p className="text-xs text-slate-500 mt-2">
-                                      Contador apertura: <strong>{fotos.apertura.contadorSelladora}</strong>
-                                    </p>
-                                  )}
-                                  {fotos.apertura.notas && (
-                                    <p className="text-xs text-slate-400 mt-1 italic">"{fotos.apertura.notas}"</p>
-                                  )}
-                                </div>
-                              )}
-                              {/* Cierre */}
-                              {fotos.cierre && (
-                                <div>
-                                  <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1">
-                                    <User className="w-3 h-3" />
-                                    Cierre — {fotos.cierre.empleadoNombre}
-                                  </p>
-                                  <div className="flex gap-3 flex-wrap">
-                                    <FotoMiniatura url={fotos.cierre.fotoSelladoCierreUrl} label="Selladora cierre" />
-                                  </div>
-                                  {fotos.cierre.contadorSelladoraCierre != null && (
-                                    <p className="text-xs text-slate-500 mt-2">
-                                      Contador cierre: <strong>{fotos.cierre.contadorSelladoraCierre}</strong>
-                                    </p>
-                                  )}
-                                  {fotos.cierre.novedadesTurno && (
-                                    <p className="text-xs text-slate-400 mt-1 italic">📝 "{fotos.cierre.novedadesTurno}"</p>
-                                  )}
-                                </div>
-                              )}
-                              {!fotos.apertura && !fotos.cierre && (
-                                <p className="text-xs text-slate-400 col-span-2">No hay registros de apertura ni cierre para este turno.</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Explicación del cuadre */}
-          <Card className="bg-slate-50 border-slate-200">
-            <CardContent className="pt-4 pb-4">
-              <p className="text-xs font-semibold text-slate-600 mb-2">¿Cómo funciona el cuadre?</p>
-              <div className="space-y-1 text-xs text-slate-500">
-                <p>• <strong>Selladora apertura</strong>: número que marca la selladora al inicio del turno</p>
-                <p>• <strong>Selladora cierre</strong>: número al cerrar turno</p>
-                <p>• <strong>Vasos producidos</strong> = Cierre − Apertura (vasos sellados en el turno)</p>
-                <p>• <strong>Merma</strong> = Vasos producidos − Vasos vendidos (reportados)</p>
-                <p>• Si hay merma, el equipo debe reportar la causa (rotura, muestra, error de cobro)</p>
-              </div>
-            </CardContent>
-          </Card>
-      </>
+        <TabsContent value="seguimiento" className="mt-4">
+          {sucursalId ? <SeguimientoTab sucursalId={sucursalId} /> : null}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
