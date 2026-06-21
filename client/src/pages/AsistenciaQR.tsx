@@ -73,8 +73,21 @@ function CapturaFoto({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      const result = ev.target?.result as string;
-      onCaptura(result);
+      const src = ev.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 900;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        onCaptura(canvas.toDataURL("image/jpeg", 0.72));
+      };
+      img.src = src;
     };
     reader.readAsDataURL(file);
   }
