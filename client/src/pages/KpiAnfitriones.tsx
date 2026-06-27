@@ -342,11 +342,16 @@ export default function KpiAnfitriones() {
     onError: (e) => toast.error(e.message),
   });
 
-  // Para anfitriones: obtener su propio registro de empleado
-  const { data: miEmpleado } = trpc.empleados.miEmpleado.useQuery(
-    undefined,
-    { enabled: isHost }
-  );
+  // Obtener empleado propio (todos los roles, no solo host)
+  const { data: miEmpleado } = trpc.empleados.miEmpleado.useQuery(undefined);
+
+  // Auto-set sucursal desde el perfil del empleado si el contexto global está vacío
+  const { setSucursalId } = useSucursal();
+  useEffect(() => {
+    if (!sucursalId && miEmpleado?.sucursalId) {
+      setSucursalId(miEmpleado.sucursalId);
+    }
+  }, [sucursalId, miEmpleado?.sucursalId]);
 
   // Para anfitriones: cargar solo sus propias observaciones usando listByEmpleado
   const { data: misObservaciones = [] } = trpc.kpiAnfitriones.listByEmpleado.useQuery(
