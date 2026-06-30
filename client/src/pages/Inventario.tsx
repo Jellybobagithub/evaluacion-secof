@@ -236,6 +236,8 @@ function ConteoFisicoTab({
   sucursalId: number; almacenId: number; almacen?: Almacen;
   productos: Producto[]; semana: string;
 }) {
+  const { user } = useAuth();
+  const canDesbloquear = ["superadmin", "owner", "manager"].includes(user?.role ?? "");
   const [fechaConteo, setFechaConteo] = useState(new Date().toISOString().split("T")[0]);
   const [conteoId, setConteoId] = useState<number | null>(null);
   const [lineas, setLineas] = useState<Record<number, { piezas: string; gramos: string }>>({});
@@ -270,6 +272,11 @@ function ConteoFisicoTab({
 
   const enviar = trpc.inventario.conteoFisico.enviar.useMutation({
     onSuccess: () => { setBloqueado(true); toast.success("Conteo enviado y bloqueado"); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const desbloquearMut = trpc.inventario.conteoFisico.desbloquear.useMutation({
+    onSuccess: () => { setBloqueado(false); toast.success("Conteo desbloqueado — ya puedes editar"); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -365,16 +372,24 @@ function ConteoFisicoTab({
             <CheckCircle className="w-4 h-4 text-gray-500" />
             <span className="text-muted-foreground">Este conteo está bloqueado y no puede modificarse.</span>
           </div>
-          <Button size="sm" variant="outline" onClick={() => {
-            setIniciado(false);
-            setConteoId(null);
-            setLineas({});
-            setBloqueado(false);
-            setForzarNuevo(true);
-            setFechaConteo(new Date().toISOString().split("T")[0]);
-          }}>
-            + Nuevo conteo
-          </Button>
+          <div className="flex gap-2">
+            {canDesbloquear && conteoId && (
+              <Button size="sm" variant="outline" className="text-amber-600 border-amber-400 hover:bg-amber-50"
+                onClick={() => desbloquearMut.mutate({ conteoId })}>
+                🔓 Desbloquear
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => {
+              setIniciado(false);
+              setConteoId(null);
+              setLineas({});
+              setBloqueado(false);
+              setForzarNuevo(true);
+              setFechaConteo(new Date().toISOString().split("T")[0]);
+            }}>
+              + Nuevo conteo
+            </Button>
+          </div>
         </div>
       )}
 

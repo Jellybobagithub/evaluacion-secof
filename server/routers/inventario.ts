@@ -379,6 +379,19 @@ export const inventarioRouter = router({
         return { ok: true };
       }),
 
+    // Desbloquear un conteo (solo owner/superadmin/manager)
+    desbloquear: protectedProcedure
+      .input(z.object({ conteoId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!["superadmin", "owner", "manager"].includes(ctx.user.role))
+          throw new TRPCError({ code: "FORBIDDEN" });
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        await db.update(invConteoFisico).set({ estado: "borrador" })
+          .where(eq(invConteoFisico.id, input.conteoId));
+        return { ok: true };
+      }),
+
     // Historial de conteos por almacén
     historial: protectedProcedure
       .input(z.object({ sucursalId: z.number(), almacenId: z.number(), limite: z.number().default(12) }))
