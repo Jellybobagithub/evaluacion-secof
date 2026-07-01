@@ -490,6 +490,7 @@ function AjusteEventualTab({ sucursalId }: { sucursalId: number | null }) {
       }
     }
     refetchAjustes();
+    utils.rotacion.getSemana.invalidate();
     toast.success("Ajustes guardados");
   };
 
