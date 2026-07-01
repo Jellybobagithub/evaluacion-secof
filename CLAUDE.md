@@ -1,4 +1,4 @@
-# ESTADO SECOF — 16 jun 2026
+# ESTADO SECOF — 1 jul 2026
 
 ## Producción
 - URL: secof.snowteatienda.com
@@ -32,10 +32,7 @@
 - ~~8. responsable en plan_accion~~ — COMPLETADO (commit d3d5901)
 
 ### Features pendientes 🟡
-17. Revisar conteo de vasos — auditar flujo completo de CuadreVasos, validar que cuadre cierre correcto
 18. Alerta foto checada — si la foto de uniforme no cumple (cara no visible u otro problema), notificar al líder
-19. Surtido de vasos a isla — registrar cuando surten vasos desde bodega a isla y descontarlo del inventario
-20. Seguimiento cuadre de vasos — historial/reporte para líder de cuadres por día (faltantes, sobrantes, tendencia)
 21. Anfitriones ven sus KPIs y áreas de mejora — vista tipo MiKpi más detallada con áreas donde fallan
 22. Reporte preparaciones y servicio — ver en qué rubros específicos fallaron al mes (desglose por tipo de fallo)
 
@@ -81,7 +78,6 @@
 
 ## Completados sesión 16-jun-2026
 
-- ~~#17-23~~ — completados en sesión anterior (12-jun)
 - ~~Actividades limpieza líderes~~ — líderes reciben actividades igual que anfitriones
 - ~~Ajuste Eventual → Rotación Semanal sync~~ — guardar ajuste eventual upserta rotacion_areas
 - ~~generarSemana respeta ajustes eventuales~~ — ausentes excluidos, extras incluidos; no duplica
@@ -91,11 +87,18 @@
 - ~~Solo diarias se asignan por turno~~ — S y M no se asignan diariamente
 - ~~Distribución equitativa por día~~ — round-robin entre empleados activos del día
 
-## Pendientes nuevos — 16 jun 2026
+## Completados sesión 1-jul-2026
 
-### Actividades semanales/mensuales
-- Semanales (S1-S14): asignar una vez por semana rotando entre empleados (pendiente implementar)
-- Mensuales (M1-M3): asignar una vez por mes rotando (pendiente implementar)
+- ~~Actividades S/M por rotación de empleado~~ — round-robin real, M no se duplica en el mes (commits 94ddd47, 819e21a)
+- ~~Checador: foto comprimida~~ — canvas max 900px JPEG 72%, elimina "Failed to fetch" por timeout (commit de772c7)
+- ~~KPIs Anfitriones auto-sucursal~~ — detecta sucursalId desde miEmpleado si localStorage vacío (commit 2b379d2)
+- ~~Daniela Lizeth Miranda Lara~~ — renombrada (empleadoId=180005, userId=5495501); antes "Ana Claudia Moya Herrera"
+- ~~Conteo físico: botón Desbloquear~~ — owner/manager pueden desbloquear conteo sin tocar DB (commit c8b27ab)
+- ~~Rotación semanal sin duplicados~~ — generarSemana y generarRotacionDia borran TODO el día antes de insertar (commits 17116da, 36663c3)
+- ~~Ajuste eventual invalida cache semanal~~ — "Guardar ajustes" y "Generar rotación del día" refrescan tab Rotación Semanal (commits 819e21a, ff54c3b)
+- ~~Turno tipo corregido en ajuste~~ — UPDATE también recalcula matutino/intermedio/vespertino
+- ~~Auto-turno desde ajuste solo inserta actividades D~~ — no S/M/B
+- ~~surtidoIslaConfirmar duplicado eliminado~~ en inventario.ts
 
 # SECOF — Contexto para Claude Code
 
