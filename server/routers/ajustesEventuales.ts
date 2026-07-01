@@ -226,10 +226,10 @@ export const ajustesEventualesRouter = router({
         }
       }
 
-      // Guardar en rotacion_areas (reemplaza no-manuales del día)
+      // Guardar en rotacion_areas (reemplaza TODO el día — evita duplicados)
       await db.execute(sql`
         DELETE FROM rotacion_areas
-        WHERE sucursalId=${input.sucursalId} AND fecha=${input.fecha} AND esManual=0
+        WHERE sucursalId=${input.sucursalId} AND fecha=${input.fecha}
       `);
       for (const r of resultado) {
         await db.execute(sql`
