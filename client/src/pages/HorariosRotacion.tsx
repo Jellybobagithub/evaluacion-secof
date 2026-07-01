@@ -455,10 +455,12 @@ function AjusteEventualTab({ sucursalId }: { sucursalId: number | null }) {
   const eliminarMut = trpc.ajustesEventuales.eliminar.useMutation({
     onError: e => toast.error(e.message),
   });
+  const utils = trpc.useUtils();
   const generarMut = trpc.ajustesEventuales.generarRotacionDia.useMutation({
     onSuccess: d => {
       toast.success(`✅ Rotación generada: ${d.asignaciones} asignaciones para ${d.activos} empleados`);
       setTimeline(d.bloques);
+      utils.rotacion.getSemana.invalidate();
     },
     onError: e => toast.error(e.message),
   });

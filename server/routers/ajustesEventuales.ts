@@ -89,7 +89,8 @@ export const ajustesEventualesRouter = router({
                ${input.horaEntrada}, ${input.horaSalida}, 'Ajuste eventual', ${ctx.user.id})
           `);
           const turnoId = (res[0] as any).insertId;
-          const catRows = await db.execute(sql`SELECT clave FROM actividades_catalogo WHERE activa=1`);
+          // Solo actividades D (diarias) — S/M/B se asignan por la rotación semanal
+          const catRows = await db.execute(sql`SELECT clave FROM actividades_catalogo WHERE activa=1 AND categoria='D'`);
           for (const r of (catRows[0] as any[])) {
             await db.execute(sql`
               INSERT IGNORE INTO turno_actividades (turnoId, actividadClave, esPendiente)
@@ -97,9 +98,11 @@ export const ajustesEventualesRouter = router({
             `);
           }
         } else {
-          // Actualizar horario del turno existente
+          // Actualizar horario del turno existente (incluyendo tipo)
+          const hUpd = parseInt(input.horaEntrada.split(":")[0]);
+          const tipoUpd = hUpd < 11 ? "matutino" : hUpd < 14 ? "intermedio" : "vespertino";
           await db.execute(sql`
-            UPDATE turnos_semana SET horaInicio=${input.horaEntrada}, horaFin=${input.horaSalida}
+            UPDATE turnos_semana SET horaInicio=${input.horaEntrada}, horaFin=${input.horaSalida}, turno=${tipoUpd}
             WHERE sucursalId=${input.sucursalId} AND empleadoId=${input.empleadoId} AND fecha=${input.fecha}
           `);
         }
