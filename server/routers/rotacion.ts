@@ -158,7 +158,8 @@ export const rotacionRouter = router({
       // Quitar entradas de ausentes eventuales
       const sugerencia = sugerenciaRaw.filter(s => !ausentesSet.has(`${s.empleadoId}|${s.fecha}`));
 
-      await db.delete(rotacionAreas).where(and(eq(rotacionAreas.sucursalId, input.sucursalId), gte(rotacionAreas.fecha, input.fechaInicio), lte(rotacionAreas.fecha, input.fechaFin), eq(rotacionAreas.esManual, false)));
+      // Borrar TODOS (manuales y automáticos) — se reconstruyen desde ajustes eventuales abajo
+      await db.delete(rotacionAreas).where(and(eq(rotacionAreas.sucursalId, input.sucursalId), gte(rotacionAreas.fecha, input.fechaInicio), lte(rotacionAreas.fecha, input.fechaFin)));
       if (sugerencia.length > 0) await db.insert(rotacionAreas).values(sugerencia.map(s => ({ sucursalId: input.sucursalId, empleadoId: s.empleadoId, fecha: s.fecha, area: s.area as any, horaInicio: s.horaInicio ?? null, horaFin: s.horaFin ?? null, esManual: 0 as any, notas: null })));
 
       // Insertar extras eventuales (no ausentes, con horario) que no tienen ninguna fila en rotacion_areas
