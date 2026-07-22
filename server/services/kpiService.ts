@@ -64,15 +64,15 @@ export async function calcularKpiSnapshotMensual(sucursalId: number, mes: string
       SUM(CASE WHEN
         TIMESTAMPDIFF(MINUTE,
           CONCAT(t.fecha, ' ', t.horaInicio, ':00'),
-          FROM_UNIXTIME(a.timestamp/1000)
+          CONVERT_TZ(FROM_UNIXTIME(a.timestamp/1000),'+00:00','-05:00')
         ) <= 10 THEN 1 ELSE 0 END) as puntuales
     FROM asistencia a
     JOIN turnos_semana t
       ON t.empleadoId = a.empleadoId
-      AND t.fecha = DATE(FROM_UNIXTIME(a.timestamp/1000))
+      AND t.fecha = DATE(CONVERT_TZ(FROM_UNIXTIME(a.timestamp/1000),'+00:00','-05:00'))
     WHERE a.sucursalId = ${sucursalId}
-      AND FROM_UNIXTIME(a.timestamp/1000) >= ${inicio}
-      AND FROM_UNIXTIME(a.timestamp/1000) <= ${fin}
+      AND CONVERT_TZ(FROM_UNIXTIME(a.timestamp/1000),'+00:00','-05:00') >= ${inicio}
+      AND CONVERT_TZ(FROM_UNIXTIME(a.timestamp/1000),'+00:00','-05:00') <= ${fin}
       AND a.tipo = 'entrada' AND a.subtipo = 'entrada_turno'
   `) as any;
   const puntTotal = Number(puntRow?.total ?? 0);
