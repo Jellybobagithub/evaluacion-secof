@@ -1,7 +1,7 @@
 import { fetchVentasOdoo } from "./odooService";
 import { enviarReporteDiario, ReporteDiarioData } from "./emailService";
 
-export async function syncVentasDia(fecha: string): Promise<void> {
+export async function syncVentasDia(fecha: string, enviarEmail = true): Promise<void> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
@@ -184,8 +184,8 @@ export async function syncVentasDia(fecha: string): Promise<void> {
     console.log(`[Sync] ${suc.nombre} — ${fecha}: $${ventasTotales.toFixed(0)} MXN (${Object.keys(agrupado).length} productos)`);
   }
 
-  // 7. Enviar correo con reporte de ambas tiendas
-  if (reportesData.length > 0) {
+  // 7. Enviar correo solo cuando se indica (sync nocturno real, no backfill)
+  if (enviarEmail && reportesData.length > 0) {
     await enviarReporteDiario(reportesData);
     console.log(`[Sync] Reporte diario enviado a ${process.env.REPORT_EMAILS}`);
   }

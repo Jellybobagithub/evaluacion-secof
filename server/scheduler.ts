@@ -463,7 +463,7 @@ export function initScheduler() {
         const [[row]] = await db.execute(sql`SELECT id FROM reportes_diarios WHERE sucursalId=30001 AND fecha=${fecha} LIMIT 1`) as any;
         if (!row) {
           console.log(`[Scheduler] Backfill: sincronizando ${fecha}...`);
-          await syncVentasDia(fecha).catch((e: any) => console.error(`[Scheduler] Backfill ${fecha} falló:`, e));
+          await syncVentasDia(fecha, false).catch((e: any) => console.error(`[Scheduler] Backfill ${fecha} falló:`, e));
         }
       }
     } catch (e) {
