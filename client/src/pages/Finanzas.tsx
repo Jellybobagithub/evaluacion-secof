@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { useSucursal } from "@/context/SucursalContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,13 +42,12 @@ function PrecioRow({p, onSave}:{p:any, onSave:(id:number,precio:number)=>void}){
 export default function Finanzas(){
   const hoy=new Date();
   const [periodo,setPeriodo]=useState(`${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,"0")}`);
-  const [sucursalId,setSucursalId]=useState<number|null>(null);
+  const { sucursalId } = useSucursal();
   const [tab,setTab]=useState<"resumen"|"gastos"|"compras"|"precios">("resumen");
   const [lineasGasto,setLineasGasto]=useState<any[]>([]);
   const [gastosEditado,setGastosEditado]=useState(false);
   const [compraForm,setCompraForm]=useState({...COMPRA_VACIA});
 
-  const {data:sucursales=[]}=trpc.sucursales.list.useQuery();
   const utils=trpc.useUtils();
   const {data:resumen,isLoading:loadingResumen}=trpc.finanzas.resumen.useQuery(
     {sucursalId:sucursalId!,periodo},{enabled:!!sucursalId}
@@ -60,6 +60,14 @@ export default function Finanzas(){
   const actualizarPrecio=trpc.finanzas.precios.update.useMutation({
     onSuccess:()=>{utils.finanzas.precios.list.invalidate();toast.success("Precio actualizado");}
   });
+  const guardarGastos=trpc.finanzas.gastos.guardar.useMutation({
+    onSuccess:()=>{utils.finanzas.gastos.getByPeriodo.invalidate();utils.finanzas.resumen.invalidate();setGastosEditado(false);toast.success("Gastos guardados");},
+    onError:(e)=>toast.error("Error al guardar: "+e.message),
+  });
+  const gastosMesAnterior=trpc.finanzas.gastos.getByPeriodo.useQuery(
+    {sucursalId:sucursalId!,periodo:(()=>{const[y,m]=periodo.split("-");const d=new Date(Number(y),Number(m)-2,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`})()},
+    {enabled:!!sucursalId}
+  );
   const guardarCompra=trpc.finanzas.comprasExternas.guardar.useMutation({onSuccess:()=>{
     refetchCompras();utils.finanzas.resumen.invalidate();
     setCompraForm({...COMPRA_VACIA});toast.success("Compra registrada");
@@ -82,20 +90,12 @@ export default function Finanzas(){
         <h1 className="text-xl font-bold">Rentabilidad de Tienda</h1>
       </div>
       <div className="flex gap-3 flex-wrap">
-        <Select onValueChange={v=>setSucursalId(Number(v))}>
-          <SelectTrigger className="w-48"><SelectValue placeholder="Sucursal"/></SelectTrigger>
-          <SelectContent>
-            {(sucursales as any[]).filter((s:any)=>s.activa).map((s:any)=>(
-              <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <Input type="month" value={periodo} onChange={e=>setPeriodo(e.target.value)} className="w-40"/>
       </div>
 
       {!sucursalId && (
         <div className="py-12 text-center text-muted-foreground">
-          Selecciona una sucursal para ver su rentabilidad.
+          Cargando sucursal...
         </div>
       )}
 
@@ -231,6 +231,14 @@ export default function Finanzas(){
                 <p className="text-sm text-muted-foreground">Captura los gastos del mes y presiona "Guardar".</p>
               </CardHeader>
               <CardContent className="space-y-3">
+                {(gastosMesAnterior.data as any[])?.filter((g:any)=>g.tipo==="fijo"||g.tipo==="nomina").length>0 && (
+                  <button onClick={()=>{
+                    const todos=(gastosMesAnterior.data as any[]).map(({concepto,monto,tipo}:any)=>({concepto,monto,tipo}));
+                    setLineasGasto(todos);setGastosEditado(true);
+                  }} className="w-full text-sm border border-dashed border-blue-400 text-blue-600 rounded p-2 hover:bg-blue-50">
+                    📋 Copiar todos los gastos del mes anterior
+                  </button>
+                )}
                 {gastosEditado && (
                   <div className="flex items-center gap-2 p-2 bg-amber-50 rounded text-xs text-amber-700">
                     ⚠️ Cambios sin guardar
@@ -251,7 +259,7 @@ export default function Finanzas(){
                   </div>
                 ))}
                 {gastosEditado && (
-                  <Button onClick={()=>guardarGastos.mutate({sucursalId:sucursalId!,periodo,lineas:lineasGasto})}
+                  <Button onClick={()=>{if(!sucursalId){toast.error("Sin sucursal activa");return;}guardarGastos.mutate({sucursalId,periodo,lineas:lineasGasto.map(l=>({...l,monto:Number(l.monto)}))});}}
                     disabled={guardarGastos.isPending} className="w-full">
                     <Save className="h-4 w-4 mr-2"/>
                     {guardarGastos.isPending?"Guardando...":"Guardar gastos"}

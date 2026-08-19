@@ -43,6 +43,13 @@ export interface OdooSyncResult {
   noMapeados: string[];
 }
 
+// El Odoo compartido tiene varios puntos de venta (POS Pruebas, POS GLT,
+// Tienda de ropa, ademas de este). Sin filtrar por config_id, fetchVentasOdoo
+// sumaba TODOS los POS del sistema a la unica sucursal que reporta secof
+// (Plaza Patio, id 30001) - ej. julio 2026 mostraba $319,231 en vez de los
+// $243,495 reales de Patio, porque incluia los ~$73,076 de POS GLT.
+const ODOO_POS_CONFIG_ID = 2; // "POS Patio Queretaro"
+
 const SKIP = new Set(["Descuento Locatario", "Redondeo", "Envio", "2 x 140 Clasico / Yogurt", "2 x 140 Refresher"]);
 const SABOR_FIX: Record<string, string> = { "Lichi": "Lichie" };
 const PREFIJOS: Record<string, string> = {
@@ -70,14 +77,20 @@ function mapNombre(raw: string): string | null {
 }
 
 export async function fetchVentasOdoo(fechaInicio: string, fechaFin: string): Promise<OdooSyncResult> {
-  const desde = `${fechaInicio} 00:00:00`;
-  const hasta  = `${fechaFin} 23:59:59`;
+  // date_order se guarda en UTC; México CDT = UTC-5 → offset +5h para capturar el día local completo
+  const desde = `${fechaInicio} 05:00:00`;
+  // fin = siguiente día 04:59:59 UTC (= 23:59:59 CDT del día fechaFin)
+  const finD = new Date(fechaFin + "T05:00:00Z");
+  finD.setDate(finD.getDate() + 1);
+  finD.setSeconds(finD.getSeconds() - 1);
+  const hasta = finD.toISOString().replace("T", " ").substring(0, 19);
 
   const lineasOdoo = await callModel("pos.order.line", "search_read", [[
     ["order_id.date_order", ">=", desde],
     ["order_id.date_order", "<=", hasta],
     ["order_id.state", "in", ["done", "invoiced", "paid"]],
-  ]], { fields: ["product_id", "qty", "price_subtotal", "order_id"], limit: 5000 });
+    ["order_id.config_id", "=", ODOO_POS_CONFIG_ID],
+  ]], { fields: ["product_id", "qty", "price_subtotal_incl", "order_id"], limit: 5000 });
 
   const orderIds: number[] = [...new Set(lineasOdoo.map((l: any) => l.order_id[0]))];
   const ordenes = orderIds.length > 0
@@ -85,7 +98,12 @@ export async function fetchVentasOdoo(fechaInicio: string, fechaFin: string): Pr
     : [];
 
   const ordenFecha: Record<number, string> = {};
-  for (const o of ordenes) ordenFecha[o.id] = (o.date_order as string).split(" ")[0];
+  for (const o of ordenes) {
+    // Convertir date_order UTC → fecha local CDT (UTC-5)
+    const utc = new Date((o.date_order as string).replace(" ", "T") + "Z");
+    utc.setHours(utc.getHours() - 5);
+    ordenFecha[o.id] = utc.toISOString().split("T")[0];
+  }
 
   const lineasOut: OdooLinea[] = [];
   const noMapeados = new Set<string>();
@@ -101,7 +119,10 @@ export async function fetchVentasOdoo(fechaInicio: string, fechaFin: string): Pr
       productoNombre: nombreMapeado,
       fecha: ordenFecha[l.order_id[0]] ?? fechaInicio,
       cantidad: Math.round(l.qty),
-      total: l.price_subtotal,
+      // price_subtotal_incl (con IVA) en vez de price_subtotal (neto) para
+      // que ventasTotales coincida con lo que se ve directamente en Odoo -
+      // ver ODOO_POS_CONFIG_ID arriba para el otro ajuste relacionado.
+      total: l.price_subtotal_incl,
     });
   }
 

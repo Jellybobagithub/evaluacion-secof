@@ -23,10 +23,15 @@ export async function syncVentasDia(fecha: string): Promise<void> {
     }
   }
 
-  // ── Leer sucursales activas + meta mensual actual desde BD ───────────────
+  // ── Leer sucursales activas + meta mensual real desde metas_mensuales ────
+  const [yy, mm] = fecha.split("-");
   const sucRows = await db.execute(sql`
-    SELECT id, nombre, COALESCE(metaVentasMensual, 135000) as meta
-    FROM sucursales WHERE activa = 1 AND id = 30001
+    SELECT s.id, s.nombre,
+      COALESCE(
+        (SELECT baseAnterior FROM metas_mensuales WHERE sucursalId=s.id AND anio=${Number(yy)} AND mes=${Number(mm)} LIMIT 1),
+        s.metaVentasMensual, 135000
+      ) as meta
+    FROM sucursales s WHERE s.activa = 1 AND s.id = 30001
   `);
   const SUCURSALES = (sucRows[0] as any[]).map((r: any) => ({
     id: r.id as number,
@@ -70,10 +75,14 @@ export async function syncVentasDia(fecha: string): Promise<void> {
       topProductos.push({ nombre, cantidad: data.cantidad, total: data.total });
       const productoId = prodMap[nombre];
       if (!productoId) continue;
+      // Precio real de Odoo (con IVA) - guardarlo aqui permite que
+      // finanzas.resumen use ingresos reales en vez del precio fijo de
+      // fin_precios_venta (ver conPrecioReal en routers/finanzas.ts).
+      const precioUnitario = data.cantidad > 0 ? data.total / data.cantidad : 0;
       await db.execute(sql`
-        INSERT INTO inv_ventas_captura (sucursalId, fecha, productoVentaId, cantidad, capturoId)
-        VALUES (${suc.id}, ${fecha}, ${productoId}, ${data.cantidad}, 1)
-        ON DUPLICATE KEY UPDATE cantidad = ${data.cantidad}
+        INSERT INTO inv_ventas_captura (sucursalId, fecha, productoVentaId, cantidad, precioUnitario, capturoId)
+        VALUES (${suc.id}, ${fecha}, ${productoId}, ${data.cantidad}, ${precioUnitario}, 1)
+        ON DUPLICATE KEY UPDATE cantidad = ${data.cantidad}, precioUnitario = ${precioUnitario}
       `);
     }
 
@@ -143,12 +152,22 @@ export async function syncVentasDia(fecha: string): Promise<void> {
     `);
     const ventasMes = Number((mesSuma[0] as any[])[0]?.total ?? 0);
 
-    // Tickets del día desde Odoo (aproximado: total líneas únicas por orden)
+    // Tickets del día = total de unidades vendidas (suma de cantidades)
     const ticketsRows = await db.execute(sql`
-      SELECT COUNT(DISTINCT fecha) as cnt FROM inv_ventas_captura
+      SELECT COALESCE(SUM(cantidad),0) as cnt FROM inv_ventas_captura
       WHERE sucursalId = ${suc.id} AND fecha = ${fecha}
     `);
     const tickets = Number((ticketsRows[0] as any[])[0]?.cnt ?? 0);
+
+    // Ventas de ayer
+    const ayerD = new Date(fecha + "T12:00:00");
+    ayerD.setDate(ayerD.getDate() - 1);
+    const fechaAyer = ayerD.toISOString().split("T")[0];
+    const ayerRows = await db.execute(sql`
+      SELECT COALESCE(SUM(ventasTotales),0) as total FROM reportes_diarios
+      WHERE sucursalId = ${suc.id} AND fecha = ${fechaAyer}
+    `);
+    const ventasAyer = Number((ayerRows[0] as any[])[0]?.total ?? 0);
 
     reportesData.push({
       sucursalNombre: suc.nombre,
@@ -157,7 +176,7 @@ export async function syncVentasDia(fecha: string): Promise<void> {
       meta: suc.meta,
       porcentajeMeta: suc.meta > 0 ? (ventasMes / suc.meta) * 100 : 0,
       topProductos,
-      ventasAyer: 0,
+      ventasAyer,
       ventasMismoDiaSemanaPasada: ventasSemAnt,
       tickets,
     });

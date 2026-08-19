@@ -168,11 +168,13 @@ export const finanzasRouter = router({
         cmvJellyboba = Number((cmvJBRows[0] as any[])[0]?.t ?? 0);
       } catch(ejb) { console.error('[Finanzas] cmvJellyboba error:', ejb); }
       try {
-        const cmvRR = await db.execute(sql`SELECT COALESCE(SUM(vc.cantidad*r.cantidad*ic.costoXGramo),0) as t FROM inv_ventas_captura vc JOIN inv_recetas r ON r.productoVentaId=vc.productoVentaId JOIN insumos_costos ic ON ic.id=r.insumoId WHERE vc.sucursalId=${input.sucursalId} AND vc.fecha BETWEEN ${fechaInicio} AND ${fechaFin}`);
+        const cmvRR = await db.execute(sql`SELECT COALESCE(SUM(vc.cantidad*r.cantidadGramos*ic.precioXUnidad),0) as t FROM inv_ventas_captura vc JOIN inv_recetas r ON r.productoVentaId=vc.productoVentaId JOIN insumos_costos ic ON ic.id=r.materiasPrimaId WHERE vc.sucursalId=${input.sucursalId} AND vc.fecha BETWEEN ${fechaInicio} AND ${fechaFin}`);
         cmvRecetas = Number((cmvRR[0] as any[])[0]?.t ?? 0);
+      } catch(e) { console.error('[Finanzas] CMV recetas error:', e); }
+      try {
         const cmvER = await db.execute(sql`SELECT COALESCE(SUM(total),0) as t FROM compras_externas WHERE sucursalId=${input.sucursalId} AND periodo=${input.periodo}`);
         cmvExternas = Number((cmvER[0] as any[])[0]?.t ?? 0);
-      } catch(e) { console.error('[Finanzas] CMV query error:', e); }
+      } catch(e) { console.error('[Finanzas] CMV externas error:', e); }
       // Si hay compras Jellyboba reales, usarlas como CMV principal
       const cmvTotal = cmvJellyboba > 0 ? cmvJellyboba + cmvExternas : cmvRecetas + cmvExternas;
       const utilidadBruta = totalIngresos - cmvTotal;
