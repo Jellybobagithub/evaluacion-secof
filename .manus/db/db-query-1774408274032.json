@@ -1,9 +1,0 @@
-{
-  "query": "\nDELETE FROM puntos_evaluacion\nWHERE id NOT IN (\n  SELECT min_id FROM (\n    SELECT MIN(id) as min_id\n    FROM puntos_evaluacion\n    GROUP BY codigo\n  ) AS keep_ids\n);\n",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute \nDELETE FROM puntos_evaluacion\nWHERE id NOT IN (\n  SELECT min_id FROM (\n    SELECT MIN(id) as min_id\n    FROM puntos_evaluacion\n    GROUP BY codigo\n  ) AS keep_ids\n);\n",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 496
-}

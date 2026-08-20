@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE `puntos_evaluacion` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`codigo` varchar(20) NOT NULL,\n\t`seccionNumero` int NOT NULL,\n\t`seccionNombre` varchar(255) NOT NULL,\n\t`categoria` varchar(100) NOT NULL,\n\t`descripcion` text NOT NULL,\n\t`criterio` text,\n\t`valor` float NOT NULL DEFAULT 5,\n\t`orden` int NOT NULL DEFAULT 0,\n\t`activo` boolean NOT NULL DEFAULT true,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `puntos_evaluacion_id` PRIMARY KEY(`id`)\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4LgaGQV5H5ixgj4.2015af61e74d --database QfTtADnAWRScy5dyYD7o6n --execute CREATE TABLE `puntos_evaluacion` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`codigo` varchar(20) NOT NULL,\n\t`seccionNumero` int NOT NULL,\n\t`seccionNombre` varchar(255) NOT NULL,\n\t`categoria` varchar(100) NOT NULL,\n\t`descripcion` text NOT NULL,\n\t`criterio` text,\n\t`valor` float NOT NULL DEFAULT 5,\n\t`orden` int NOT NULL DEFAULT 0,\n\t`activo` boolean NOT NULL DEFAULT true,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `puntos_evaluacion_id` PRIMARY KEY(`id`)\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 506
-}
