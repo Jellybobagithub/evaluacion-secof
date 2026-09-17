@@ -14,6 +14,9 @@ build/
 .env.test.local
 .env.production.local
 
+# PM2 config con secretos en texto plano (ver ecosystem.config.example.cjs)
+ecosystem.config.cjs
+
 # IDE and editor files
 .vscode/
 .idea/
