@@ -1,4 +1,21 @@
-# ESTADO SECOF — 16 sep 2026
+# ESTADO SECOF — 17 sep 2026
+
+## ✅ RESUELTO 2026-09-17 — ecosystem.config.cjs fuera de git + 3 secretos rotados
+`ecosystem.config.cjs` (con `DATABASE_URL`/`JWT_SECRET`/`GOOGLE_CLIENT_SECRET`
+en texto plano) estaba trackeado en git desde mayo — se sacó del tracking
+(`.gitignore` + `ecosystem.config.example.cjs` sin secretos, commit local
+`faac7b5`, sin pushear). Se rotaron los 3 secretos y ahora viven SOLO en
+`.env` (`ecosystem.config.cjs` ya no carga ninguno). **Gotcha real
+encontrado**: `pm2 restart --update-env` NO limpia env vars quitadas del
+archivo (solo agrega/actualiza, nunca borra) — quedó sirviendo el password
+viejo hasta hacer `pm2 delete secof && pm2 start ecosystem.config.cjs` (arranque
+limpio). **Bug latente destapado** por rotar `JWT_SECRET` (forzó
+re-login a todos): `VITE_APP_ID` nunca estuvo seteado → `appId` del JWT
+siempre vacío → `verifySession` lo rechazaba → login válido pero rebotaba a
+inicio. Fix: `VITE_APP_ID=secof` agregado a `.env`. Login real probado y
+confirmado por Miguel end-to-end. Pendiente: deshabilitar en Google Cloud
+Console el secreto viejo `****LYwh` (el nuevo ya está en uso) — Miguel debe
+hacerlo desde la consola.
 
 ## 🔴 INCIDENTE RESUELTO 2026-09-16 — nadie podía entrar (login con Google regresaba a inicio)
 Causa: `DATABASE_URL` vivía en **3 lugares distintos y desincronizados** —
