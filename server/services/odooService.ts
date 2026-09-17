@@ -35,8 +35,16 @@ export interface OdooLinea {
   total: number;
 }
 
+export interface OdooPago {
+  fecha: string;
+  metodo: string;
+  esEfectivo: boolean;
+  monto: number;
+}
+
 export interface OdooSyncResult {
   lineas: OdooLinea[];
+  pagos: OdooPago[];
   totalRegistros: number;
   fechaInicio: string;
   fechaFin: string;
@@ -126,7 +134,35 @@ export async function fetchVentasOdoo(fechaInicio: string, fechaFin: string): Pr
     });
   }
 
-  return { lineas: lineasOut, totalRegistros: lineasOut.length, fechaInicio, fechaFin, noMapeados: [...noMapeados] };
+  // Desglose por medio de pago (pos.payment) para las mismas órdenes.
+  // is_cash_count en pos.payment.method distingue efectivo (CashDro) de
+  // tarjeta/otros (Tarjeta Debito/Credito, Uber Eats, Rappi) sin hardcodear
+  // nombres — si se agrega/renombra un método en Odoo, sigue clasificando bien.
+  const pagos: OdooPago[] = [];
+  if (orderIds.length > 0) {
+    const pagosOdoo = await callModel("pos.payment", "search_read", [[
+      ["pos_order_id", "in", orderIds],
+    ]], { fields: ["pos_order_id", "payment_method_id", "amount"], limit: 5000 });
+
+    const metodoIds: number[] = [...new Set(pagosOdoo.map((p: any) => p.payment_method_id[0]))];
+    const metodos = metodoIds.length > 0
+      ? await callModel("pos.payment.method", "search_read", [[["id", "in", metodoIds]]], { fields: ["id", "name", "is_cash_count"] })
+      : [];
+    const metodoMap: Record<number, { nombre: string; esEfectivo: boolean }> = {};
+    for (const m of metodos) metodoMap[m.id] = { nombre: m.name, esEfectivo: m.is_cash_count };
+
+    for (const p of pagosOdoo) {
+      const metodoId = p.payment_method_id[0];
+      pagos.push({
+        fecha: ordenFecha[p.pos_order_id[0]] ?? fechaInicio,
+        metodo: metodoMap[metodoId]?.nombre ?? p.payment_method_id[1],
+        esEfectivo: metodoMap[metodoId]?.esEfectivo ?? false,
+        monto: p.amount,
+      });
+    }
+  }
+
+  return { lineas: lineasOut, pagos, totalRegistros: lineasOut.length, fechaInicio, fechaFin, noMapeados: [...noMapeados] };
 }
 
 export async function testConexion(): Promise<{ ok: boolean; uid: number | null; error?: string }> {

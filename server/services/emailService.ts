@@ -20,6 +20,9 @@ export interface ReporteDiarioData {
   ventasAyer: number;
   ventasMismoDiaSemanaPasada: number;
   tickets: number;
+  efectivo: number;
+  tarjetaOtro: number;
+  desglosePagos: { metodo: string; monto: number }[];
 }
 
 function formatMXN(n: number) {
@@ -54,6 +57,15 @@ export function buildReporteHtml(data: ReporteDiarioData[]): string {
       ? `<span style="color:${delta >= 0 ? "#16a34a" : "#dc2626"};font-weight:600">${delta >= 0 ? "▲" : "▼"} ${Math.abs(delta)}% vs semana pasada</span>`
       : "";
 
+    const pctEfectivo = s.ventasTotales > 0 ? Math.round((s.efectivo / s.ventasTotales) * 100) : 0;
+    const pctTarjetaOtro = s.ventasTotales > 0 ? Math.round((s.tarjetaOtro / s.ventasTotales) * 100) : 0;
+    const pagoRows = s.desglosePagos.map(p =>
+      `<tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:6px 8px;font-size:13px">${p.metodo}</td>
+        <td style="padding:6px 8px;text-align:right;font-weight:500">${formatMXN(p.monto)}</td>
+      </tr>`
+    ).join("");
+
     const topRows = s.topProductos.slice(0, 5).map((p, i) =>
       `<tr style="border-bottom:1px solid #f3f4f6">
         <td style="padding:6px 8px;color:#6b7280">${i + 1}</td>
@@ -80,6 +92,23 @@ export function buildReporteHtml(data: ReporteDiarioData[]): string {
           ${barMeta(pct)}
         </div>
       </div>
+
+      <h3 style="margin:0 0 8px;font-size:14px;color:#374151">Medios de pago</h3>
+      <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px;background:#fefce8;border-radius:8px;padding:14px">
+          <div style="font-size:11px;color:#a16207;font-weight:600;text-transform:uppercase;margin-bottom:4px">💵 Efectivo</div>
+          <div style="font-size:20px;font-weight:700;color:#111827">${formatMXN(s.efectivo)}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px">${pctEfectivo}% del día</div>
+        </div>
+        <div style="flex:1;min-width:140px;background:#eff6ff;border-radius:8px;padding:14px">
+          <div style="font-size:11px;color:#1d4ed8;font-weight:600;text-transform:uppercase;margin-bottom:4px">💳 Tarjeta / otros</div>
+          <div style="font-size:20px;font-weight:700;color:#111827">${formatMXN(s.tarjetaOtro)}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:2px">${pctTarjetaOtro}% del día</div>
+        </div>
+      </div>
+      ${pagoRows ? `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
+        <tbody>${pagoRows}</tbody>
+      </table>` : ""}
 
       <h3 style="margin:0 0 8px;font-size:14px;color:#374151">Top 5 productos</h3>
       <table style="width:100%;border-collapse:collapse;font-size:13px">

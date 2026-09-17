@@ -793,23 +793,28 @@ export const inventarioRouter = router({
         const noMapeados = new Set<string>();
 
         // Agrupar por fecha+producto
-        const agrupado: Record<string, number> = {};
+        const agrupado: Record<string, { cantidad: number; total: number }> = {};
         for (const l of odoo.lineas) {
           const key = `${l.fecha}|||${l.productoNombre}`;
-          agrupado[key] = (agrupado[key] || 0) + l.cantidad;
+          if (!agrupado[key]) agrupado[key] = { cantidad: 0, total: 0 };
+          agrupado[key].cantidad += l.cantidad;
+          agrupado[key].total    += l.total;
         }
 
-        for (const [key, cantidad] of Object.entries(agrupado)) {
+        for (const [key, data] of Object.entries(agrupado)) {
           const [fecha, nombre] = key.split("|||");
           const productoId = prodMap[nombre];
           if (!productoId) {
             noMapeados.add(nombre);
             continue;
           }
+          // Precio real de Odoo (con IVA) - ver mismo comentario en
+          // syncService.ts. Permite que finanzas.resumen use ingresos reales.
+          const precioUnitario = data.cantidad > 0 ? data.total / data.cantidad : 0;
           await db.execute(sql`
-            INSERT INTO inv_ventas_captura (sucursalId, fecha, productoVentaId, cantidad, capturoId)
-            VALUES (${input.sucursalId}, ${fecha}, ${productoId}, ${cantidad}, ${ctx.user.id})
-            ON DUPLICATE KEY UPDATE cantidad = ${cantidad}, capturoId = ${ctx.user.id}
+            INSERT INTO inv_ventas_captura (sucursalId, fecha, productoVentaId, cantidad, precioUnitario, capturoId)
+            VALUES (${input.sucursalId}, ${fecha}, ${productoId}, ${data.cantidad}, ${precioUnitario}, ${ctx.user.id})
+            ON DUPLICATE KEY UPDATE cantidad = ${data.cantidad}, precioUnitario = ${precioUnitario}, capturoId = ${ctx.user.id}
           `);
           insertados++;
         }

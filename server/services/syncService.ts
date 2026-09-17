@@ -70,6 +70,20 @@ export async function syncVentasDia(fecha: string, enviarEmail = true): Promise<
     let ventasTotales = 0;
     const topProductos: { nombre: string; cantidad: number; total: number }[] = [];
 
+    // Desglose de pagos del día por medio de pago (efectivo vs tarjeta/otros)
+    let efectivo = 0;
+    let tarjetaOtro = 0;
+    const desglosePagos: Record<string, number> = {};
+    for (const p of odoo.pagos) {
+      if (p.fecha !== fecha) continue;
+      if (p.esEfectivo) efectivo += p.monto;
+      else tarjetaOtro += p.monto;
+      desglosePagos[p.metodo] = (desglosePagos[p.metodo] || 0) + p.monto;
+    }
+    const desglosePagosArr = Object.entries(desglosePagos)
+      .map(([metodo, monto]) => ({ metodo, monto }))
+      .sort((a, b) => b.monto - a.monto);
+
     for (const [nombre, data] of Object.entries(agrupado)) {
       ventasTotales += data.total;
       topProductos.push({ nombre, cantidad: data.cantidad, total: data.total });
@@ -179,9 +193,13 @@ export async function syncVentasDia(fecha: string, enviarEmail = true): Promise<
       ventasAyer,
       ventasMismoDiaSemanaPasada: ventasSemAnt,
       tickets,
+      efectivo,
+      tarjetaOtro,
+      desglosePagos: desglosePagosArr,
     });
 
-    console.log(`[Sync] ${suc.nombre} — ${fecha}: $${ventasTotales.toFixed(0)} MXN (${Object.keys(agrupado).length} productos)`);
+    if (odoo.noMapeados.length > 0) console.warn(`[Sync] Productos NO mapeados ${fecha}:`, odoo.noMapeados);
+    console.log(`[Sync] ${suc.nombre} — ${fecha}: $${ventasTotales.toFixed(0)} MXN con IVA (${Object.keys(agrupado).length} productos mapeados)`);
   }
 
   // 7. Enviar correo solo cuando se indica (sync nocturno real, no backfill)
