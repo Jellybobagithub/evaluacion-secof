@@ -13,9 +13,9 @@ limpio). **Bug latente destapado** por rotar `JWT_SECRET` (forzó
 re-login a todos): `VITE_APP_ID` nunca estuvo seteado → `appId` del JWT
 siempre vacío → `verifySession` lo rechazaba → login válido pero rebotaba a
 inicio. Fix: `VITE_APP_ID=secof` agregado a `.env`. Login real probado y
-confirmado por Miguel end-to-end. Pendiente: deshabilitar en Google Cloud
-Console el secreto viejo `****LYwh` (el nuevo ya está en uso) — Miguel debe
-hacerlo desde la consola.
+confirmado por Miguel end-to-end. Secreto viejo de Google `****LYwh`
+deshabilitado por Miguel en la consola — cierre completo del incidente de
+exposición de secretos.
 
 ## 🔴 INCIDENTE RESUELTO 2026-09-16 — nadie podía entrar (login con Google regresaba a inicio)
 Causa: `DATABASE_URL` vivía en **3 lugares distintos y desincronizados** —
