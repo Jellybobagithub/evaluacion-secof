@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    # Un push que solo toca documentación NO despliega ni reinicia SECOF (evita reinicios de producción por texto).
+    paths-ignore:
+      - '**.md'
 
 jobs:
   deploy:
